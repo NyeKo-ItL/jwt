@@ -62,7 +62,7 @@ func NewNumericDate(t time.Time) *NumericDate {
 
 // MarshalJSON emits the value as integer seconds since the Unix epoch.
 func (n NumericDate) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.FormatInt(n.Time.Unix(), 10)), nil
+	return []byte(strconv.FormatInt(n.Unix(), 10)), nil
 }
 
 // UnmarshalJSON accepts a JSON number (integer or fractional seconds), the

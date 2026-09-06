@@ -36,8 +36,7 @@ func TestFromECDSAPublicKeyRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", priv.Curve.Params().Name, err)
 		}
-		ep := pub.(*ecdsa.PublicKey)
-		if ep.X.Cmp(priv.X) != 0 || ep.Y.Cmp(priv.Y) != 0 || ep.Curve != priv.Curve {
+		if !pub.(*ecdsa.PublicKey).Equal(&priv.PublicKey) {
 			t.Fatalf("%s: EC key material mismatch", priv.Curve.Params().Name)
 		}
 	}

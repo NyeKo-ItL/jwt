@@ -63,7 +63,7 @@ func TestParseSEC1ECPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.D.Cmp(tk.p384.D) != 0 {
+	if !got.Equal(tk.p384) {
 		t.Fatal("scalar mismatch")
 	}
 	if _, err := ParseSEC1ECPrivateKey([]byte("nope")); !errors.Is(err, ErrMalformedKey) {
@@ -235,8 +235,8 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 				if !ok {
 					t.Fatalf("got %T", signer)
 				}
-				if !k.Curve.IsOnCurve(k.X, k.Y) {
-					t.Fatal("public point not on curve")
+				if _, err := k.PublicKey.Bytes(); err != nil {
+					t.Fatalf("public point invalid: %v", err)
 				}
 				h := msg
 				r, s, err := ecdsa.Sign(rand.Reader, k, h)
@@ -266,12 +266,6 @@ func TestParseOpenSSHPrivateKeyRejects(t *testing.T) {
 	copy(enc[len(opensshMagic)+4:], []byte("aead"))
 	if _, err := ParseOpenSSHPrivateKey(enc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("encrypted-key err = %v", err)
-	}
-}
-
-func TestUncompressedPointRejectsBad(t *testing.T) {
-	if _, _, err := uncompressedPoint(elliptic.P256(), []byte{1, 2, 3}); !errors.Is(err, ErrMalformedKey) {
-		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -364,21 +358,24 @@ func TestParseOpenSSHSyntheticP384AndP521(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		size := (tc.curve.Params().BitSize + 7) / 8
-		point := []byte{4}
-		point = append(point, leftPad(key.X.Bytes(), size)...)
-		point = append(point, leftPad(key.Y.Bytes(), size)...)
-
+		point, err := key.PublicKey.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		scalar, err := key.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
 		body := append(sshString([]byte(tc.curveID)), sshString(point)...)
-		body = append(body, sshString(key.D.Bytes())...)
+		body = append(body, sshString(scalar)...)
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-"+tc.curveID, nil, body, false)
 
 		got, err := ParseOpenSSHPrivateKey(blob)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.curveID, err)
 		}
-		if got.(*ecdsa.PrivateKey).D.Cmp(key.D) != 0 {
-			t.Fatalf("%s: D mismatch", tc.curveID)
+		if !got.(*ecdsa.PrivateKey).Equal(key) {
+			t.Fatalf("%s: scalar mismatch", tc.curveID)
 		}
 	}
 }

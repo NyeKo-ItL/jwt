@@ -116,16 +116,17 @@ func FromRSAPublicKey(pub *rsa.PublicKey, kid string) Key {
 	}
 }
 
-// FromECDSAPublicKey builds a "sig" JWK from an ECDSA public key.
+// FromECDSAPublicKey builds a "sig" JWK from an ECDSA public key. If the
+// point is invalid the coordinate fields are left empty and the failure
+// surfaces later, at PublicKey/Verifier time.
 func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid string) Key {
+	k := Key{Kty: KeyTypeEC, Kid: kid, crv: curveName(pub.Curve)}
 	size := (pub.Curve.Params().BitSize + 7) / 8
-	return Key{
-		Kty: KeyTypeEC,
-		Kid: kid,
-		crv: curveName(pub.Curve),
-		x:   leftPad(pub.X.Bytes(), size),
-		y:   leftPad(pub.Y.Bytes(), size),
+	if b, err := pub.Bytes(); err == nil && len(b) == 1+2*size {
+		k.x = append([]byte(nil), b[1:1+size]...)
+		k.y = append([]byte(nil), b[1+size:]...)
 	}
+	return k
 }
 
 // FromEd25519PublicKey builds a "sig" JWK from an Ed25519 public key.
@@ -165,11 +166,20 @@ func (k Key) PublicKey() (crypto.PublicKey, error) {
 		if c == nil || len(k.x) == 0 || len(k.y) == 0 {
 			return nil, ErrMalformedKey
 		}
-		return &ecdsa.PublicKey{
-			Curve: c,
-			X:     new(big.Int).SetBytes(k.x),
-			Y:     new(big.Int).SetBytes(k.y),
-		}, nil
+		size := (c.Params().BitSize + 7) / 8
+		x, y := leftPad(k.x, size), leftPad(k.y, size)
+		if len(x) != size || len(y) != size {
+			return nil, ErrMalformedKey
+		}
+		uncompressed := make([]byte, 0, 1+2*size)
+		uncompressed = append(uncompressed, 4)
+		uncompressed = append(uncompressed, x...)
+		uncompressed = append(uncompressed, y...)
+		pub, err := ecdsa.ParseUncompressedPublicKey(c, uncompressed)
+		if err != nil {
+			return nil, ErrMalformedKey
+		}
+		return pub, nil
 	case KeyTypeOKP:
 		if k.crv != "Ed25519" || len(k.x) != ed25519.PublicKeySize {
 			return nil, ErrMalformedKey

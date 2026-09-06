@@ -102,7 +102,7 @@ func Parse[T any](ctx context.Context, token string, keys KeyProvider, opts ...P
 	}
 	var header Header
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return nil, fmt.Errorf("%w: header JSON: %v", ErrMalformedToken, err)
+		return nil, fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
 	}
 	if header.Algorithm == "" || strings.EqualFold(string(header.Algorithm), "none") {
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
@@ -136,7 +136,7 @@ func Parse[T any](ctx context.Context, token string, keys KeyProvider, opts ...P
 	}
 	var claims Claims[T]
 	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %v", ErrMalformedToken, err)
+		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	if err := validateClaims(payloadJSON, &claims.RegisteredClaims, header, cfg); err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func ParseInsecure[T any](token string) (*Claims[T], error) {
 	}
 	var claims Claims[T]
 	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %v", ErrMalformedToken, err)
+		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	return &claims, nil
 }
@@ -241,7 +241,7 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 	if len(cfg.requiredClaims) > 0 {
 		present := map[string]json.RawMessage{}
 		if err := json.Unmarshal(raw, &present); err != nil {
-			return fmt.Errorf("%w: payload JSON: %v", ErrMalformedToken, err)
+			return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 		}
 		for _, name := range cfg.requiredClaims {
 			if _, ok := present[name]; !ok {

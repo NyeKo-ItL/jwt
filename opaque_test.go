@@ -40,7 +40,7 @@ func TestDeriveOpaqueToken(t *testing.T) {
 	if got.Hash != Hash("existing-secret") {
 		t.Fatal("Hash mismatch")
 	}
-	if DeriveOpaqueToken("x").Hash != DeriveOpaqueToken("x").Hash {
+	if a, b := DeriveOpaqueToken("x"), DeriveOpaqueToken("x"); a != b {
 		t.Fatal("derivation is not deterministic")
 	}
 	if !Equal(got.Hash, "existing-secret") {

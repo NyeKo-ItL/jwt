@@ -230,7 +230,7 @@ func DecryptClaims[T any](ctx context.Context, compact string, dec Decrypter, op
 	}
 	var claims Claims[T]
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %v", ErrMalformedToken, err)
+		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {

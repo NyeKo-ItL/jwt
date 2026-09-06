@@ -113,13 +113,13 @@ func TestNumericDateUnmarshal(t *testing.T) {
 			t.Fatalf("UnmarshalJSON(%q): %v", c.in, err)
 		}
 		if c.noChange {
-			if !n.Time.IsZero() {
+			if !n.IsZero() {
 				t.Fatalf("UnmarshalJSON(%q) changed a zero value to %v", c.in, n.Time)
 			}
 			continue
 		}
-		if n.Time.Unix() != c.wantUnix {
-			t.Fatalf("UnmarshalJSON(%q) = %d, want %d", c.in, n.Time.Unix(), c.wantUnix)
+		if n.Unix() != c.wantUnix {
+			t.Fatalf("UnmarshalJSON(%q) = %d, want %d", c.in, n.Unix(), c.wantUnix)
 		}
 	}
 }
@@ -129,8 +129,8 @@ func TestNumericDateFractional(t *testing.T) {
 	if err := n.UnmarshalJSON([]byte("1.5")); err != nil {
 		t.Fatal(err)
 	}
-	if n.Time.Nanosecond() != 500_000_000 {
-		t.Fatalf("fractional seconds lost: %d ns", n.Time.Nanosecond())
+	if n.Nanosecond() != 500_000_000 {
+		t.Fatalf("fractional seconds lost: %d ns", n.Nanosecond())
 	}
 }
 
@@ -172,7 +172,7 @@ func TestClaimsFlattenRoundTrip(t *testing.T) {
 	if out.Issuer != in.Issuer || out.ID != in.ID || out.Custom != in.Custom {
 		t.Fatalf("round trip mismatch: %+v vs %+v", out, in)
 	}
-	if !out.ExpiresAt.Time.Equal(in.ExpiresAt.Time) {
+	if !out.ExpiresAt.Equal(in.ExpiresAt.Time) {
 		t.Fatalf("exp round trip mismatch: %v vs %v", out.ExpiresAt, in.ExpiresAt)
 	}
 }

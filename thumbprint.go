@@ -81,7 +81,7 @@ func digestThumbprint(canonical string, hash crypto.Hash) (string, error) {
 func ParseKey(data []byte) (Key, error) {
 	var k Key
 	if err := k.UnmarshalJSON(data); err != nil {
-		return Key{}, fmt.Errorf("%w: %v", ErrMalformedKey, err)
+		return Key{}, fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
 	if k.Kty == "" {
 		return Key{}, fmt.Errorf("%w: JWK has no \"kty\"", ErrMalformedKey)

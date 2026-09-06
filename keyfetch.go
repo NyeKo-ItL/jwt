@@ -147,14 +147,14 @@ func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes in
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("%w: %v", ErrMalformedKey, err)
+		return nil, 0, fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
 	req.Header.Set("Accept", "application/jwk-set+json, application/json")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("jwt: fetching JWKS: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("jwt: fetching JWKS: unexpected status %s", resp.Status)
 	}
@@ -175,7 +175,7 @@ func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes in
 func requireHTTPS(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrMalformedKey, err)
+		return fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
 	if u.Scheme != "https" {
 		return fmt.Errorf("%w: JWKS URI must be https, got %q", ErrMalformedKey, u.Scheme)
@@ -214,12 +214,12 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (s
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+wellKnownOpenIDConfig, nil)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrMalformedKey, err)
+		return "", fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err == nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode == http.StatusOK {
 			var doc struct {
 				JWKSURI string `json:"jwks_uri"`

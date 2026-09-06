@@ -25,7 +25,7 @@ import (
 func ParsePKCS8PrivateKey(der []byte) (crypto.Signer, error) {
 	key, err := x509.ParsePKCS8PrivateKey(der)
 	if err != nil {
-		return nil, fmt.Errorf("%w: PKCS#8: %v", ErrMalformedKey, err)
+		return nil, fmt.Errorf("%w: PKCS#8: %w", ErrMalformedKey, err)
 	}
 	signer, ok := key.(crypto.Signer)
 	if !ok {
@@ -38,7 +38,7 @@ func ParsePKCS8PrivateKey(der []byte) (crypto.Signer, error) {
 func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
 	key, err := x509.ParsePKCS1PrivateKey(der)
 	if err != nil {
-		return nil, fmt.Errorf("%w: PKCS#1: %v", ErrMalformedKey, err)
+		return nil, fmt.Errorf("%w: PKCS#1: %w", ErrMalformedKey, err)
 	}
 	return key, nil
 }
@@ -47,7 +47,7 @@ func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
 func ParseSEC1ECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
 	key, err := x509.ParseECPrivateKey(der)
 	if err != nil {
-		return nil, fmt.Errorf("%w: SEC1: %v", ErrMalformedKey, err)
+		return nil, fmt.Errorf("%w: SEC1: %w", ErrMalformedKey, err)
 	}
 	return key, nil
 }
@@ -57,7 +57,7 @@ func ParseSEC1ECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
 func ParsePKIXPublicKey(der []byte) (crypto.PublicKey, error) {
 	key, err := x509.ParsePKIXPublicKey(der)
 	if err != nil {
-		return nil, fmt.Errorf("%w: PKIX: %v", ErrMalformedKey, err)
+		return nil, fmt.Errorf("%w: PKIX: %w", ErrMalformedKey, err)
 	}
 	return key, nil
 }
@@ -115,7 +115,7 @@ func ParseOpenSSHPrivateKey(raw []byte) (crypto.Signer, error) {
 	r.str() // public key
 	priv := r.str()
 	if r.err != nil {
-		return nil, fmt.Errorf("%w: truncated OpenSSH header: %v", ErrMalformedKey, r.err)
+		return nil, fmt.Errorf("%w: truncated OpenSSH header: %w", ErrMalformedKey, r.err)
 	}
 	if cipher != "none" || kdf != "none" {
 		return nil, fmt.Errorf("%w: encrypted OpenSSH keys are not supported", ErrMalformedKey)
@@ -125,7 +125,8 @@ func ParseOpenSSHPrivateKey(raw []byte) (crypto.Signer, error) {
 	}
 
 	p := &sshBuf{b: priv}
-	if p.u32() != p.u32() {
+	check1, check2 := p.u32(), p.u32()
+	if check1 != check2 {
 		return nil, fmt.Errorf("%w: OpenSSH check integers differ (wrong passphrase or corrupt)", ErrMalformedKey)
 	}
 	keyType := string(p.str())
@@ -134,7 +135,7 @@ func ParseOpenSSHPrivateKey(raw []byte) (crypto.Signer, error) {
 		return nil, err
 	}
 	if p.err != nil {
-		return nil, fmt.Errorf("%w: truncated OpenSSH private section: %v", ErrMalformedKey, p.err)
+		return nil, fmt.Errorf("%w: truncated OpenSSH private section: %w", ErrMalformedKey, p.err)
 	}
 	return signer, nil
 }
@@ -145,7 +146,7 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 		p.str() // public key (32 bytes)
 		priv := p.str()
 		if p.err != nil {
-			return nil, fmt.Errorf("%w: OpenSSH Ed25519: %v", ErrMalformedKey, p.err)
+			return nil, fmt.Errorf("%w: OpenSSH Ed25519: %w", ErrMalformedKey, p.err)
 		}
 		if len(priv) != ed25519.PrivateKeySize {
 			return nil, fmt.Errorf("%w: OpenSSH Ed25519 private key is %d bytes", ErrMalformedKey, len(priv))
@@ -160,7 +161,7 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 		primeP := p.mpint()
 		primeQ := p.mpint()
 		if p.err != nil {
-			return nil, fmt.Errorf("%w: OpenSSH RSA: %v", ErrMalformedKey, p.err)
+			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", ErrMalformedKey, p.err)
 		}
 		key := &rsa.PrivateKey{
 			N: n, E: int(e.Int64()),
@@ -168,7 +169,7 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 			Primes: []*big.Int{primeP, primeQ},
 		}
 		if err := key.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: OpenSSH RSA: %v", ErrMalformedKey, err)
+			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", ErrMalformedKey, err)
 		}
 		key.Precompute()
 		return key, nil
@@ -178,20 +179,24 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 		point := p.str()
 		d := p.mpint()
 		if p.err != nil {
-			return nil, fmt.Errorf("%w: OpenSSH ECDSA: %v", ErrMalformedKey, p.err)
+			return nil, fmt.Errorf("%w: OpenSSH ECDSA: %w", ErrMalformedKey, p.err)
 		}
 		curve := sshCurve(curveID)
 		if curve == nil {
 			return nil, fmt.Errorf("%w: unknown OpenSSH EC curve %q", ErrMalformedKey, curveID)
 		}
-		x, y, err := uncompressedPoint(curve, point)
-		if err != nil {
-			return nil, err
+		size := (curve.Params().BitSize + 7) / 8
+		if len(point) != 1+2*size || point[0] != 4 {
+			return nil, fmt.Errorf("%w: malformed OpenSSH EC point", ErrMalformedKey)
 		}
-		return &ecdsa.PrivateKey{
-			Curve: curve, X: x, Y: y,
-			D: d,
-		}, nil
+		priv, err := ecdsa.ParseRawPrivateKey(curve, leftPad(d.Bytes(), size))
+		if err != nil {
+			return nil, fmt.Errorf("%w: OpenSSH ECDSA: %w", ErrMalformedKey, err)
+		}
+		if pub, err := priv.PublicKey.Bytes(); err != nil || !bytes.Equal(pub, point) {
+			return nil, fmt.Errorf("%w: OpenSSH ECDSA public point does not match the scalar", ErrMalformedKey)
+		}
+		return priv, nil
 
 	default:
 		return nil, fmt.Errorf("%w: unsupported OpenSSH key type %q", ErrMalformedKey, keyType)
@@ -209,16 +214,6 @@ func sshCurve(id string) elliptic.Curve {
 	default:
 		return nil
 	}
-}
-
-// uncompressedPoint decodes an SEC1 uncompressed point (0x04 || X || Y)
-// without the deprecated elliptic.Unmarshal.
-func uncompressedPoint(curve elliptic.Curve, b []byte) (x, y *big.Int, err error) {
-	size := (curve.Params().BitSize + 7) / 8
-	if len(b) != 1+2*size || b[0] != 4 {
-		return nil, nil, fmt.Errorf("%w: malformed EC point", ErrMalformedKey)
-	}
-	return new(big.Int).SetBytes(b[1 : 1+size]), new(big.Int).SetBytes(b[1+size:]), nil
 }
 
 // sshBuf reads the SSH wire types (RFC 4251 §5) from a byte slice, latching

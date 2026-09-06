@@ -98,7 +98,7 @@ func ParseKeySet(data []byte) (*KeySet, error) {
 		Keys []json.RawMessage `json:"keys"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("%w: JWKS document: %v", ErrMalformedKey, err)
+		return nil, fmt.Errorf("%w: JWKS document: %w", ErrMalformedKey, err)
 	}
 	if doc.Keys == nil {
 		return nil, fmt.Errorf("%w: JWKS document has no \"keys\" array", ErrMalformedKey)
@@ -107,7 +107,7 @@ func ParseKeySet(data []byte) (*KeySet, error) {
 	for i, raw := range doc.Keys {
 		k, err := ParseKey(raw)
 		if err != nil {
-			return nil, fmt.Errorf("%w: JWKS key #%d: %v", ErrMalformedKey, i, err)
+			return nil, fmt.Errorf("%w: JWKS key #%d: %w", ErrMalformedKey, i, err)
 		}
 		s.Add(k)
 	}
