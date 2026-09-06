@@ -46,6 +46,19 @@ jobs:
           cache-dependency-path: go.mod
       - run: go test -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 30s .
 
+  interop:
+    # Cross-checks against golang-jwt/jwt/v5 and go-jose/go-jose/v4. Its own
+    # module, so those deps never reach importers of the main package.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: interop/go.sum
+      - run: cd interop && go test ./...
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -67,3 +80,79 @@ jobs:
           go-version: "1.27"
           cache-dependency-path: go.mod
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  apidiff:
+    # Semver gate: dormant until a v1.0.0+ release tag exists; then compares
+    # the working tree against the latest release and reports the minimum
+    # bump required (patch / minor / major). Fails only on an incompatible
+    # (major) change.
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: go.mod
+      - name: API compatibility vs latest release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest=$(git tag -l --sort=-v:refname \
+            | grep -E '^v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$latest" ]; then
+            echo "No v1.0.0+ release tag yet — apidiff gate is dormant." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Baseline release: $latest"
+
+          go install golang.org/x/exp/cmd/apidiff@latest
+          apidiff="$(go env GOPATH)/bin/apidiff"
+          module=$(go list -m)
+          base="$RUNNER_TEMP/base"
+          report="$RUNNER_TEMP/report.txt"
+
+          git worktree add --detach "$base" "$latest"
+          if ! ( cd "$base" && "$apidiff" -m -w "$RUNNER_TEMP/base.api" "$module" ); then
+            echo "Could not analyze baseline $latest — skipping the gate." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            git worktree remove --force "$base"
+            exit 0
+          fi
+          "$apidiff" -m "$RUNNER_TEMP/base.api" "$module" 2>/dev/null > "$report" || true
+          git worktree remove --force "$base"
+
+          IFS=. read -r maj min pat <<<"${latest#v}"
+          if grep -q '^Incompatible changes:' "$report"; then
+            verdict=major; next="v$((maj + 1)).0.0"
+          elif grep -q '^Compatible changes:' "$report" || [ -s "$report" ]; then
+            verdict=minor; next="v${maj}.$((min + 1)).0"
+          else
+            verdict=patch; next="v${maj}.${min}.$((pat + 1))"
+          fi
+
+          {
+            echo "## API diff vs \`$latest\`"
+            echo
+            case "$verdict" in
+              patch)
+                echo "✅ **No exported API change.** A **patch** release (\`$next\`) covers bug fixes only." ;;
+              minor)
+                echo "➕ **Backwards-compatible additions only.** Needs at least a **minor** release: \`$next\`."
+                echo; echo '```'; cat "$report"; echo '```' ;;
+              major)
+                echo "⛔ **Incompatible API changes.** These require a **major** release: \`$next\`."
+                echo; echo '```'; cat "$report"; echo '```' ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "verdict=$verdict  suggested next tag=$next"
+          if [ "$verdict" = major ]; then
+            echo "::error::Incompatible API change vs ${latest}: the next release must be ${next} (major bump). See the job summary."
+            exit 1
+          fi
