@@ -28,8 +28,8 @@ func aesKWWrap(kek, plaintext []byte) ([]byte, error) {
 	}
 	a := append([]byte(nil), aesKWDefaultIV...)
 	buf := make([]byte, 16)
-	for j := 0; j < 6; j++ {
-		for i := 0; i < n; i++ {
+	for j := range 6 {
+		for i := range n {
 			copy(buf[:8], a)
 			copy(buf[8:], r[i])
 			block.Encrypt(buf, buf)

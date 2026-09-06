@@ -12,7 +12,7 @@ import (
 func FuzzParse(f *testing.F) {
 	tk := newTestKeys(f)
 	signer, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	seed, _ := Sign(Claims[appClaims]{RegisteredClaims: RegisteredClaims{Subject: "seed"}}, signer)
+	seed, _ := Sign(Claims[appClaims]{Subject: "seed"}, signer)
 	f.Add(seed)
 	f.Add("")
 	f.Add("a.b.c")
@@ -28,7 +28,7 @@ func FuzzParse(f *testing.F) {
 func FuzzDecryptClaims(f *testing.F) {
 	tk := newTestKeys(f)
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "k1")
-	seed, _ := EncryptClaims(Claims[appClaims]{RegisteredClaims: RegisteredClaims{Subject: "seed"}}, enc)
+	seed, _ := EncryptClaims(Claims[appClaims]{Subject: "seed"}, enc)
 	f.Add(seed)
 	f.Add("")
 	f.Add("a.b.c.d.e")

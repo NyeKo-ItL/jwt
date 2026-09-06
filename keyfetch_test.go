@@ -21,11 +21,11 @@ func jwksBytes(t *testing.T, keys ...Key) []byte {
 
 func TestKeyFetcherLookupAndCache(t *testing.T) {
 	tk := newTestKeys(t)
-	var hits int32
+	var hits atomic.Int32
 	body := jwksBytes(t, FromRSAPublicKey(&tk.rsa2048.PublicKey, "k1"))
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&hits, 1)
+		hits.Add(1)
 		w.Header().Set("Content-Type", "application/jwk-set+json")
 		_, _ = w.Write(body)
 	}))
@@ -42,7 +42,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if _, ok, _ := f.Lookup(ctx, "k1"); !ok {
 		t.Fatal("second lookup failed")
 	}
-	if got := atomic.LoadInt32(&hits); got != 1 {
+	if got := hits.Load(); got != 1 {
 		t.Fatalf("expected 1 network hit while cache fresh, got %d", got)
 	}
 
@@ -50,7 +50,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if _, ok, _ := f.Lookup(ctx, "unknown"); ok {
 		t.Fatal("unknown kid resolved")
 	}
-	if got := atomic.LoadInt32(&hits); got != 1 {
+	if got := hits.Load(); got != 1 {
 		t.Fatalf("cache-miss inside minRefresh refetched: %d hits", got)
 	}
 
@@ -59,7 +59,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if _, ok, _ := f.Lookup(ctx, "unknown"); ok {
 		t.Fatal("unknown kid resolved after refresh")
 	}
-	if got := atomic.LoadInt32(&hits); got != 2 {
+	if got := hits.Load(); got != 2 {
 		t.Fatalf("expected refetch after minRefresh, got %d hits", got)
 	}
 }
@@ -89,10 +89,10 @@ func TestKeyFetcherRefreshPicksUpRotation(t *testing.T) {
 
 func TestKeyFetcherHonorsMaxAge(t *testing.T) {
 	tk := newTestKeys(t)
-	var hits int32
+	var hits atomic.Int32
 	body := jwksBytes(t, FromRSAPublicKey(&tk.rsa2048.PublicKey, "k1"))
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&hits, 1)
+		hits.Add(1)
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_, _ = w.Write(body)
 	}))
@@ -108,7 +108,7 @@ func TestKeyFetcherHonorsMaxAge(t *testing.T) {
 	// minRefresh is only 1s.
 	f.now = func() time.Time { return base.Add(10 * time.Minute) }
 	_, _, _ = f.Lookup(ctx, "k1")
-	if got := atomic.LoadInt32(&hits); got != 1 {
+	if got := hits.Load(); got != 1 {
 		t.Fatalf("max-age not honored: %d hits", got)
 	}
 }

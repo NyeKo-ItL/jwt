@@ -186,7 +186,7 @@ func requireHTTPS(raw string) error {
 // parseMaxAge extracts the max-age value (seconds) from a Cache-Control
 // header, returning 0 when absent or non-positive.
 func parseMaxAge(header string) time.Duration {
-	for _, part := range strings.Split(header, ",") {
+	for part := range strings.SplitSeq(header, ",") {
 		part = strings.TrimSpace(part)
 		v, ok := strings.CutPrefix(part, "max-age=")
 		if !ok {

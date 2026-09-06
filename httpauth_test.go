@@ -97,8 +97,8 @@ func TestMiddleware(t *testing.T) {
 
 	t.Run("valid token passes through", func(t *testing.T) {
 		tok, _ := Sign(Claims[appClaims]{
-			RegisteredClaims: RegisteredClaims{Subject: "u1", ExpiresAt: NewNumericDate(time.Now().Add(time.Hour))},
-			Custom:           appClaims{Scope: "read"},
+			Subject: "u1", ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
+			Custom: appClaims{Scope: "read"},
 		}, signer)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer "+tok)
@@ -122,7 +122,7 @@ func TestMiddleware(t *testing.T) {
 
 	t.Run("expired token -> 401 invalid_token", func(t *testing.T) {
 		tok, _ := Sign(Claims[appClaims]{
-			RegisteredClaims: RegisteredClaims{ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour))},
+			ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour)),
 		}, signer)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer "+tok)

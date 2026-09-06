@@ -242,13 +242,11 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	dec, _ := NewECDHESDecrypter(tk.p256, "e1")
 
 	in := Claims[appClaims]{
-		RegisteredClaims: RegisteredClaims{
-			Issuer:    "enc-issuer",
-			Subject:   "u9",
-			Audience:  Audience{"aud9"},
-			ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
-		},
-		Custom: appClaims{Scope: "read"},
+		Issuer:    "enc-issuer",
+		Subject:   "u9",
+		Audience:  Audience{"aud9"},
+		ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
+		Custom:    appClaims{Scope: "read"},
 	}
 	compact, err := EncryptClaims(in, enc)
 	if err != nil {
