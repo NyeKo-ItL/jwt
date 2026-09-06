@@ -17,8 +17,8 @@ jobs:
         # reflect.Type.Fields). Add newer minors here as they ship.
         go: ["1.27"]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
@@ -26,7 +26,7 @@ jobs:
           cache-dependency-path: go.mod
       - run: go build ./...
       - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           files: coverage.out
           fail_ci_if_error: false
@@ -38,8 +38,8 @@ jobs:
       matrix:
         target: [FuzzParse, FuzzDecryptClaims, FuzzParseKeySet]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           check-latest: true
@@ -49,20 +49,20 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache-dependency-path: go.mod
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
 
   vuln:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache-dependency-path: go.mod
