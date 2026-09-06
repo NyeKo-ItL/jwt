@@ -73,7 +73,9 @@ func (w ecdhWrapper) wrap(hdr *jweHeader, cekLen int) (cek, encryptedKey []byte,
 		// direct: the agreed key IS the CEK, keyed to the content algorithm.
 		return concatKDF(z, string(hdr.Enc), cekLen*8), nil, nil
 	case ECDHESA256KW:
-		kek := concatKDF(z, string(A256KW), 256)
+		// Key Agreement with Key Wrapping: the Concat KDF AlgorithmID is the
+		// "alg" value, not the wrap algorithm (RFC 7518 §4.6.2).
+		kek := concatKDF(z, string(w.alg), 256)
 		cek = make([]byte, cekLen)
 		if _, err = rand.Read(cek); err != nil {
 			return nil, nil, err
@@ -115,7 +117,7 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 		}
 		return concatKDF(z, string(hdr.Enc), cekLen*8), nil
 	case ECDHESA256KW:
-		kek := concatKDF(z, string(A256KW), 256)
+		kek := concatKDF(z, string(hdr.Alg), 256) // AlgorithmID = "alg" (RFC 7518 §4.6.2)
 		cek, err := aesKWUnwrap(kek, encryptedKey)
 		if err != nil || len(cek) != cekLen {
 			return nil, ErrDecryptionFailed

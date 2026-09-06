@@ -50,3 +50,11 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
   matching `KeySet` and the `KeyProvider` contract.
 - `NewTokenFamily` no longer panics on CSPRNG failure (impossible since
   Go 1.24); the package now contains no `panic` in non-test code.
+
+### Fixed
+
+- JWE `ECDH-ES+A256KW`: the Concat KDF `AlgorithmID` used `"A256KW"` instead
+  of the `"alg"` header value (`"ECDH-ES+A256KW"`) required by RFC 7518
+  §4.6.2. Round-tripping within this library worked, but tokens were not
+  interoperable with other JOSE implementations. Now verified against
+  `go-jose/go-jose/v4` in both directions.
