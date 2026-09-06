@@ -17,35 +17,53 @@ jobs:
         # reflect.Type.Fields). Add newer minors here as they ship.
         go: ["1.27"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
-      - run: go vet ./...
+          # No third-party deps, so there is no go.sum; key the cache off go.mod.
+          cache-dependency-path: go.mod
       - run: go build ./...
       - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
-      - name: Fuzz smoke
-        run: |
-          go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 30s .
-          go test -run '^$' -fuzz '^FuzzDecryptClaims$' -fuzztime 30s .
-          go test -run '^$' -fuzz '^FuzzParseKeySet$' -fuzztime 30s .
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           files: coverage.out
           fail_ci_if_error: false
 
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [FuzzParse, FuzzDecryptClaims, FuzzParseKeySet]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.mod
+      - run: go test -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 30s .
+
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.27"
-      - uses: golangci/golangci-lint-action@v7
+          cache-dependency-path: go.mod
+      - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.13.2
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache-dependency-path: go.mod
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
