@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -294,10 +295,5 @@ func withoutNone(algs []Algorithm) []Algorithm {
 }
 
 func containsAlg(algs []Algorithm, want Algorithm) bool {
-	for _, a := range algs {
-		if a == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(algs, want)
 }

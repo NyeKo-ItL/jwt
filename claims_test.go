@@ -141,14 +141,12 @@ type demoCustom struct {
 
 func TestClaimsFlattenRoundTrip(t *testing.T) {
 	in := Claims[demoCustom]{
-		RegisteredClaims: RegisteredClaims{
-			Issuer:    "issuer",
-			Subject:   "subject",
-			Audience:  Audience{"a", "b"},
-			ExpiresAt: NewNumericDate(time.Unix(2000, 0)),
-			ID:        "jti-1",
-		},
-		Custom: demoCustom{Role: "admin", Level: 3},
+		Issuer:    "issuer",
+		Subject:   "subject",
+		Audience:  Audience{"a", "b"},
+		ExpiresAt: NewNumericDate(time.Unix(2000, 0)),
+		ID:        "jti-1",
+		Custom:    demoCustom{Role: "admin", Level: 3},
 	}
 	raw, err := json.Marshal(in)
 	if err != nil {
@@ -184,8 +182,8 @@ func TestClaimsRegisteredWinsOnConflict(t *testing.T) {
 		Iss string `json:"iss"`
 	}
 	in := Claims[conflicting]{
-		RegisteredClaims: RegisteredClaims{Issuer: "real"},
-		Custom:           conflicting{Iss: "fake"},
+		Issuer: "real",
+		Custom: conflicting{Iss: "fake"},
 	}
 	raw, err := json.Marshal(in)
 	if err != nil {

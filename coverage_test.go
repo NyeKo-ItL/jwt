@@ -110,7 +110,7 @@ func TestClaimsMarshalPropagatesRegisteredError(t *testing.T) {
 	// An oct key embedded in cnf.jwk makes RegisteredClaims itself unmarshalable.
 	oct := FromHMACSecret([]byte("secret"), "h1")
 	c := Claims[appClaims]{
-		RegisteredClaims: RegisteredClaims{Confirmation: &Confirmation{JWK: &oct}},
+		Confirmation: &Confirmation{JWK: &oct},
 	}
 	if _, err := json.Marshal(c); !errors.Is(err, ErrOctNotServable) {
 		t.Fatalf("err = %v, want ErrOctNotServable", err)
@@ -127,7 +127,7 @@ func TestParseInsecureRejectsBadPayloadJSON(t *testing.T) {
 func TestClaimsMarshalWithNilCustom(t *testing.T) {
 	// A custom payload that marshals to JSON null must be a no-op merge.
 	raw, err := json.Marshal(Claims[[]string]{
-		RegisteredClaims: RegisteredClaims{Issuer: "x"},
+		Issuer: "x",
 	})
 	if err != nil {
 		t.Fatal(err)

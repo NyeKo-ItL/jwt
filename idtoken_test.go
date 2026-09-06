@@ -10,18 +10,14 @@ import (
 func TestIDTokenGoogleRoundTrip(t *testing.T) {
 	verified := true
 	in := IDToken[GoogleClaims]{
-		RegisteredClaims: RegisteredClaims{
-			Issuer:   "https://accounts.google.com",
-			Subject:  "110169484474386276334",
-			Audience: Audience{"1234.apps.googleusercontent.com"},
-			IssuedAt: NewNumericDate(time.Unix(1_700_000_000, 0)),
-		},
-		StandardClaims: StandardClaims{
-			Email:         "jsmith@example.com",
-			EmailVerified: &verified,
-			Name:          "John Smith",
-		},
-		Provider: GoogleClaims{HostedDomain: "example.com", AuthorizedParty: "1234.apps.googleusercontent.com"},
+		Issuer:        "https://accounts.google.com",
+		Subject:       "110169484474386276334",
+		Audience:      Audience{"1234.apps.googleusercontent.com"},
+		IssuedAt:      NewNumericDate(time.Unix(1_700_000_000, 0)),
+		Email:         "jsmith@example.com",
+		EmailVerified: &verified,
+		Name:          "John Smith",
+		Provider:      GoogleClaims{HostedDomain: "example.com", AuthorizedParty: "1234.apps.googleusercontent.com"},
 	}
 	raw, err := json.Marshal(in)
 	if err != nil {
@@ -98,15 +94,13 @@ func TestIDTokenEntraFixture(t *testing.T) {
 func TestValidateAccessTokenClaims(t *testing.T) {
 	now := NewNumericDate(time.Unix(1_700_000_000, 0))
 	full := AccessTokenClaims{
-		RegisteredClaims: RegisteredClaims{
-			Issuer:    "https://issuer",
-			Subject:   "user-1",
-			Audience:  Audience{"https://api"},
-			ExpiresAt: now,
-			IssuedAt:  now,
-		},
-		ClientID: "client-1",
-		Scope:    "read write",
+		Issuer:    "https://issuer",
+		Subject:   "user-1",
+		Audience:  Audience{"https://api"},
+		ExpiresAt: now,
+		IssuedAt:  now,
+		ClientID:  "client-1",
+		Scope:     "read write",
 	}
 	if err := ValidateAccessTokenClaims(full); err != nil {
 		t.Fatalf("full claims rejected: %v", err)
@@ -190,9 +184,9 @@ func TestJSONFieldNames(t *testing.T) {
 
 func TestAccessTokenClaimsFlatJSON(t *testing.T) {
 	raw, err := json.Marshal(AccessTokenClaims{
-		RegisteredClaims: RegisteredClaims{Issuer: "iss"},
-		ClientID:         "c1",
-		Roles:            []string{"a"},
+		Issuer:   "iss",
+		ClientID: "c1",
+		Roles:    []string{"a"},
 	})
 	if err != nil {
 		t.Fatal(err)

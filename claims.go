@@ -3,7 +3,9 @@ package jwt
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -46,12 +48,7 @@ func (a *Audience) UnmarshalJSON(b []byte) error {
 
 // Has reports whether v is one of the audience values.
 func (a Audience) Has(v string) bool {
-	for _, s := range a {
-		if s == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(a, v)
 }
 
 // NumericDate is RFC 7519 §2's NumericDate (seconds since the Unix epoch),
@@ -154,8 +151,6 @@ func mergeObject(dst map[string]json.RawMessage, obj []byte) error {
 	if err := json.Unmarshal(obj, &m); err != nil {
 		return err
 	}
-	for k, v := range m {
-		dst[k] = v
-	}
+	maps.Copy(dst, m)
 	return nil
 }

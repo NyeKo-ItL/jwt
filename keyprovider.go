@@ -1,5 +1,7 @@
 package jwt
 
+import "maps"
+
 import "context"
 
 // KeyProvider resolves a Key by "kid" (which may be empty, meaning "the only
@@ -30,9 +32,7 @@ type mapKeyProvider struct{ byKID map[string]Key }
 // MapKeyProvider adapts a fixed set of Keys, keyed by kid.
 func MapKeyProvider(byKID map[string]Key) KeyProvider {
 	m := make(map[string]Key, len(byKID))
-	for k, v := range byKID {
-		m[k] = v
-	}
+	maps.Copy(m, byKID)
 	return mapKeyProvider{byKID: m}
 }
 

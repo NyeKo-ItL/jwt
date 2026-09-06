@@ -44,14 +44,12 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			in := Claims[appClaims]{
-				RegisteredClaims: RegisteredClaims{
-					Issuer:    "https://issuer.example",
-					Subject:   "user-1",
-					Audience:  Audience{"api"},
-					ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  NewNumericDate(time.Now().Add(-time.Minute)),
-				},
-				Custom: appClaims{Scope: "read"},
+				Issuer:    "https://issuer.example",
+				Subject:   "user-1",
+				Audience:  Audience{"api"},
+				ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
+				IssuedAt:  NewNumericDate(time.Now().Add(-time.Minute)),
+				Custom:    appClaims{Scope: "read"},
 			}
 			tok, err := Sign(in, c.sign)
 			if err != nil {
@@ -154,7 +152,7 @@ func TestParseAlgConfusionRSAasHMAC(t *testing.T) {
 	// Attacker forges an RS256 token, then presents the RSA public key bytes
 	// as an HMAC secret. Structural family check must refuse it.
 	rsS := rs256TestSigner{key: tk.rsa2048, kid: "r1"}
-	tok, err := Sign(Claims[appClaims]{RegisteredClaims: RegisteredClaims{Subject: "attacker"}}, rsS)
+	tok, err := Sign(Claims[appClaims]{Subject: "attacker"}, rsS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +199,7 @@ func TestParseTimeChecks(t *testing.T) {
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 	now := time.Unix(1_700_000_000, 0)
 
-	expired, _ := Sign(Claims[appClaims]{RegisteredClaims: RegisteredClaims{ExpiresAt: NewNumericDate(now.Add(-time.Minute))}}, s)
+	expired, _ := Sign(Claims[appClaims]{ExpiresAt: NewNumericDate(now.Add(-time.Minute))}, s)
 	if _, err := Parse[appClaims](ctx(), expired, prov, WithAllowedAlgorithms(HS256), WithClock(func() time.Time { return now })); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired err = %v", err)
 	}
@@ -211,7 +209,7 @@ func TestParseTimeChecks(t *testing.T) {
 		t.Fatalf("expired-with-leeway err = %v", err)
 	}
 
-	future, _ := Sign(Claims[appClaims]{RegisteredClaims: RegisteredClaims{NotBefore: NewNumericDate(now.Add(time.Minute))}}, s)
+	future, _ := Sign(Claims[appClaims]{NotBefore: NewNumericDate(now.Add(time.Minute))}, s)
 	if _, err := Parse[appClaims](ctx(), future, prov, WithAllowedAlgorithms(HS256), WithClock(func() time.Time { return now })); !errors.Is(err, ErrNotYetValid) {
 		t.Fatalf("nbf err = %v", err)
 	}
@@ -225,10 +223,9 @@ func TestParseIssuerAndAudience(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
-	tok, _ := Sign(Claims[appClaims]{RegisteredClaims: RegisteredClaims{
+	tok, _ := Sign(Claims[appClaims]{
 		Issuer:   "iss-a",
-		Audience: Audience{"aud-1", "aud-2"},
-	}}, s)
+		Audience: Audience{"aud-1", "aud-2"}}, s)
 
 	if _, err := Parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256), WithIssuer("iss-b")); !errors.Is(err, ErrIssuerMismatch) {
 		t.Fatalf("issuer err = %v", err)
@@ -353,8 +350,8 @@ func TestParseInsecure(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	expired, _ := Sign(Claims[appClaims]{
-		RegisteredClaims: RegisteredClaims{Subject: "peek", ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour))},
-		Custom:           appClaims{Scope: "read"},
+		Subject: "peek", ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour)),
+		Custom: appClaims{Scope: "read"},
 	}, s)
 
 	out, err := ParseInsecure[appClaims](expired)
