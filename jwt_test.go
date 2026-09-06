@@ -425,3 +425,59 @@ func TestWithoutNone(t *testing.T) {
 		t.Fatalf("withoutNone = %v", got)
 	}
 }
+
+func TestSignOptions(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
+
+	decodeHeader := func(tok string) map[string]any {
+		h, _, _, _ := split3(tok)
+		raw, err := b64.Decode(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+
+	// WithType overrides "typ"; RFC 9068 round trip.
+	at, err := Sign(Claims[appClaims]{}, s, WithType(AccessTokenType))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decodeHeader(at)["typ"] != AccessTokenType {
+		t.Fatalf("typ = %v", decodeHeader(at)["typ"])
+	}
+	if _, err := Parse[appClaims](ctx(), at, prov, WithAllowedAlgorithms(HS256), WithRequiredType(AccessTokenType)); err != nil {
+		t.Fatalf("RFC 9068 typ round trip: %v", err)
+	}
+
+	// WithType("") omits it.
+	none, _ := Sign(Claims[appClaims]{}, s, WithType(""))
+	if _, present := decodeHeader(none)["typ"]; present {
+		t.Fatal("WithType(\"\") should omit typ")
+	}
+
+	// cty + arbitrary params.
+	full, err := Sign(Claims[appClaims]{}, s,
+		WithContentType("JWT"),
+		WithHeaderParam("b64", false),
+		WithHeaderParam("alg", "tampered"), // must be ignored
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hdr := decodeHeader(full)
+	if hdr["cty"] != "JWT" || hdr["b64"] != false || hdr["alg"] != "HS256" {
+		t.Fatalf("header = %v", hdr)
+	}
+
+	// bad param value surfaces as an error
+	if _, err := Sign(Claims[appClaims]{}, s, WithHeaderParam("x", make(chan int))); err == nil {
+		t.Fatal("expected marshal error for un-encodable header param")
+	}
+}

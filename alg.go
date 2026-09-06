@@ -37,8 +37,13 @@ const (
 // constructors do not cover (e.g. PKCS#1 v1.5 RSA, or an HSM/KMS-backed
 // key). Sign has no type-switch over a closed set of known signers.
 type Signer interface {
+	// Algorithm reports the JWS "alg" value this signer produces; Sign stamps
+	// it into the protected header.
 	Algorithm() Algorithm
-	KeyID() string // RFC 7515 §4.1.4 "kid"; empty if the key has none
+	// KeyID is the RFC 7515 §4.1.4 "kid"; empty if the key has none.
+	KeyID() string
+	// Sign returns the signature over signingInput
+	// ("<b64url header>.<b64url payload>").
 	Sign(signingInput []byte) (signature []byte, err error)
 }
 
@@ -48,8 +53,13 @@ type Signer interface {
 // itself sign with. Like Signer, it is a plain interface open to caller
 // extension.
 type Verifier interface {
+	// Algorithm reports the JWS "alg" value this verifier accepts; Parse
+	// requires it to match the token header before calling Verify.
 	Algorithm() Algorithm
+	// KeyID is the RFC 7515 §4.1.4 "kid"; empty if the key has none.
 	KeyID() string
+	// Verify returns nil if signature is a valid signature over signingInput,
+	// and a non-nil error otherwise.
 	Verify(signingInput, signature []byte) error
 }
 

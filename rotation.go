@@ -16,13 +16,15 @@ type TokenFamily struct{ ID string }
 // familyIDBytes is the entropy of a generated family identifier.
 const familyIDBytes = 16
 
-// NewTokenFamily returns a TokenFamily with a fresh random ID. It panics
-// only if the system CSPRNG fails, which Go treats as unrecoverable.
+// NewTokenFamily returns a TokenFamily with a fresh random ID.
+//
+// It neither returns an error nor panics: since Go 1.24 crypto/rand.Read is
+// defined to always succeed, and a catastrophic OS CSPRNG failure aborts the
+// program from within the runtime — a condition this package cannot observe
+// or recover from.
 func NewTokenFamily() TokenFamily {
 	buf := make([]byte, familyIDBytes)
-	if _, err := rand.Read(buf); err != nil {
-		panic("jwt: crypto/rand failed: " + err.Error())
-	}
+	_, _ = rand.Read(buf)
 	return TokenFamily{ID: b64.Encode(buf)}
 }
 

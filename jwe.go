@@ -44,9 +44,14 @@ var ErrDecryptionFailed = errors.New("jwt: decryption failed")
 
 // Encrypter produces a compact JWE (RFC 7516 §7.1).
 type Encrypter interface {
+	// KeyAlgorithm reports the "alg" (key-management) value written to the
+	// protected header.
 	KeyAlgorithm() KeyAlgorithm
+	// ContentAlgorithm reports the "enc" (content-encryption) value.
 	ContentAlgorithm() ContentAlgorithm
+	// KeyID is the "kid" written to the header; empty if none.
 	KeyID() string
+	// Encrypt returns the compact JWE for plaintext.
 	Encrypt(plaintext []byte) (compact string, err error)
 }
 
@@ -54,7 +59,10 @@ type Encrypter interface {
 // before any plaintext is returned, and every failure yields
 // ErrDecryptionFailed.
 type Decrypter interface {
+	// KeyID is the "kid" this decrypter's key material carries; empty if none.
 	KeyID() string
+	// Decrypt authenticates and decrypts compact, returning ErrDecryptionFailed
+	// on any problem (bad tag, wrong key, malformed token, algorithm mismatch).
 	Decrypt(ctx context.Context, compact string) (plaintext []byte, err error)
 }
 

@@ -1,14 +1,18 @@
 package jwt
 
-import "maps"
-
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 // KeyProvider resolves a Key by "kid" (which may be empty, meaning "the only
 // key"). Parse uses it to obtain the verification key for a token. A single
 // fixed key and a full JWKS-backed store satisfy the same interface.
 type KeyProvider interface {
-	Lookup(ctx context.Context, kid string) (Key, bool, error)
+	// Lookup returns the key for kid. The bool is false (with a nil error)
+	// when no such key exists; a non-nil error signals a backing-store
+	// failure and aborts Parse.
+	Lookup(ctx context.Context, kid string) (key Key, found bool, err error)
 }
 
 type staticKeyProvider struct{ key Key }
