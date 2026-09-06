@@ -33,7 +33,9 @@ func (s staticKeyProvider) Lookup(_ context.Context, kid string) (Key, bool, err
 
 type mapKeyProvider struct{ byKID map[string]Key }
 
-// MapKeyProvider adapts a fixed set of Keys, keyed by kid.
+// MapKeyProvider adapts a fixed set of Keys, keyed by kid. As with any
+// KeyProvider, an empty requested kid resolves to the sole key when the map
+// holds exactly one.
 func MapKeyProvider(byKID map[string]Key) KeyProvider {
 	m := make(map[string]Key, len(byKID))
 	maps.Copy(m, byKID)
@@ -41,6 +43,11 @@ func MapKeyProvider(byKID map[string]Key) KeyProvider {
 }
 
 func (m mapKeyProvider) Lookup(_ context.Context, kid string) (Key, bool, error) {
+	if kid == "" && len(m.byKID) == 1 {
+		for _, k := range m.byKID {
+			return k, true, nil
+		}
+	}
 	k, ok := m.byKID[kid]
 	return k, ok, nil
 }

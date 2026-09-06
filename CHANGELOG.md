@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 
 ### Added
 
+- `Sign` accepts variadic `SignOption`: `WithType` (override or omit `typ`,
+  e.g. `AccessTokenType` for RFC 9068), `WithContentType`, `WithHeaderParam`.
+- `jwttest` sub-package: `FakeKeyProvider`, `FakeRevocationStore`,
+  `NewSigningPair`, and the `RunKeyProviderConformance` /
+  `RunRevocationStoreConformance` shared test suites.
+- `examples/`: basic_hmac, verify_idtoken, jwe_roundtrip, refresh_rotation,
+  http_middleware.
 - JWS core: `Sign`, `Parse`, `ParseInsecure`, the `Signer` / `Verifier`
   interfaces and built-in constructors for HMAC (HS256/384/512), RSA-PSS
   (PS256/384/512) signing, RSA PKCS#1 v1.5 (RS256/384/512) verification,
@@ -36,3 +43,10 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
   `WriteChallenge` (RFC 6750).
 - Key material parsers: PKCS#8, PKCS#1, SEC1, PKIX, raw Ed25519
   seed/expanded/public, and a dependency-free unencrypted OpenSSH parser.
+
+### Changed
+
+- `MapKeyProvider` now resolves an empty requested kid to the sole key,
+  matching `KeySet` and the `KeyProvider` contract.
+- `NewTokenFamily` no longer panics on CSPRNG failure (impossible since
+  Go 1.24); the package now contains no `panic` in non-test code.
