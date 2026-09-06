@@ -27,7 +27,7 @@ type testKeys struct {
 	hmac    []byte
 }
 
-func newTestKeys(t *testing.T) testKeys {
+func newTestKeys(t testing.TB) testKeys {
 	t.Helper()
 	var tk testKeys
 	var err error

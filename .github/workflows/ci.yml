@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ["1.25", "1.26", "1.27"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Fuzz smoke
+        run: |
+          go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 30s .
+          go test -run '^$' -fuzz '^FuzzDecryptClaims$' -fuzztime 30s .
+          go test -run '^$' -fuzz '^FuzzParseKeySet$' -fuzztime 30s .
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
