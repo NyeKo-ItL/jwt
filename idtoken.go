@@ -159,7 +159,8 @@ func jsonFieldNames(v any) []string {
 		return nil
 	}
 	var out []string
-	for f := range rt.Fields() {
+	for i := 0; i < rt.NumField(); i++ {
+		f := rt.Field(i)
 		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name == "-" {
 			continue

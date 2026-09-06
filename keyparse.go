@@ -164,9 +164,9 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", ErrMalformedKey, p.err)
 		}
 		key := &rsa.PrivateKey{
-			N: n, E: int(e.Int64()),
-			D:      d,
-			Primes: []*big.Int{primeP, primeQ},
+			PublicKey: rsa.PublicKey{N: n, E: int(e.Int64())},
+			D:         d,
+			Primes:    []*big.Int{primeP, primeQ},
 		}
 		if err := key.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", ErrMalformedKey, err)

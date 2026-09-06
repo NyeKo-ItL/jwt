@@ -1,3 +1,3 @@
 module github.com/NyeKo-ItL/jwt
 
-go 1.27.1
+go 1.27
