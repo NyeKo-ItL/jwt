@@ -52,7 +52,6 @@ type SignOption func(*signConfig)
 type signConfig struct {
 	typ         string
 	contentType string
-	params      map[string]any
 }
 
 // WithType overrides the "typ" header parameter (RFC 7515 §4.1.9). The
@@ -68,23 +67,12 @@ func WithContentType(cty string) SignOption {
 	return func(c *signConfig) { c.contentType = cty }
 }
 
-// WithHeaderParam adds or overrides an arbitrary protected-header parameter.
-// "alg" cannot be changed this way; "typ", "cty" and "kid" are better set
-// through their dedicated option / the signer.
-func WithHeaderParam(name string, value any) SignOption {
-	return func(c *signConfig) {
-		if c.params == nil {
-			c.params = map[string]any{}
-		}
-		c.params[name] = value
-	}
-}
-
-// Sign encodes claims and produces a compact JWS (RFC 7515 §7.1). The
-// generated header carries "alg", "typ" (DefaultType unless WithType is
-// given), any "cty"/extra params from opts, and — when the signer has one —
-// "kid".
-func Sign[T any](claims Claims[T], signer Signer, opts ...SignOption) (string, error) {
+// Sign JSON-encodes claims — any value that marshals to a JSON object, most
+// often a struct embedding RegisteredClaims — and produces a compact JWS
+// (RFC 7515 §7.1). The generated header carries "alg", "typ" (DefaultType
+// unless WithType is given), an optional "cty" from WithContentType, and —
+// when the signer has one — "kid".
+func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 	if signer == nil {
 		return "", fmt.Errorf("%w: nil signer", ErrUnsupportedAlgorithm)
 	}
@@ -96,7 +84,12 @@ func Sign[T any](claims Claims[T], signer Signer, opts ...SignOption) (string, e
 	for _, o := range opts {
 		o(&cfg)
 	}
-	headerJSON, err := marshalJOSEHeader(alg, signer.KeyID(), cfg)
+	headerJSON, err := json.Marshal(Header{
+		Algorithm:   alg,
+		Type:        cfg.typ,
+		ContentType: cfg.contentType,
+		KeyID:       signer.KeyID(),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -113,10 +106,12 @@ func Sign[T any](claims Claims[T], signer Signer, opts ...SignOption) (string, e
 }
 
 // Parse decodes a compact JWS, verifies its signature with a key resolved
-// from keys, and validates the registered claims per opts.
-// WithAllowedAlgorithms is mandatory (RFC 8725 §3.1); Parse returns
-// ErrNoAllowedAlgorithms if no usable algorithm is supplied.
-func Parse[T any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*Claims[T], error) {
+// from keys, validates the registered claims per opts, and unmarshals the
+// payload into a fresh *C. Registered-claim validation runs regardless of
+// whether C models those claims. WithAllowedAlgorithms is mandatory
+// (RFC 8725 §3.1); Parse returns ErrNoAllowedAlgorithms if no usable
+// algorithm is supplied.
+func Parse[C any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*C, error) {
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
 		o(&cfg)
@@ -174,20 +169,25 @@ func Parse[T any](ctx context.Context, token string, keys KeyProvider, opts ...P
 	if err != nil {
 		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
-	var claims Claims[T]
-	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
+	var reg RegisteredClaims
+	if err := json.Unmarshal(payloadJSON, &reg); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
-	if err := validateClaims(payloadJSON, &claims.RegisteredClaims, header, cfg); err != nil {
+	if err := validateClaims(payloadJSON, &reg, header, cfg); err != nil {
 		return nil, err
+	}
+	var claims C
+	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
+		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	return &claims, nil
 }
 
-// ParseInsecure decodes claims WITHOUT verifying the signature or checking
-// expiry. Its result MUST NOT drive any authorization decision — read-only
-// inspection only (e.g. looking up a session by an expired token's "jti").
-func ParseInsecure[T any](token string) (*Claims[T], error) {
+// ParseInsecure decodes the payload into a fresh *C WITHOUT verifying the
+// signature or checking expiry. Its result MUST NOT drive any authorization
+// decision — read-only inspection only (e.g. looking up a session by an
+// expired token's "jti").
+func ParseInsecure[C any](token string) (*C, error) {
 	if len(token) > maxTokenBytes {
 		return nil, fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
@@ -199,7 +199,7 @@ func ParseInsecure[T any](token string) (*Claims[T], error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
-	var claims Claims[T]
+	var claims C
 	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
@@ -336,33 +336,4 @@ func withoutNone(algs []Algorithm) []Algorithm {
 
 func containsAlg(algs []Algorithm, want Algorithm) bool {
 	return slices.Contains(algs, want)
-}
-
-// marshalJOSEHeader renders the protected header for Sign. The common case
-// (no extra params) marshals the typed Header directly; extra params force a
-// merge through a generic object.
-func marshalJOSEHeader(alg Algorithm, kid string, cfg signConfig) ([]byte, error) {
-	base := Header{Algorithm: alg, Type: cfg.typ, ContentType: cfg.contentType, KeyID: kid}
-	if len(cfg.params) == 0 {
-		return json.Marshal(base)
-	}
-	raw, err := json.Marshal(base)
-	if err != nil {
-		return nil, err
-	}
-	obj := map[string]json.RawMessage{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
-		return nil, err
-	}
-	for name, value := range cfg.params {
-		if name == "alg" {
-			continue
-		}
-		encoded, err := json.Marshal(value)
-		if err != nil {
-			return nil, err
-		}
-		obj[name] = encoded
-	}
-	return json.Marshal(obj)
 }

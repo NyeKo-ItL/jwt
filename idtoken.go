@@ -188,3 +188,19 @@ func jsonFieldNames(v any) []string {
 	}
 	return out
 }
+
+// mergeObject unmarshals a JSON object into dst, overwriting existing keys.
+// A null or empty input is a no-op; a non-object input is an error.
+func mergeObject(dst map[string]json.RawMessage, obj []byte) error {
+	if len(obj) == 0 || string(obj) == "null" {
+		return nil
+	}
+	m := map[string]json.RawMessage{}
+	if err := json.Unmarshal(obj, &m); err != nil {
+		return err
+	}
+	for k, v := range m {
+		dst[k] = v
+	}
+	return nil
+}

@@ -76,11 +76,11 @@ func TestNewSigningPair(t *testing.T) {
 	if signer.Algorithm() != jwt.EdDSA {
 		t.Fatalf("alg = %s", signer.Algorithm())
 	}
-	tok, err := jwt.Sign(jwt.Claims[struct{}]{}, signer)
+	tok, err := jwt.Sign(jwt.RegisteredClaims{}, signer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := jwt.Parse[struct{}](context.Background(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
+	if _, err := jwt.Parse[jwt.RegisteredClaims](context.Background(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
 		t.Fatalf("round trip: %v", err)
 	}
 }

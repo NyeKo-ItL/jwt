@@ -134,19 +134,25 @@ func TestNumericDateFractional(t *testing.T) {
 	}
 }
 
-type demoCustom struct {
+// demoClaims embeds RegisteredClaims — the recommended pattern now that
+// there is no Claims[T] wrapper.
+type demoClaims struct {
+	RegisteredClaims
 	Role  string `json:"role,omitempty"`
 	Level int    `json:"level,omitempty"`
 }
 
-func TestClaimsFlattenRoundTrip(t *testing.T) {
-	in := Claims[demoCustom]{
-		Issuer:    "issuer",
-		Subject:   "subject",
-		Audience:  Audience{"a", "b"},
-		ExpiresAt: NewNumericDate(time.Unix(2000, 0)),
-		ID:        "jti-1",
-		Custom:    demoCustom{Role: "admin", Level: 3},
+func TestEmbeddedRegisteredClaimsFlatten(t *testing.T) {
+	in := demoClaims{
+		RegisteredClaims: RegisteredClaims{
+			Issuer:    "issuer",
+			Subject:   "subject",
+			Audience:  Audience{"a", "b"},
+			ExpiresAt: NewNumericDate(time.Unix(2000, 0)),
+			ID:        "jti-1",
+		},
+		Role:  "admin",
+		Level: 3,
 	}
 	raw, err := json.Marshal(in)
 	if err != nil {
@@ -165,44 +171,15 @@ func TestClaimsFlattenRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected flattened values: %s", raw)
 	}
 
-	var out Claims[demoCustom]
+	var out demoClaims
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Issuer != in.Issuer || out.ID != in.ID || out.Custom != in.Custom {
+	if out.Issuer != in.Issuer || out.ID != in.ID || out.Role != in.Role || out.Level != in.Level {
 		t.Fatalf("round trip mismatch: %+v vs %+v", out, in)
 	}
 	if !out.ExpiresAt.Equal(in.ExpiresAt.Time) {
 		t.Fatalf("exp round trip mismatch: %v vs %v", out.ExpiresAt, in.ExpiresAt)
-	}
-}
-
-func TestClaimsRegisteredWinsOnConflict(t *testing.T) {
-	type conflicting struct {
-		Iss string `json:"iss"`
-	}
-	in := Claims[conflicting]{
-		Issuer: "real",
-		Custom: conflicting{Iss: "fake"},
-	}
-	raw, err := json.Marshal(in)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var flat map[string]any
-	if err := json.Unmarshal(raw, &flat); err != nil {
-		t.Fatal(err)
-	}
-	if flat["iss"] != "real" {
-		t.Fatalf("iss = %v, want registered value to win", flat["iss"])
-	}
-}
-
-func TestClaimsMarshalErrorsOnBadCustom(t *testing.T) {
-	// A channel cannot be JSON-marshaled.
-	_, err := json.Marshal(Claims[chan int]{Custom: make(chan int)})
-	if err == nil {
-		t.Fatal("expected marshal error for un-marshalable custom payload")
 	}
 }
 

@@ -83,11 +83,11 @@ func TestVerifierForAlgPropagatesMalformedKey(t *testing.T) {
 
 func TestSignPropagatesMarshalAndSignerErrors(t *testing.T) {
 	// custom payload that cannot be JSON-marshaled
-	if _, err := Sign(Claims[chan int]{Custom: make(chan int)}, staticStr{alg: HS256}); err == nil {
+	if _, err := Sign(make(chan int), staticStr{alg: HS256}); err == nil {
 		t.Fatal("expected marshal error")
 	}
 	// signer whose Sign fails
-	if _, err := Sign(Claims[appClaims]{}, failingSigner{}); !errors.Is(err, errSignBoom) {
+	if _, err := Sign(appClaims{}, failingSigner{}); !errors.Is(err, errSignBoom) {
 		t.Fatalf("err = %v, want errSignBoom", err)
 	}
 }
@@ -100,19 +100,13 @@ func (failingSigner) Algorithm() Algorithm        { return HS256 }
 func (failingSigner) KeyID() string               { return "" }
 func (failingSigner) Sign([]byte) ([]byte, error) { return nil, errSignBoom }
 
-func TestClaimsMarshalRejectsNonObjectCustom(t *testing.T) {
-	if _, err := json.Marshal(Claims[int]{Custom: 5}); err == nil {
-		t.Fatal("expected error merging a non-object custom payload")
-	}
-}
-
-func TestClaimsMarshalPropagatesRegisteredError(t *testing.T) {
-	// An oct key embedded in cnf.jwk makes RegisteredClaims itself unmarshalable.
+func TestSignPropagatesRegisteredClaimsMarshalError(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+	// An oct key embedded in cnf.jwk makes the claims value unmarshalable.
 	oct := FromHMACSecret([]byte("secret"), "h1")
-	c := Claims[appClaims]{
-		Confirmation: &Confirmation{JWK: &oct},
-	}
-	if _, err := json.Marshal(c); !errors.Is(err, ErrOctNotServable) {
+	c := appClaims{RegisteredClaims: RegisteredClaims{Confirmation: &Confirmation{JWK: &oct}}}
+	if _, err := Sign(c, s); !errors.Is(err, ErrOctNotServable) {
 		t.Fatalf("err = %v, want ErrOctNotServable", err)
 	}
 }
@@ -121,19 +115,6 @@ func TestParseInsecureRejectsBadPayloadJSON(t *testing.T) {
 	tok := "aa." + b64.Encode([]byte("not json"))
 	if _, err := ParseInsecure[appClaims](tok); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("err = %v, want ErrMalformedToken", err)
-	}
-}
-
-func TestClaimsMarshalWithNilCustom(t *testing.T) {
-	// A custom payload that marshals to JSON null must be a no-op merge.
-	raw, err := json.Marshal(Claims[[]string]{
-		Issuer: "x",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(raw) != `{"iss":"x"}` {
-		t.Fatalf("raw = %s", raw)
 	}
 }
 
@@ -162,5 +143,19 @@ func TestLeftPad(t *testing.T) {
 	got := leftPad([]byte{9}, 4)
 	if len(got) != 4 || got[0] != 0 || got[3] != 9 {
 		t.Fatalf("pad path: %v", got)
+	}
+}
+
+func TestParseRejectsPayloadNotMatchingC(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
+	// {} passes RegisteredClaims validation but cannot unmarshal into an int.
+	tok, err := Sign(struct{}{}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Parse[int](ctx(), tok, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrMalformedToken) {
+		t.Fatalf("err = %v, want ErrMalformedToken", err)
 	}
 }

@@ -13,6 +13,7 @@ import (
 )
 
 type apiClaims struct {
+	jwt.RegisteredClaims
 	Scope string `json:"scope"`
 }
 
@@ -26,20 +27,20 @@ func main() {
 
 	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, _ := jwt.ClaimsFromContext[apiClaims](r.Context())
-		_, _ = fmt.Fprintf(w, "hello %s (scope %q)\n", claims.Subject, claims.Custom.Scope)
+		_, _ = fmt.Fprintf(w, "hello %s (scope %q)\n", claims.Subject, claims.Scope)
 	})
 	handler := jwt.Middleware[apiClaims](keys,
 		jwt.WithAllowedAlgorithms(jwt.HS256),
 		jwt.WithAudience("https://api.example"),
 	)(protected)
 
-	token, _ := jwt.Sign(jwt.Claims[apiClaims]{
+	token, _ := jwt.Sign(apiClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   "user-7",
 			Audience:  jwt.Audience{"https://api.example"},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
 		},
-		Custom: apiClaims{Scope: "read"},
+		Scope: "read",
 	}, signer)
 
 	// authorized request

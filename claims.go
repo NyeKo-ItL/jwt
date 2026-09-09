@@ -3,7 +3,6 @@ package jwt
 import (
 	"bytes"
 	"encoding/json"
-	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -94,6 +93,16 @@ type Confirmation struct {
 // RegisteredClaims holds every generic claim this library targets from the
 // IANA "JSON Web Token Claims" registry: the original seven from RFC 7519
 // §4.1 plus "cnf" from RFC 7800.
+//
+// Embed it in your own claims struct so those members flatten into the same
+// JSON object — that struct is what you pass to Sign / EncryptClaims and get
+// back from Parse / DecryptClaims:
+//
+//	type MyClaims struct {
+//		jwt.RegisteredClaims
+//		Scope string `json:"scope,omitempty"`
+//		Role  string `json:"role,omitempty"`
+//	}
 type RegisteredClaims struct {
 	Issuer       string        `json:"iss,omitempty"`
 	Subject      string        `json:"sub,omitempty"`
@@ -103,54 +112,4 @@ type RegisteredClaims struct {
 	IssuedAt     *NumericDate  `json:"iat,omitempty"`
 	ID           string        `json:"jti,omitempty"`
 	Confirmation *Confirmation `json:"cnf,omitempty"`
-}
-
-// Claims combines RegisteredClaims with an application-defined payload,
-// flattened into the same JSON object on the wire. A registered claim always
-// wins over a same-named field in the custom payload.
-type Claims[T any] struct {
-	RegisteredClaims
-	Custom T
-}
-
-// MarshalJSON flattens RegisteredClaims and Custom into one JSON object.
-func (c Claims[T]) MarshalJSON() ([]byte, error) {
-	reg, err := json.Marshal(c.RegisteredClaims)
-	if err != nil {
-		return nil, err
-	}
-	custom, err := json.Marshal(c.Custom)
-	if err != nil {
-		return nil, err
-	}
-	merged := map[string]json.RawMessage{}
-	if err := mergeObject(merged, custom); err != nil {
-		return nil, err
-	}
-	if err := mergeObject(merged, reg); err != nil {
-		return nil, err
-	}
-	return json.Marshal(merged)
-}
-
-// UnmarshalJSON fills RegisteredClaims and Custom from the same JSON object.
-func (c *Claims[T]) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &c.RegisteredClaims); err != nil {
-		return err
-	}
-	return json.Unmarshal(b, &c.Custom)
-}
-
-// mergeObject unmarshals a JSON object into dst, overwriting existing keys.
-// A null or empty input is a no-op; a non-object input is an error.
-func mergeObject(dst map[string]json.RawMessage, obj []byte) error {
-	if len(obj) == 0 || string(bytes.TrimSpace(obj)) == "null" {
-		return nil
-	}
-	m := map[string]json.RawMessage{}
-	if err := json.Unmarshal(obj, &m); err != nil {
-		return err
-	}
-	maps.Copy(dst, m)
-	return nil
 }

@@ -18,17 +18,24 @@ go get github.com/NyeKo-ItL/jwt
 ### Sign and verify a JWS
 
 ```go
+// A claims value is any struct that marshals to a JSON object; embed
+// jwt.RegisteredClaims for iss/sub/exp/... to flatten in.
+type MyClaims struct {
+    jwt.RegisteredClaims
+    Role string `json:"role,omitempty"`
+}
+
 signer, _ := jwt.NewEd25519Signer(priv, "key-1")
-token, _ := jwt.Sign(jwt.Claims[MyClaims]{
+token, _ := jwt.Sign(MyClaims{
     RegisteredClaims: jwt.RegisteredClaims{Issuer: "me", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
-    Custom:           MyClaims{Role: "admin"},
+    Role:             "admin",
 }, signer)
 
 keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub, "key-1"))
 claims, err := jwt.Parse[MyClaims](ctx, token, keys,
     jwt.WithAllowedAlgorithms(jwt.EdDSA),
     jwt.WithIssuer("me"),
-)
+) // claims.Role, claims.Subject, ...
 ```
 
 `jwt.WithAllowedAlgorithms` is mandatory (RFC 8725 §3.1); `alg: none` is never

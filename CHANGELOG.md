@@ -9,7 +9,7 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 ### Added
 
 - `Sign` accepts variadic `SignOption`: `WithType` (override or omit `typ`,
-  e.g. `AccessTokenType` for RFC 9068), `WithContentType`, `WithHeaderParam`.
+  e.g. `AccessTokenType` for RFC 9068) and `WithContentType`.
 - `jwttest` sub-package: `FakeKeyProvider`, `FakeRevocationStore`,
   `NewSigningPair`, and the `RunKeyProviderConformance` /
   `RunRevocationStoreConformance` shared test suites.
@@ -46,6 +46,14 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 
 ### Changed
 
+- **Removed `Claims[T]`.** `Sign` / `Parse` / `ParseInsecure` /
+  `EncryptClaims` / `DecryptClaims` / `Middleware` / `ClaimsFromContext` are
+  now generic over `C any` — pass and receive your own claims struct
+  directly (embed `RegisteredClaims` to flatten the registered members, or
+  use `RegisteredClaims` alone). No more `Custom` field, no custom-marshaler
+  merge.
+- `Sign` options trimmed to `WithType` and `WithContentType`
+  (`WithHeaderParam` removed).
 - `MapKeyProvider` now resolves an empty requested kid to the sole key,
   matching `KeySet` and the `KeyProvider` contract.
 - `NewTokenFamily` no longer panics on CSPRNG failure (impossible since

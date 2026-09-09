@@ -241,12 +241,14 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	enc, _ := NewECDHESEncrypter(&tk.p256.PublicKey, ECDHESA256KW, A256GCM, "e1")
 	dec, _ := NewECDHESDecrypter(tk.p256, "e1")
 
-	in := Claims[appClaims]{
-		Issuer:    "enc-issuer",
-		Subject:   "u9",
-		Audience:  Audience{"aud9"},
-		ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
-		Custom:    appClaims{Scope: "read"},
+	in := appClaims{
+		RegisteredClaims: RegisteredClaims{
+			Issuer:    "enc-issuer",
+			Subject:   "u9",
+			Audience:  Audience{"aud9"},
+			ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
+		},
+		Scope: "read",
 	}
 	compact, err := EncryptClaims(in, enc)
 	if err != nil {
@@ -257,7 +259,7 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Subject != "u9" || out.Custom.Scope != "read" {
+	if out.Subject != "u9" || out.Scope != "read" {
 		t.Fatalf("claims = %+v", out)
 	}
 
@@ -279,7 +281,7 @@ func TestEncryptDecryptClaimsNilAndGarbage(t *testing.T) {
 	tk := newTestKeys(t)
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "")
 
-	if _, err := EncryptClaims(Claims[appClaims]{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
+	if _, err := EncryptClaims(appClaims{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil encrypter err = %v", err)
 	}
 	if _, err := DecryptClaims[appClaims](jweCtx(), "x.y.z.a.b", nil); !errors.Is(err, ErrUnsupportedAlgorithm) {

@@ -211,9 +211,9 @@ func newGCM(cek []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// EncryptClaims is the JWE analogue of Sign: JSON-marshal claims and encrypt
-// them as a compact JWE.
-func EncryptClaims[T any](claims Claims[T], enc Encrypter) (string, error) {
+// EncryptClaims is the JWE analogue of Sign: JSON-marshal a claims value
+// (any struct that marshals to an object) and encrypt it as a compact JWE.
+func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
 	if enc == nil {
 		return "", fmt.Errorf("%w: nil Encrypter", ErrUnsupportedAlgorithm)
 	}
@@ -224,11 +224,11 @@ func EncryptClaims[T any](claims Claims[T], enc Encrypter) (string, error) {
 	return enc.Encrypt(payload)
 }
 
-// DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE, then
-// unmarshal and validate its registered claims per opts. The AEAD tag is
-// verified before any plaintext is exposed (spec §4.7). Header "typ"
-// checking (WithRequiredType) does not apply here.
-func DecryptClaims[T any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*Claims[T], error) {
+// DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE, validate
+// its registered claims per opts, and unmarshal the plaintext into a fresh
+// *C. The AEAD tag is verified before any plaintext is exposed (spec §4.7).
+// Header "typ" checking (WithRequiredType) does not apply here.
+func DecryptClaims[C any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*C, error) {
 	if dec == nil {
 		return nil, fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
 	}
@@ -236,16 +236,20 @@ func DecryptClaims[T any](ctx context.Context, compact string, dec Decrypter, op
 	if err != nil {
 		return nil, err
 	}
-	var claims Claims[T]
-	if err := json.Unmarshal(payload, &claims); err != nil {
+	var reg RegisteredClaims
+	if err := json.Unmarshal(payload, &reg); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
 		o(&cfg)
 	}
-	if err := validateClaims(payload, &claims.RegisteredClaims, Header{}, cfg); err != nil {
+	if err := validateClaims(payload, &reg, Header{}, cfg); err != nil {
 		return nil, err
+	}
+	var claims C
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	return &claims, nil
 }

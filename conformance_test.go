@@ -40,13 +40,11 @@ func TestRevocationStoreConformance(t *testing.T) {
 func TestFakesPluggableIntoParse(t *testing.T) {
 	signer, keys := jwttest.NewSigningPair(t, "kid-1")
 
-	tok, err := jwt.Sign(jwt.Claims[struct{}]{
-		RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"},
-	}, signer)
+	tok, err := jwt.Sign(jwt.RegisteredClaims{Subject: "u1"}, signer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := jwt.Parse[struct{}](t.Context(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+	got, err := jwt.Parse[jwt.RegisteredClaims](t.Context(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
 	if err != nil {
 		t.Fatalf("Parse via jwttest pair: %v", err)
 	}

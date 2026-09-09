@@ -15,6 +15,7 @@ import (
 )
 
 type appClaims struct {
+	RegisteredClaims
 	Scope string `json:"scope,omitempty"`
 }
 
@@ -43,13 +44,15 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			in := Claims[appClaims]{
-				Issuer:    "https://issuer.example",
-				Subject:   "user-1",
-				Audience:  Audience{"api"},
-				ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
-				IssuedAt:  NewNumericDate(time.Now().Add(-time.Minute)),
-				Custom:    appClaims{Scope: "read"},
+			in := appClaims{
+				RegisteredClaims: RegisteredClaims{
+					Issuer:    "https://issuer.example",
+					Subject:   "user-1",
+					Audience:  Audience{"api"},
+					ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
+					IssuedAt:  NewNumericDate(time.Now().Add(-time.Minute)),
+				},
+				Scope: "read",
 			}
 			tok, err := Sign(in, c.sign)
 			if err != nil {
@@ -63,7 +66,7 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Parse: %v", err)
 			}
-			if out.Subject != "user-1" || out.Custom.Scope != "read" {
+			if out.Subject != "user-1" || out.Scope != "read" {
 				t.Fatalf("claims mismatch: %+v", out)
 			}
 		})
@@ -73,7 +76,7 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 func TestSignStampsDefaultType(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	tok, err := Sign(Claims[appClaims]{}, s)
+	tok, err := Sign(appClaims{}, s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +97,7 @@ func TestSignStampsDefaultType(t *testing.T) {
 func TestParseRequiresAllowlist(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	tok, _ := Sign(Claims[appClaims]{}, s)
+	tok, _ := Sign(appClaims{}, s)
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 
 	if _, err := Parse[appClaims](ctx(), tok, prov); !errors.Is(err, ErrNoAllowedAlgorithms) {
@@ -111,7 +114,7 @@ func TestParseRequiresAllowlist(t *testing.T) {
 func TestParseRejectsAlgNotInAllowlist(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	tok, _ := Sign(Claims[appClaims]{}, s)
+	tok, _ := Sign(appClaims{}, s)
 	_, err := Parse[appClaims](ctx(), tok, StaticKeyProvider(FromHMACSecret(tk.hmac, "h1")),
 		WithAllowedAlgorithms(ES256))
 	if !errors.Is(err, ErrAlgorithmNotAllowed) {
@@ -136,13 +139,13 @@ func TestParseRejectsAlgNone(t *testing.T) {
 }
 
 func TestSignRejectsNoneAndNilSigner(t *testing.T) {
-	if _, err := Sign(Claims[appClaims]{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
+	if _, err := Sign(appClaims{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil signer err = %v", err)
 	}
-	if _, err := Sign(Claims[appClaims]{}, staticStr{alg: "none"}); !errors.Is(err, ErrAlgorithmNotAllowed) {
+	if _, err := Sign(appClaims{}, staticStr{alg: "none"}); !errors.Is(err, ErrAlgorithmNotAllowed) {
 		t.Fatalf("none signer err = %v", err)
 	}
-	if _, err := Sign(Claims[appClaims]{}, staticStr{alg: ""}); !errors.Is(err, ErrAlgorithmNotAllowed) {
+	if _, err := Sign(appClaims{}, staticStr{alg: ""}); !errors.Is(err, ErrAlgorithmNotAllowed) {
 		t.Fatalf("empty-alg signer err = %v", err)
 	}
 }
@@ -152,7 +155,7 @@ func TestParseAlgConfusionRSAasHMAC(t *testing.T) {
 	// Attacker forges an RS256 token, then presents the RSA public key bytes
 	// as an HMAC secret. Structural family check must refuse it.
 	rsS := rs256TestSigner{key: tk.rsa2048, kid: "r1"}
-	tok, err := Sign(Claims[appClaims]{Subject: "attacker"}, rsS)
+	tok, err := Sign(appClaims{RegisteredClaims: RegisteredClaims{Subject: "attacker"}}, rsS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +172,7 @@ func TestParseAlgConfusionRSAasHMAC(t *testing.T) {
 func TestParseSignatureFailure(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	tok, _ := Sign(Claims[appClaims]{}, s)
+	tok, _ := Sign(appClaims{}, s)
 
 	wrong := make([]byte, 64)
 	wrong[0] = 0xAB
@@ -199,7 +202,7 @@ func TestParseTimeChecks(t *testing.T) {
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 	now := time.Unix(1_700_000_000, 0)
 
-	expired, _ := Sign(Claims[appClaims]{ExpiresAt: NewNumericDate(now.Add(-time.Minute))}, s)
+	expired, _ := Sign(appClaims{RegisteredClaims: RegisteredClaims{ExpiresAt: NewNumericDate(now.Add(-time.Minute))}}, s)
 	if _, err := Parse[appClaims](ctx(), expired, prov, WithAllowedAlgorithms(HS256), WithClock(func() time.Time { return now })); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired err = %v", err)
 	}
@@ -209,7 +212,7 @@ func TestParseTimeChecks(t *testing.T) {
 		t.Fatalf("expired-with-leeway err = %v", err)
 	}
 
-	future, _ := Sign(Claims[appClaims]{NotBefore: NewNumericDate(now.Add(time.Minute))}, s)
+	future, _ := Sign(appClaims{RegisteredClaims: RegisteredClaims{NotBefore: NewNumericDate(now.Add(time.Minute))}}, s)
 	if _, err := Parse[appClaims](ctx(), future, prov, WithAllowedAlgorithms(HS256), WithClock(func() time.Time { return now })); !errors.Is(err, ErrNotYetValid) {
 		t.Fatalf("nbf err = %v", err)
 	}
@@ -223,9 +226,10 @@ func TestParseIssuerAndAudience(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
-	tok, _ := Sign(Claims[appClaims]{
+	tok, _ := Sign(appClaims{RegisteredClaims: RegisteredClaims{
 		Issuer:   "iss-a",
-		Audience: Audience{"aud-1", "aud-2"}}, s)
+		Audience: Audience{"aud-1", "aud-2"},
+	}}, s)
 
 	if _, err := Parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256), WithIssuer("iss-b")); !errors.Is(err, ErrIssuerMismatch) {
 		t.Fatalf("issuer err = %v", err)
@@ -244,7 +248,7 @@ func TestParseRequiredTypeAndClaims(t *testing.T) {
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 
 	// Sign() stamps typ: "JWT" (DefaultType), so requiring "JWT" passes.
-	plain, _ := Sign(Claims[appClaims]{Custom: appClaims{Scope: "read"}}, s)
+	plain, _ := Sign(appClaims{Scope: "read"}, s)
 	if _, err := Parse[appClaims](ctx(), plain, prov, WithAllowedAlgorithms(HS256), WithRequiredType("JWT")); err != nil {
 		t.Fatalf("default typ match err = %v", err)
 	}
@@ -309,7 +313,7 @@ func TestParseBadPayloadJSONAfterValidSig(t *testing.T) {
 func TestParseKeyResolution(t *testing.T) {
 	tk := newTestKeys(t)
 	s1, _ := NewHMACSigner(HS256, tk.hmac, "k2")
-	tok, _ := Sign(Claims[appClaims]{}, s1)
+	tok, _ := Sign(appClaims{}, s1)
 
 	other := make([]byte, 64)
 	prov := MapKeyProvider(map[string]Key{
@@ -322,7 +326,7 @@ func TestParseKeyResolution(t *testing.T) {
 
 	// token with an unknown kid
 	sX, _ := NewHMACSigner(HS256, tk.hmac, "nope")
-	tokX, _ := Sign(Claims[appClaims]{}, sX)
+	tokX, _ := Sign(appClaims{}, sX)
 	if _, err := Parse[appClaims](ctx(), tokX, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrKeyNotFound) {
 		t.Fatalf("unknown kid err = %v", err)
 	}
@@ -339,7 +343,7 @@ func (e errProvider) Lookup(context.Context, string) (Key, bool, error) { return
 func TestParsePropagatesProviderError(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	tok, _ := Sign(Claims[appClaims]{}, s)
+	tok, _ := Sign(appClaims{}, s)
 	sentinel := errors.New("boom")
 	if _, err := Parse[appClaims](ctx(), tok, errProvider{err: sentinel}, WithAllowedAlgorithms(HS256)); !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want sentinel", err)
@@ -349,16 +353,16 @@ func TestParsePropagatesProviderError(t *testing.T) {
 func TestParseInsecure(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
-	expired, _ := Sign(Claims[appClaims]{
-		Subject: "peek", ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour)),
-		Custom: appClaims{Scope: "read"},
+	expired, _ := Sign(appClaims{
+		RegisteredClaims: RegisteredClaims{Subject: "peek", ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour))},
+		Scope:            "read",
 	}, s)
 
 	out, err := ParseInsecure[appClaims](expired)
 	if err != nil {
 		t.Fatalf("ParseInsecure on expired token: %v", err)
 	}
-	if out.Subject != "peek" || out.Custom.Scope != "read" {
+	if out.Subject != "peek" || out.Scope != "read" {
 		t.Fatalf("claims mismatch: %+v", out)
 	}
 
@@ -445,7 +449,7 @@ func TestSignOptions(t *testing.T) {
 	}
 
 	// WithType overrides "typ"; RFC 9068 round trip.
-	at, err := Sign(Claims[appClaims]{}, s, WithType(AccessTokenType))
+	at, err := Sign(appClaims{}, s, WithType(AccessTokenType))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,27 +461,18 @@ func TestSignOptions(t *testing.T) {
 	}
 
 	// WithType("") omits it.
-	none, _ := Sign(Claims[appClaims]{}, s, WithType(""))
+	none, _ := Sign(appClaims{}, s, WithType(""))
 	if _, present := decodeHeader(none)["typ"]; present {
 		t.Fatal("WithType(\"\") should omit typ")
 	}
 
-	// cty + arbitrary params.
-	full, err := Sign(Claims[appClaims]{}, s,
-		WithContentType("JWT"),
-		WithHeaderParam("b64", false),
-		WithHeaderParam("alg", "tampered"), // must be ignored
-	)
+	// WithContentType sets "cty"; "alg" stays the signer's.
+	full, err := Sign(appClaims{}, s, WithContentType("JWT"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	hdr := decodeHeader(full)
-	if hdr["cty"] != "JWT" || hdr["b64"] != false || hdr["alg"] != "HS256" {
+	if hdr["cty"] != "JWT" || hdr["alg"] != "HS256" {
 		t.Fatalf("header = %v", hdr)
-	}
-
-	// bad param value surfaces as an error
-	if _, err := Sign(Claims[appClaims]{}, s, WithHeaderParam("x", make(chan int))); err == nil {
-		t.Fatal("expected marshal error for un-encodable header param")
 	}
 }

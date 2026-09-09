@@ -27,18 +27,18 @@ func BearerToken(r *http.Request) (string, bool) {
 
 type claimsContextKey struct{}
 
-// ClaimsFromContext retrieves the *Claims[T] that Middleware injected. The
-// type parameter must match the one Middleware was instantiated with.
-func ClaimsFromContext[T any](ctx context.Context) (*Claims[T], bool) {
-	v, ok := ctx.Value(claimsContextKey{}).(*Claims[T])
+// ClaimsFromContext retrieves the *C that Middleware injected. The type
+// parameter must match the one Middleware was instantiated with.
+func ClaimsFromContext[C any](ctx context.Context) (*C, bool) {
+	v, ok := ctx.Value(claimsContextKey{}).(*C)
 	return v, ok
 }
 
 // Middleware verifies the request's bearer token with keys and opts and puts
-// the resulting claims in the request context (retrieve them with
-// ClaimsFromContext[T]). On any failure it writes an RFC 6750 §3 challenge
+// the resulting *C in the request context (retrieve it with
+// ClaimsFromContext[C]). On any failure it writes an RFC 6750 §3 challenge
 // via WriteChallenge and does not call next.
-func Middleware[T any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
+func Middleware[C any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := BearerToken(r)
@@ -46,7 +46,7 @@ func Middleware[T any](keys KeyProvider, opts ...ParseOption) func(http.Handler)
 				WriteChallenge(w, "", nil)
 				return
 			}
-			claims, err := Parse[T](r.Context(), token, keys, opts...)
+			claims, err := Parse[C](r.Context(), token, keys, opts...)
 			if err != nil {
 				WriteChallenge(w, "", err)
 				return

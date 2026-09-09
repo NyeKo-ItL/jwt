@@ -84,7 +84,7 @@ func TestMiddleware(t *testing.T) {
 	signer, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	keys := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 
-	var seen *Claims[appClaims]
+	var seen *appClaims
 	final := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, ok := ClaimsFromContext[appClaims](r.Context())
 		if !ok {
@@ -96,9 +96,9 @@ func TestMiddleware(t *testing.T) {
 	handler := Middleware[appClaims](keys, WithAllowedAlgorithms(HS256))(final)
 
 	t.Run("valid token passes through", func(t *testing.T) {
-		tok, _ := Sign(Claims[appClaims]{
-			Subject: "u1", ExpiresAt: NewNumericDate(time.Now().Add(time.Hour)),
-			Custom: appClaims{Scope: "read"},
+		tok, _ := Sign(appClaims{
+			RegisteredClaims: RegisteredClaims{Subject: "u1", ExpiresAt: NewNumericDate(time.Now().Add(time.Hour))},
+			Scope:            "read",
 		}, signer)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer "+tok)
@@ -107,7 +107,7 @@ func TestMiddleware(t *testing.T) {
 		if w.Code != http.StatusNoContent {
 			t.Fatalf("status = %d", w.Code)
 		}
-		if seen == nil || seen.Subject != "u1" || seen.Custom.Scope != "read" {
+		if seen == nil || seen.Subject != "u1" || seen.Scope != "read" {
 			t.Fatalf("claims = %+v", seen)
 		}
 	})
@@ -121,8 +121,8 @@ func TestMiddleware(t *testing.T) {
 	})
 
 	t.Run("expired token -> 401 invalid_token", func(t *testing.T) {
-		tok, _ := Sign(Claims[appClaims]{
-			ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour)),
+		tok, _ := Sign(appClaims{
+			RegisteredClaims: RegisteredClaims{ExpiresAt: NewNumericDate(time.Now().Add(-time.Hour))},
 		}, signer)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("Authorization", "Bearer "+tok)

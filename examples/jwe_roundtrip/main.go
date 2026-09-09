@@ -15,6 +15,7 @@ import (
 )
 
 type payload struct {
+	jwt.RegisteredClaims
 	AccountID string `json:"account_id"`
 	Tier      string `json:"tier"`
 }
@@ -29,12 +30,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	compact, err := jwt.EncryptClaims(jwt.Claims[payload]{
+	compact, err := jwt.EncryptClaims(payload{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://issuer.example",
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 		},
-		Custom: payload{AccountID: "acct-9", Tier: "gold"},
+		AccountID: "acct-9",
+		Tier:      "gold",
 	}, enc)
 	if err != nil {
 		log.Fatal(err)
@@ -51,5 +53,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err) // any failure is a single generic error: fails closed
 	}
-	fmt.Printf("decrypted: account=%s tier=%s\n", claims.Custom.AccountID, claims.Custom.Tier)
+	fmt.Printf("decrypted: account=%s tier=%s\n", claims.AccountID, claims.Tier)
 }

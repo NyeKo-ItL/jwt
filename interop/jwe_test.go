@@ -109,9 +109,9 @@ func TestJWE_OursDecryptedByGoJose(t *testing.T) {
 	for _, k := range jweKeyAlgs {
 		for _, c := range jweContentAlgs {
 			t.Run(k.name+"/"+string(c.our), func(t *testing.T) {
-				compact, err := jwt.EncryptClaims(jwt.Claims[payload]{
+				compact, err := jwt.EncryptClaims(payload{
 					RegisteredClaims: jwt.RegisteredClaims{Subject: "interop"},
-					Custom:           payload{Marker: marker},
+					Marker:           marker,
 				}, oursEncrypter(t, k.our, c.our))
 				if err != nil {
 					t.Fatalf("EncryptClaims: %v", err)
@@ -153,7 +153,7 @@ func TestJWE_GoJoseDecryptedByOurs(t *testing.T) {
 				if err != nil {
 					t.Fatalf("jwt.DecryptClaims: %v", err)
 				}
-				if got.Subject != "interop" || got.Custom.Marker != marker {
+				if got.Subject != "interop" || got.Marker != marker {
 					t.Fatalf("claims mismatch: %+v", got)
 				}
 			})

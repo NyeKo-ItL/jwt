@@ -60,7 +60,7 @@ func TestJWEECDHCurveMismatch(t *testing.T) {
 func TestJWEEncryptClaimsMarshalError(t *testing.T) {
 	tk := newTestKeys(t)
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "")
-	if _, err := EncryptClaims(Claims[chan int]{Custom: make(chan int)}, enc); err == nil {
+	if _, err := EncryptClaims(make(chan int), enc); err == nil {
 		t.Fatal("expected marshal error")
 	}
 }

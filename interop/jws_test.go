@@ -27,6 +27,7 @@ var jwsAlgs = []struct {
 const marker = "interop-marker"
 
 type payload struct {
+	jwt.RegisteredClaims
 	Marker string `json:"marker"`
 }
 
@@ -81,12 +82,12 @@ func oursSign(t *testing.T, alg jwt.Algorithm) string {
 	if err != nil {
 		t.Fatalf("new signer %s: %v", alg, err)
 	}
-	tok, err := jwt.Sign(jwt.Claims[payload]{
+	tok, err := jwt.Sign(payload{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   "interop",
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 		},
-		Custom: payload{Marker: marker},
+		Marker: marker,
 	}, s)
 	if err != nil {
 		t.Fatalf("Sign %s: %v", alg, err)
@@ -122,7 +123,7 @@ func oursParse(t *testing.T, alg jwt.Algorithm, token string) {
 	if err != nil {
 		t.Fatalf("jwt.Parse %s: %v", alg, err)
 	}
-	if c.Subject != "interop" || c.Custom.Marker != marker {
+	if c.Subject != "interop" || c.Marker != marker {
 		t.Fatalf("parsed claims mismatch: %+v", c)
 	}
 }

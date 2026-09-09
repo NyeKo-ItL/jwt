@@ -197,3 +197,14 @@ func TestAccessTokenClaimsFlatJSON(t *testing.T) {
 		t.Fatalf("flat = %s", raw)
 	}
 }
+
+func TestIDTokenMarshalWithNilProvider(t *testing.T) {
+	// A Provider that marshals to JSON null must be a no-op in the merge.
+	raw, err := json.Marshal(IDToken[[]string]{RegisteredClaims: RegisteredClaims{Issuer: "x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"iss":"x"}` {
+		t.Fatalf("raw = %s", raw)
+	}
+}

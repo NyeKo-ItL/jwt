@@ -366,12 +366,18 @@ type RegisteredClaims struct {
 	Confirmation *Confirmation `json:"cnf,omitempty"`
 }
 
-// Claims combines RegisteredClaims with an application-defined payload,
-// flattened into the same JSON object on the wire.
-type Claims[T any] struct {
-	RegisteredClaims
-	Custom T
-}
+// There is no Claims[T] wrapper: a "claims value" is any type that
+// JSON-marshals to an object. Embed RegisteredClaims to get the registered
+// members flattened natively by encoding/json:
+//
+//	type MyClaims struct {
+//		jwt.RegisteredClaims
+//		Scope string `json:"scope,omitempty"`
+//	}
+//
+// That struct is what you pass to Sign / EncryptClaims and get back from
+// Parse / DecryptClaims. RegisteredClaims may also be used on its own when
+// there are no application claims.
 
 // Header is the JOSE header (RFC 7515 §4.1), modeling every registered
 // parameter. jku/x5u/jwk/x5c are parsed and readable but NEVER automatically
@@ -390,18 +396,28 @@ type Header struct {
 	Critical       []string  `json:"crit,omitempty"`
 }
 
-// Sign encodes claims and produces a compact JWS (RFC 7515 §7.1).
-func Sign[T any](claims Claims[T], signer Signer) (string, error)
+// SignOption customizes the JOSE header; it never affects "alg".
+type SignOption func(*signConfig)
 
-// Parse decodes a compact JWS, verifies its signature via keys, and validates
-// registered claims according to opts. WithAllowedAlgorithms is mandatory —
-// Parse returns ErrNoAllowedAlgorithms if it is omitted.
-func Parse[T any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*Claims[T], error)
+func WithType(typ string) SignOption        // override/omit "typ"; default DefaultType, AccessTokenType for RFC 9068
+func WithContentType(cty string) SignOption // "cty" (RFC 7515 §4.1.10)
 
-// ParseInsecure decodes claims WITHOUT verifying the signature or checking
-// expiry. MUST NOT be used for any authorization decision — read-only
-// inspection only (e.g. looking up a session by an expired token's "jti").
-func ParseInsecure[T any](token string) (*Claims[T], error)
+// Sign JSON-encodes a claims value (any type marshaling to an object) and
+// produces a compact JWS (RFC 7515 §7.1).
+func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error)
+
+// Parse decodes a compact JWS, verifies its signature via keys, validates
+// the registered claims according to opts, and unmarshals the payload into
+// *C. Registered-claim validation runs whether or not C models them.
+// WithAllowedAlgorithms is mandatory — Parse returns ErrNoAllowedAlgorithms
+// if it is omitted.
+func Parse[C any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*C, error)
+
+// ParseInsecure decodes the payload into *C WITHOUT verifying the signature
+// or checking expiry. MUST NOT be used for any authorization decision —
+// read-only inspection only (e.g. looking up a session by an expired token's
+// "jti").
+func ParseInsecure[C any](token string) (*C, error)
 
 type ParseOption func(*parseConfig)
 
@@ -494,14 +510,15 @@ func NewA256KWDecrypter(kek []byte, kid string) (Decrypter, error)
 func NewDirectEncrypter(cek []byte, content ContentAlgorithm, kid string) (Encrypter, error)
 func NewDirectDecrypter(cek []byte, kid string) (Decrypter, error)
 
-// EncryptClaims is the JWE analogue of Sign: JSON-marshal claims and encrypt
-// them as a compact JWE.
-func EncryptClaims[T any](claims Claims[T], enc Encrypter) (string, error)
+// EncryptClaims is the JWE analogue of Sign: JSON-marshal a claims value and
+// encrypt it as a compact JWE.
+func EncryptClaims[C any](claims C, enc Encrypter) (string, error)
 
-// DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE and
-// unmarshal + validate its claims. The AEAD tag is verified before any
-// plaintext is returned (§4.7) — a failure yields one generic error.
-func DecryptClaims[T any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*Claims[T], error)
+// DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE,
+// validate the registered claims, and unmarshal the plaintext into *C. The
+// AEAD tag is verified before any plaintext is returned (§4.7) — a failure
+// yields one generic error.
+func DecryptClaims[C any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*C, error)
 
 var ErrDecryptionFailed = errors.New("jwt: decryption failed")
 ```
@@ -758,10 +775,10 @@ func BearerToken(r *http.Request) (string, bool)
 // injects the resulting claims into the request context. On failure it
 // writes an RFC 6750 §3-compliant 401 with a WWW-Authenticate header via
 // WriteChallenge, then does not call next.
-func Middleware[T any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler
+func Middleware[C any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler
 
-// ClaimsFromContext retrieves the claims injected by Middleware.
-func ClaimsFromContext[T any](ctx context.Context) (*Claims[T], bool)
+// ClaimsFromContext retrieves the *C injected by Middleware.
+func ClaimsFromContext[C any](ctx context.Context) (*C, bool)
 
 // WriteChallenge writes a WWW-Authenticate: Bearer header per RFC 6750 §3,
 // mapping err to the realm/error/error_description parameters (e.g.
@@ -895,7 +912,7 @@ here.
 │                              # golangci-lint, govulncheck, gosec
 ├── jwt.go                    # Sign, Parse, ParseInsecure, ParseOption, errors
 ├── header.go                 # Header
-├── claims.go                 # RegisteredClaims, Claims[T], Audience, NumericDate, Confirmation
+├── claims.go                 # RegisteredClaims, Audience, NumericDate, Confirmation
 ├── alg_hmac.go                # HS256/384/512 Signer/Verifier
 ├── alg_rsa.go                 # PS*/RS* Signer/Verifier
 ├── alg_ecdsa.go                # ES256/384/512 Signer/Verifier

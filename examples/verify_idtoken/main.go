@@ -18,8 +18,11 @@ import (
 	"github.com/NyeKo-ItL/jwt"
 )
 
-// issuerClaims is the provider's own view of an ID token payload.
+// issuerClaims is the provider's own view of an ID token payload: embed
+// the registered + standard + provider claim sets and they all flatten into
+// one JSON object.
 type issuerClaims struct {
+	jwt.RegisteredClaims
 	jwt.StandardClaims
 	jwt.GoogleClaims
 }
@@ -37,7 +40,7 @@ func main() {
 	}
 
 	verified := true
-	idToken, err := jwt.Sign(jwt.Claims[issuerClaims]{
+	idToken, err := jwt.Sign(issuerClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://accounts.google.com",
 			Subject:   "110169484474386276334",
@@ -45,10 +48,8 @@ func main() {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
-		Custom: issuerClaims{
-			StandardClaims: jwt.StandardClaims{Email: "jsmith@example.com", EmailVerified: &verified, Name: "John Smith"},
-			GoogleClaims:   jwt.GoogleClaims{HostedDomain: "example.com"},
-		},
+		StandardClaims: jwt.StandardClaims{Email: "jsmith@example.com", EmailVerified: &verified, Name: "John Smith"},
+		GoogleClaims:   jwt.GoogleClaims{HostedDomain: "example.com"},
 	}, signer)
 	if err != nil {
 		log.Fatal(err)
@@ -70,5 +71,5 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("verified ID token: sub=%s email=%s hd=%s\n",
-		claims.Subject, claims.Custom.Email, claims.Custom.Provider.HostedDomain)
+		claims.Subject, claims.Email, claims.Provider.HostedDomain)
 }

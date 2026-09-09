@@ -12,6 +12,7 @@ import (
 )
 
 type sessionClaims struct {
+	jwt.RegisteredClaims
 	Role string `json:"role"`
 }
 
@@ -26,13 +27,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	token, err := jwt.Sign(jwt.Claims[sessionClaims]{
-		Issuer:    "https://auth.example",
-		Subject:   "user-42",
-		Audience:  jwt.Audience{"https://api.example"},
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		Custom:    sessionClaims{Role: "admin"},
+	token, err := jwt.Sign(sessionClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "https://auth.example",
+			Subject:   "user-42",
+			Audience:  jwt.Audience{"https://api.example"},
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		Role: "admin",
 	}, signer)
 	if err != nil {
 		log.Fatal(err)
@@ -48,5 +51,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("verified: sub=%s role=%s\n", claims.Subject, claims.Custom.Role)
+	fmt.Printf("verified: sub=%s role=%s\n", claims.Subject, claims.Role)
 }
