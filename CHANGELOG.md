@@ -24,8 +24,8 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 - Claim model: `RegisteredClaims`, generic `Claims[T]`, `Audience`,
   `NumericDate`, `Confirmation`, and the full RFC 7515 §4.1 `Header`.
 - OIDC claims: `StandardClaims`, `Address`, `GoogleClaims`, `OktaClaims`,
-  `EntraClaims`, and the generic `IDToken[Provider]` with an `Extra`
-  catch-all.
+  `EntraClaims`, and the ready-made `GoogleIDToken` / `OktaIDToken` /
+  `EntraIDToken` structs.
 - RFC 9068: `AccessTokenClaims`, `AccessTokenType`,
   `ValidateAccessTokenClaims`.
 - JWE: `EncryptClaims` / `DecryptClaims`, the `Encrypter` / `Decrypter`
@@ -52,6 +52,12 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
   directly (embed `RegisteredClaims` to flatten the registered members, or
   use `RegisteredClaims` alone). No more `Custom` field, no custom-marshaler
   merge.
+- **Removed generic `IDToken[Provider]` and its `Extra` catch-all.** Replaced
+  by concrete flat structs `GoogleIDToken` / `OktaIDToken` / `EntraIDToken`
+  (each embeds `RegisteredClaims` + `StandardClaims` + its provider claim
+  set) so calls read `jwt.Parse[jwt.GoogleIDToken](...)` — no nested type
+  parameters, no reflection. Unmodeled members are ignored; for a catch-all,
+  add your own `map[string]any` handling or a second unmarshal.
 - `Sign` options trimmed to `WithType` and `WithContentType`
   (`WithHeaderParam` removed).
 - `MapKeyProvider` now resolves an empty requested kid to the sole key,

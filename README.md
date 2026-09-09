@@ -46,7 +46,7 @@ representable in either direction.
 ```go
 uri, _ := jwt.DiscoverJWKSURI(ctx, "https://accounts.google.com", nil)
 keys := jwt.NewKeyFetcher(uri)
-idt, err := jwt.Parse[jwt.IDToken[jwt.GoogleClaims]](ctx, raw, keys,
+idt, err := jwt.Parse[jwt.GoogleIDToken](ctx, raw, keys,
     jwt.WithAllowedAlgorithms(jwt.RS256),
     jwt.WithAudience(clientID),
 )

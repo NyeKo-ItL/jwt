@@ -1,7 +1,7 @@
 // Command verify_idtoken shows the JWKS + provider-claims path: an OpenID
 // provider signs an ID token with ES256 and publishes its public key in a
-// JWK Set; a relying party verifies it as an IDToken[GoogleClaims]. The JWKS
-// is kept in-process so the example runs offline — against a real provider
+// JWK Set; a relying party verifies it as a jwt.GoogleIDToken. The JWKS is
+// kept in-process so the example runs offline — against a real provider
 // swap jwt.ParseKeySet for jwt.NewKeyFetcher(uri).
 package main
 
@@ -18,15 +18,6 @@ import (
 	"github.com/NyeKo-ItL/jwt"
 )
 
-// issuerClaims is the provider's own view of an ID token payload: embed
-// the registered + standard + provider claim sets and they all flatten into
-// one JSON object.
-type issuerClaims struct {
-	jwt.RegisteredClaims
-	jwt.StandardClaims
-	jwt.GoogleClaims
-}
-
 func main() {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -40,7 +31,7 @@ func main() {
 	}
 
 	verified := true
-	idToken, err := jwt.Sign(issuerClaims{
+	idToken, err := jwt.Sign(jwt.GoogleIDToken{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://accounts.google.com",
 			Subject:   "110169484474386276334",
@@ -62,7 +53,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	claims, err := jwt.Parse[jwt.IDToken[jwt.GoogleClaims]](context.Background(), idToken, keys,
+	claims, err := jwt.Parse[jwt.GoogleIDToken](context.Background(), idToken, keys,
 		jwt.WithAllowedAlgorithms(jwt.ES256, jwt.RS256), // Google normally uses RS256
 		jwt.WithIssuer("https://accounts.google.com"),
 		jwt.WithAudience("1234567890.apps.googleusercontent.com"),
@@ -71,5 +62,5 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("verified ID token: sub=%s email=%s hd=%s\n",
-		claims.Subject, claims.Email, claims.Provider.HostedDomain)
+		claims.Subject, claims.Email, claims.HostedDomain)
 }

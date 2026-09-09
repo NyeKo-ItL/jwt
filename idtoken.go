@@ -1,13 +1,8 @@
 package jwt
 
-import (
-	"encoding/json"
-	"reflect"
-	"strings"
-)
-
 // StandardClaims are the OpenID Connect Core 1.0 §5.1 standard claims,
-// common across virtually every OIDC provider.
+// common across virtually every OIDC provider. Embed it (alongside
+// RegisteredClaims and a provider claim set) in your own ID-token struct.
 type StandardClaims struct {
 	Name                string       `json:"name,omitempty"`
 	GivenName           string       `json:"given_name,omitempty"`
@@ -72,135 +67,33 @@ type EntraClaims struct {
 	UniqueName string   `json:"unique_name,omitempty"`
 }
 
-// IDToken composes RegisteredClaims + StandardClaims + a provider-specific
-// extension via generics (Provider = GoogleClaims, OktaClaims, EntraClaims,
-// or a caller-defined struct), plus a catch-all Extra map for anything not
-// otherwise modeled. All four contribute to one flat JSON object.
-type IDToken[Provider any] struct {
+// GoogleIDToken is a ready-made ID-token claims struct for Google:
+// registered + OIDC standard + Google claims, all flattened into one JSON
+// object by struct embedding. Pass it straight to Parse:
+//
+//	claims, err := jwt.Parse[jwt.GoogleIDToken](ctx, raw, keys, opts...)
+//	claims.Subject       // registered
+//	claims.Email         // standard
+//	claims.HostedDomain  // Google
+//
+// For a provider this library does not model, declare the same shape with
+// your own claim set in place of GoogleClaims.
+type GoogleIDToken struct {
 	RegisteredClaims
 	StandardClaims
-	Provider Provider
-	Extra    map[string]any `json:"-"`
+	GoogleClaims
 }
 
-// MarshalJSON flattens every part into a single JSON object. Modeled claims
-// take precedence over same-named Extra entries.
-func (t IDToken[Provider]) MarshalJSON() ([]byte, error) {
-	merged := map[string]json.RawMessage{}
-	for k, v := range t.Extra {
-		raw, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		merged[k] = raw
-	}
-	for _, part := range []any{t.RegisteredClaims, t.StandardClaims, t.Provider} {
-		raw, err := json.Marshal(part)
-		if err != nil {
-			return nil, err
-		}
-		if err := mergeObject(merged, raw); err != nil {
-			return nil, err
-		}
-	}
-	return json.Marshal(merged)
+// OktaIDToken is the Okta equivalent of GoogleIDToken.
+type OktaIDToken struct {
+	RegisteredClaims
+	StandardClaims
+	OktaClaims
 }
 
-// UnmarshalJSON fills every modeled part and routes all remaining members
-// into Extra.
-func (t *IDToken[Provider]) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &t.RegisteredClaims); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(b, &t.StandardClaims); err != nil {
-		return err
-	}
-	if err := json.Unmarshal(b, &t.Provider); err != nil {
-		return err
-	}
-	rest := map[string]json.RawMessage{}
-	if err := json.Unmarshal(b, &rest); err != nil {
-		return err
-	}
-	for _, name := range jsonFieldNames(t.RegisteredClaims) {
-		delete(rest, name)
-	}
-	for _, name := range jsonFieldNames(t.StandardClaims) {
-		delete(rest, name)
-	}
-	for _, name := range jsonFieldNames(t.Provider) {
-		delete(rest, name)
-	}
-	if len(rest) == 0 {
-		return nil
-	}
-	t.Extra = make(map[string]any, len(rest))
-	for k, raw := range rest {
-		var v any
-		if err := json.Unmarshal(raw, &v); err != nil {
-			return err
-		}
-		t.Extra[k] = v
-	}
-	return nil
-}
-
-// jsonFieldNames returns the JSON member names a struct value would read or
-// write, recursing into anonymous (embedded) struct fields.
-func jsonFieldNames(v any) []string {
-	rt := reflect.TypeOf(v)
-	if rt == nil {
-		return nil
-	}
-	for rt.Kind() == reflect.Pointer {
-		rt = rt.Elem()
-	}
-	if rt.Kind() != reflect.Struct {
-		return nil
-	}
-	var out []string
-	for f := range rt.Fields() {
-		f := f
-		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		if name == "-" {
-			continue
-		}
-		// encoding/json promotes the fields of an anonymous struct even when
-		// the embedded type itself is unexported, so recurse before the
-		// exported-field check.
-		if f.Anonymous && name == "" {
-			ft := f.Type
-			for ft.Kind() == reflect.Pointer {
-				ft = ft.Elem()
-			}
-			if ft.Kind() == reflect.Struct {
-				out = append(out, jsonFieldNames(reflect.New(ft).Elem().Interface())...)
-				continue
-			}
-		}
-		if !f.IsExported() {
-			continue
-		}
-		if name == "" {
-			name = f.Name
-		}
-		out = append(out, name)
-	}
-	return out
-}
-
-// mergeObject unmarshals a JSON object into dst, overwriting existing keys.
-// A null or empty input is a no-op; a non-object input is an error.
-func mergeObject(dst map[string]json.RawMessage, obj []byte) error {
-	if len(obj) == 0 || string(obj) == "null" {
-		return nil
-	}
-	m := map[string]json.RawMessage{}
-	if err := json.Unmarshal(obj, &m); err != nil {
-		return err
-	}
-	for k, v := range m {
-		dst[k] = v
-	}
-	return nil
+// EntraIDToken is the Microsoft Entra ID equivalent of GoogleIDToken.
+type EntraIDToken struct {
+	RegisteredClaims
+	StandardClaims
+	EntraClaims
 }

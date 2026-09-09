@@ -673,15 +673,27 @@ type EntraClaims struct {
 	UniqueName string   `json:"unique_name,omitempty"`
 }
 
-// IDToken composes RegisteredClaims + StandardClaims + a provider-specific
-// extension via generics (Provider = GoogleClaims, OktaClaims, EntraClaims,
-// or a caller-defined struct for another provider), plus a catch-all Extra
-// map for anything not otherwise modeled.
-type IDToken[Provider any] struct {
+// Ready-made ID-token structs: RegisteredClaims + StandardClaims + a
+// provider claim set, all embedded so encoding/json flattens them natively —
+// no generics, no custom marshaler. Pass one straight to Parse, e.g.
+// jwt.Parse[jwt.GoogleIDToken](...). For an unmodeled provider, declare the
+// same shape with your own claim set in place of the third embed.
+type GoogleIDToken struct {
 	RegisteredClaims
 	StandardClaims
-	Provider Provider
-	Extra    map[string]any `json:"-"`
+	GoogleClaims
+}
+
+type OktaIDToken struct {
+	RegisteredClaims
+	StandardClaims
+	OktaClaims
+}
+
+type EntraIDToken struct {
+	RegisteredClaims
+	StandardClaims
+	EntraClaims
 }
 ```
 
@@ -926,7 +938,7 @@ here.
 ├── keyset.go                   # KeySet, ParseKeySet
 ├── keyfetch.go                 # KeyFetcher, DiscoverJWKSURI
 ├── thumbprint.go                # Thumbprint, ThumbprintBytes
-├── idtoken.go                  # StandardClaims, Address, GoogleClaims, OktaClaims, EntraClaims, IDToken[T]
+├── idtoken.go                  # StandardClaims, Address, Google/Okta/EntraClaims, Google/Okta/EntraIDToken
 ├── atclaims.go                  # AccessTokenClaims, ValidateAccessTokenClaims
 ├── opaque.go                   # OpaqueToken, NewOpaqueToken, DeriveOpaqueToken, Hash, Equal
 ├── rotation.go                  # TokenFamily, RotationResult
@@ -1011,6 +1023,6 @@ Notes:
 8. **`idtoken` fixture tests**: static sample ID-token claim sets for Google,
    Okta, and Entra ID (drawn from each provider's public documentation, kept
    as `testdata/idtoken_fixtures/*.json`) round-tripped through
-   `IDToken[GoogleClaims]` / `IDToken[OktaClaims]` / `IDToken[EntraClaims]` to
+   `GoogleIDToken` / `OktaIDToken` / `EntraIDToken` to
    catch a provider changing its claim shape without needing live network
    access in CI.
