@@ -118,9 +118,9 @@ func oursKeyProvider(t *testing.T, alg jwt.Algorithm) jwt.KeyProvider {
 
 func oursParse(t *testing.T, alg jwt.Algorithm, token string) {
 	t.Helper()
-	c, err := jwt.Parse[payload](context.Background(), token, oursKeyProvider(t, alg),
-		jwt.WithAllowedAlgorithms(alg))
-	if err != nil {
+	var c payload
+	if err := jwt.Parse(context.Background(), token, &c, oursKeyProvider(t, alg),
+		jwt.WithAllowedAlgorithms(alg)); err != nil {
 		t.Fatalf("jwt.Parse %s: %v", alg, err)
 	}
 	if c.Subject != "interop" || c.Marker != marker {

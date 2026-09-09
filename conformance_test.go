@@ -44,8 +44,8 @@ func TestFakesPluggableIntoParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := jwt.Parse[jwt.RegisteredClaims](t.Context(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
-	if err != nil {
+	var got jwt.RegisteredClaims
+	if err := jwt.Parse(t.Context(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
 		t.Fatalf("Parse via jwttest pair: %v", err)
 	}
 	if got.Subject != "u1" {

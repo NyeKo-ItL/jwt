@@ -107,15 +107,34 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 
 // Parse decodes a compact JWS, verifies its signature with a key resolved
 // from keys, validates the registered claims per opts, and unmarshals the
-// payload into a fresh *C. Registered-claim validation runs regardless of
-// whether C models those claims. WithAllowedAlgorithms is mandatory
-// (RFC 8725 §3.1); Parse returns ErrNoAllowedAlgorithms if no usable
-// algorithm is supplied.
-func Parse[C any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*C, error) {
+// payload into dst (a pointer to any struct; embed RegisteredClaims to read
+// the registered members). dst's type is inferred, so calls carry no
+// explicit type argument:
+//
+//	var claims MyClaims
+//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+//
+// Registered-claim validation runs regardless of what dst models.
+// WithAllowedAlgorithms is mandatory (RFC 8725 §3.1); Parse returns
+// ErrNoAllowedAlgorithms if no usable algorithm is supplied.
+func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, opts ...ParseOption) error {
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
 		o(&cfg)
 	}
+	payloadJSON, err := parseVerified(ctx, token, keys, cfg)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(payloadJSON, dst); err != nil {
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+	}
+	return nil
+}
+
+// parseVerified runs everything Parse does except the final unmarshal into a
+// caller type: it returns the verified, claim-validated payload JSON.
+func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg parseConfig) ([]byte, error) {
 	allowed := withoutNone(cfg.allowedAlgs)
 	if len(allowed) == 0 {
 		return nil, ErrNoAllowedAlgorithms
@@ -176,34 +195,29 @@ func Parse[C any](ctx context.Context, token string, keys KeyProvider, opts ...P
 	if err := validateClaims(payloadJSON, &reg, header, cfg); err != nil {
 		return nil, err
 	}
-	var claims C
-	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
-	}
-	return &claims, nil
+	return payloadJSON, nil
 }
 
-// ParseInsecure decodes the payload into a fresh *C WITHOUT verifying the
-// signature or checking expiry. Its result MUST NOT drive any authorization
-// decision — read-only inspection only (e.g. looking up a session by an
-// expired token's "jti").
-func ParseInsecure[C any](token string) (*C, error) {
+// ParseInsecure decodes the payload into dst WITHOUT verifying the signature
+// or checking expiry. Its result MUST NOT drive any authorization decision —
+// read-only inspection only (e.g. looking up a session by an expired token's
+// "jti"). dst's type is inferred; no explicit type argument.
+func ParseInsecure[C any](token string, dst *C) error {
 	if len(token) > maxTokenBytes {
-		return nil, fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
+		return fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
-		return nil, fmt.Errorf("%w: need at least a header and a payload", ErrMalformedToken)
+		return fmt.Errorf("%w: need at least a header and a payload", ErrMalformedToken)
 	}
 	payloadJSON, err := b64.Decode(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
+		return fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
-	var claims C
-	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+	if err := json.Unmarshal(payloadJSON, dst); err != nil {
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
-	return &claims, nil
+	return nil
 }
 
 type parseConfig struct {

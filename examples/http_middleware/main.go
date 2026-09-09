@@ -26,10 +26,14 @@ func main() {
 	keys := jwt.StaticKeyProvider(jwt.FromHMACSecret(secret, "k1"))
 
 	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, _ := jwt.ClaimsFromContext[apiClaims](r.Context())
+		var claims apiClaims
+		if err := jwt.ClaimsFromContext(r.Context(), &claims); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		_, _ = fmt.Fprintf(w, "hello %s (scope %q)\n", claims.Subject, claims.Scope)
 	})
-	handler := jwt.Middleware[apiClaims](keys,
+	handler := jwt.Middleware(keys,
 		jwt.WithAllowedAlgorithms(jwt.HS256),
 		jwt.WithAudience("https://api.example"),
 	)(protected)

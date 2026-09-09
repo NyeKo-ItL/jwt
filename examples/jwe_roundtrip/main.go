@@ -47,7 +47,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	claims, err := jwt.DecryptClaims[payload](context.Background(), compact, dec,
+	var claims payload
+	err = jwt.DecryptClaims(context.Background(), compact, &claims, dec,
 		jwt.WithIssuer("https://issuer.example"),
 	)
 	if err != nil {

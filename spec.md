@@ -375,9 +375,11 @@ type RegisteredClaims struct {
 //		Scope string `json:"scope,omitempty"`
 //	}
 //
-// That struct is what you pass to Sign / EncryptClaims and get back from
-// Parse / DecryptClaims. RegisteredClaims may also be used on its own when
-// there are no application claims.
+// That struct is what you pass to Sign / EncryptClaims and, as a *pointer,
+// to Parse / DecryptClaims / ClaimsFromContext, which fill it in place — the
+// type is inferred from the pointer, so calls carry no explicit type
+// argument. RegisteredClaims may also be used on its own when there are no
+// application claims.
 
 // Header is the JOSE header (RFC 7515 §4.1), modeling every registered
 // parameter. jku/x5u/jwk/x5c are parsed and readable but NEVER automatically
@@ -408,16 +410,21 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error)
 
 // Parse decodes a compact JWS, verifies its signature via keys, validates
 // the registered claims according to opts, and unmarshals the payload into
-// *C. Registered-claim validation runs whether or not C models them.
+// dst. dst's type is inferred:
+//
+//	var claims MyClaims
+//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+//
+// Registered-claim validation runs whether or not dst models them.
 // WithAllowedAlgorithms is mandatory — Parse returns ErrNoAllowedAlgorithms
 // if it is omitted.
-func Parse[C any](ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (*C, error)
+func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, opts ...ParseOption) error
 
-// ParseInsecure decodes the payload into *C WITHOUT verifying the signature
+// ParseInsecure decodes the payload into dst WITHOUT verifying the signature
 // or checking expiry. MUST NOT be used for any authorization decision —
 // read-only inspection only (e.g. looking up a session by an expired token's
 // "jti").
-func ParseInsecure[C any](token string) (*C, error)
+func ParseInsecure[C any](token string, dst *C) error
 
 type ParseOption func(*parseConfig)
 
@@ -515,10 +522,10 @@ func NewDirectDecrypter(cek []byte, kid string) (Decrypter, error)
 func EncryptClaims[C any](claims C, enc Encrypter) (string, error)
 
 // DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE,
-// validate the registered claims, and unmarshal the plaintext into *C. The
-// AEAD tag is verified before any plaintext is returned (§4.7) — a failure
-// yields one generic error.
-func DecryptClaims[C any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*C, error)
+// validate the registered claims, and unmarshal the plaintext into dst (type
+// inferred). The AEAD tag is verified before any plaintext is returned
+// (§4.7) — a failure yields one generic error.
+func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decrypter, opts ...ParseOption) error
 
 var ErrDecryptionFailed = errors.New("jwt: decryption failed")
 ```
@@ -783,14 +790,15 @@ func NewMemoryRevocationStore() RevocationStore
 // (RFC 6750 §2.1). Case-insensitive scheme match, single space separator.
 func BearerToken(r *http.Request) (string, bool)
 
-// Middleware verifies the request's bearer token with keys and opts, and
-// injects the resulting claims into the request context. On failure it
-// writes an RFC 6750 §3-compliant 401 with a WWW-Authenticate header via
-// WriteChallenge, then does not call next.
-func Middleware[C any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler
+// Middleware verifies the request's bearer token with keys and opts, then
+// stores the verified payload on the request context. On failure it writes
+// an RFC 6750 §3-compliant 401 with a WWW-Authenticate header via
+// WriteChallenge, then does not call next. It is not generic.
+func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler
 
-// ClaimsFromContext retrieves the *C injected by Middleware.
-func ClaimsFromContext[C any](ctx context.Context) (*C, bool)
+// ClaimsFromContext unmarshals the payload Middleware stored into dst (type
+// inferred). Returns ErrNoClaimsInContext if the request skipped Middleware.
+func ClaimsFromContext[C any](ctx context.Context, dst *C) error
 
 // WriteChallenge writes a WWW-Authenticate: Bearer header per RFC 6750 §3,
 // mapping err to the realm/error/error_description parameters (e.g.

@@ -225,31 +225,31 @@ func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
 }
 
 // DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE, validate
-// its registered claims per opts, and unmarshal the plaintext into a fresh
-// *C. The AEAD tag is verified before any plaintext is exposed (spec §4.7).
-// Header "typ" checking (WithRequiredType) does not apply here.
-func DecryptClaims[C any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*C, error) {
+// its registered claims per opts, and unmarshal the plaintext into dst (its
+// type is inferred; no explicit type argument). The AEAD tag is verified
+// before any plaintext is exposed (spec §4.7). Header "typ" checking
+// (WithRequiredType) does not apply here.
+func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decrypter, opts ...ParseOption) error {
 	if dec == nil {
-		return nil, fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
+		return fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
 	}
 	payload, err := dec.Decrypt(ctx, compact)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var reg RegisteredClaims
 	if err := json.Unmarshal(payload, &reg); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
 		o(&cfg)
 	}
 	if err := validateClaims(payload, &reg, Header{}, cfg); err != nil {
-		return nil, err
+		return err
 	}
-	var claims C
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+	if err := json.Unmarshal(payload, dst); err != nil {
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
-	return &claims, nil
+	return nil
 }

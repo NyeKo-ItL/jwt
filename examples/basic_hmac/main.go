@@ -43,7 +43,8 @@ func main() {
 	fmt.Println("token:", token)
 
 	keys := jwt.StaticKeyProvider(jwt.FromHMACSecret(secret, "sess-key-1"))
-	claims, err := jwt.Parse[sessionClaims](context.Background(), token, keys,
+	var claims sessionClaims
+	err = jwt.Parse(context.Background(), token, &claims, keys,
 		jwt.WithAllowedAlgorithms(jwt.HS256),
 		jwt.WithIssuer("https://auth.example"),
 		jwt.WithAudience("https://api.example"),

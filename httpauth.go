@@ -2,10 +2,12 @@ package jwt
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // BearerToken extracts the credential from an "Authorization: Bearer <token>"
@@ -27,18 +29,36 @@ func BearerToken(r *http.Request) (string, bool) {
 
 type claimsContextKey struct{}
 
-// ClaimsFromContext retrieves the *C that Middleware injected. The type
-// parameter must match the one Middleware was instantiated with.
-func ClaimsFromContext[C any](ctx context.Context) (*C, bool) {
-	v, ok := ctx.Value(claimsContextKey{}).(*C)
-	return v, ok
+// ErrNoClaimsInContext is returned by ClaimsFromContext when the request did
+// not pass through Middleware.
+var ErrNoClaimsInContext = errors.New("jwt: no verified claims in context")
+
+// ClaimsFromContext unmarshals the verified payload that Middleware stored on
+// the request context into dst (a pointer to any claims struct; its type is
+// inferred, so no explicit type argument):
+//
+//	var claims MyClaims
+//	if err := jwt.ClaimsFromContext(r.Context(), &claims); err != nil { ... }
+func ClaimsFromContext[C any](ctx context.Context, dst *C) error {
+	payload, ok := ctx.Value(claimsContextKey{}).([]byte)
+	if !ok {
+		return ErrNoClaimsInContext
+	}
+	if err := json.Unmarshal(payload, dst); err != nil {
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+	}
+	return nil
 }
 
-// Middleware verifies the request's bearer token with keys and opts and puts
-// the resulting *C in the request context (retrieve it with
-// ClaimsFromContext[C]). On any failure it writes an RFC 6750 §3 challenge
-// via WriteChallenge and does not call next.
-func Middleware[C any](keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
+// Middleware verifies the request's bearer token with keys and opts, then
+// stores the verified payload on the request context for ClaimsFromContext
+// to decode. On any failure it writes an RFC 6750 §3 challenge via
+// WriteChallenge and does not call next.
+func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
+	cfg := parseConfig{now: time.Now}
+	for _, o := range opts {
+		o(&cfg)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := BearerToken(r)
@@ -46,12 +66,12 @@ func Middleware[C any](keys KeyProvider, opts ...ParseOption) func(http.Handler)
 				WriteChallenge(w, "", nil)
 				return
 			}
-			claims, err := Parse[C](r.Context(), token, keys, opts...)
+			payload, err := parseVerified(r.Context(), token, keys, cfg)
 			if err != nil {
 				WriteChallenge(w, "", err)
 				return
 			}
-			ctx := context.WithValue(r.Context(), claimsContextKey{}, claims)
+			ctx := context.WithValue(r.Context(), claimsContextKey{}, payload)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

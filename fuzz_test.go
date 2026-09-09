@@ -20,8 +20,8 @@ func FuzzParse(f *testing.F) {
 
 	keys := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
 	f.Fuzz(func(t *testing.T, token string) {
-		_, _ = Parse[appClaims](context.Background(), token, keys, WithAllowedAlgorithms(HS256))
-		_, _ = ParseInsecure[appClaims](token)
+		_, _ = parse[appClaims](context.Background(), token, keys, WithAllowedAlgorithms(HS256))
+		_, _ = parseInsecure[appClaims](token)
 	})
 }
 
@@ -35,7 +35,7 @@ func FuzzDecryptClaims(f *testing.F) {
 
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "k1")
 	f.Fuzz(func(t *testing.T, compact string) {
-		_, _ = DecryptClaims[appClaims](context.Background(), compact, dec)
+		_, _ = decryptClaims[appClaims](context.Background(), compact, dec)
 	})
 }
 

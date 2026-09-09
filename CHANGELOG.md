@@ -46,12 +46,16 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 
 ### Changed
 
-- **Removed `Claims[T]`.** `Sign` / `Parse` / `ParseInsecure` /
-  `EncryptClaims` / `DecryptClaims` / `Middleware` / `ClaimsFromContext` are
-  now generic over `C any` — pass and receive your own claims struct
-  directly (embed `RegisteredClaims` to flatten the registered members, or
-  use `RegisteredClaims` alone). No more `Custom` field, no custom-marshaler
+- **Removed `Claims[T]`.** Pass and receive your own claims struct directly
+  (embed `RegisteredClaims` to flatten the registered members, or use
+  `RegisteredClaims` alone). No more `Custom` field, no custom-marshaler
   merge.
+- **`Parse` / `ParseInsecure` / `DecryptClaims` / `ClaimsFromContext` fill a
+  destination pointer instead of returning `(*C, error)`** — the type is
+  inferred from `&dst`, so no call carries an explicit type argument
+  (`jwt.Parse(ctx, token, &claims, keys, opts...)`). `Middleware` is no
+  longer generic: it stores the verified payload for `ClaimsFromContext` to
+  decode. New `ErrNoClaimsInContext`.
 - **Removed generic `IDToken[Provider]` and its `Extra` catch-all.** Replaced
   by concrete flat structs `GoogleIDToken` / `OktaIDToken` / `EntraIDToken`
   (each embeds `RegisteredClaims` + `StandardClaims` + its provider claim

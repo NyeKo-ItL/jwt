@@ -71,7 +71,8 @@ type EntraClaims struct {
 // registered + OIDC standard + Google claims, all flattened into one JSON
 // object by struct embedding. Pass it straight to Parse:
 //
-//	claims, err := jwt.Parse[jwt.GoogleIDToken](ctx, raw, keys, opts...)
+//	var claims jwt.GoogleIDToken
+//	err := jwt.Parse(ctx, raw, &claims, keys, opts...)
 //	claims.Subject       // registered
 //	claims.Email         // standard
 //	claims.HostedDomain  // Google

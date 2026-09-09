@@ -254,7 +254,7 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := DecryptClaims[appClaims](jweCtx(), compact, dec,
+	out, err := decryptClaims[appClaims](jweCtx(), compact, dec,
 		WithIssuer("enc-issuer"), WithAudience("aud9"))
 	if err != nil {
 		t.Fatal(err)
@@ -267,12 +267,12 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	expired := in
 	expired.ExpiresAt = NewNumericDate(time.Now().Add(-time.Hour))
 	badCompact, _ := EncryptClaims(expired, enc)
-	if _, err := DecryptClaims[appClaims](jweCtx(), badCompact, dec); !errors.Is(err, ErrExpired) {
+	if _, err := decryptClaims[appClaims](jweCtx(), badCompact, dec); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired enc claims err = %v", err)
 	}
 
 	// wrong issuer
-	if _, err := DecryptClaims[appClaims](jweCtx(), compact, dec, WithIssuer("nope")); !errors.Is(err, ErrIssuerMismatch) {
+	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec, WithIssuer("nope")); !errors.Is(err, ErrIssuerMismatch) {
 		t.Fatalf("issuer err = %v", err)
 	}
 }
@@ -284,17 +284,17 @@ func TestEncryptDecryptClaimsNilAndGarbage(t *testing.T) {
 	if _, err := EncryptClaims(appClaims{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil encrypter err = %v", err)
 	}
-	if _, err := DecryptClaims[appClaims](jweCtx(), "x.y.z.a.b", nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
+	if _, err := decryptClaims[appClaims](jweCtx(), "x.y.z.a.b", nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil decrypter err = %v", err)
 	}
-	if _, err := DecryptClaims[appClaims](jweCtx(), "garbage", dec); !errors.Is(err, ErrDecryptionFailed) {
+	if _, err := decryptClaims[appClaims](jweCtx(), "garbage", dec); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("garbage err = %v", err)
 	}
 
 	// valid JWE whose plaintext is not a JSON object
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "")
 	compact, _ := enc.Encrypt([]byte("not-json"))
-	if _, err := DecryptClaims[appClaims](jweCtx(), compact, dec); !errors.Is(err, ErrMalformedToken) {
+	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("non-json plaintext err = %v", err)
 	}
 }

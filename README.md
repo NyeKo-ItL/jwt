@@ -32,7 +32,8 @@ token, _ := jwt.Sign(MyClaims{
 }, signer)
 
 keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub, "key-1"))
-claims, err := jwt.Parse[MyClaims](ctx, token, keys,
+var claims MyClaims // type is inferred from &claims — no jwt.Parse[...]
+err := jwt.Parse(ctx, token, &claims, keys,
     jwt.WithAllowedAlgorithms(jwt.EdDSA),
     jwt.WithIssuer("me"),
 ) // claims.Role, claims.Subject, ...
@@ -46,7 +47,8 @@ representable in either direction.
 ```go
 uri, _ := jwt.DiscoverJWKSURI(ctx, "https://accounts.google.com", nil)
 keys := jwt.NewKeyFetcher(uri)
-idt, err := jwt.Parse[jwt.GoogleIDToken](ctx, raw, keys,
+var idt jwt.GoogleIDToken
+err := jwt.Parse(ctx, raw, &idt, keys,
     jwt.WithAllowedAlgorithms(jwt.RS256),
     jwt.WithAudience(clientID),
 )
@@ -59,7 +61,8 @@ enc, _ := jwt.NewECDHESEncrypter(recipientPub, jwt.ECDHESA256KW, jwt.A256GCM, ""
 compact, _ := jwt.EncryptClaims(claims, enc)
 
 dec, _ := jwt.NewECDHESDecrypter(recipientPriv, "")
-out, err := jwt.DecryptClaims[MyClaims](ctx, compact, dec)
+var out MyClaims
+err := jwt.DecryptClaims(ctx, compact, &out, dec)
 ```
 
 ## Scope

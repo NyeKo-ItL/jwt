@@ -53,7 +53,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	claims, err := jwt.Parse[jwt.GoogleIDToken](context.Background(), idToken, keys,
+	var claims jwt.GoogleIDToken
+	err = jwt.Parse(context.Background(), idToken, &claims, keys,
 		jwt.WithAllowedAlgorithms(jwt.ES256, jwt.RS256), // Google normally uses RS256
 		jwt.WithIssuer("https://accounts.google.com"),
 		jwt.WithAudience("1234567890.apps.googleusercontent.com"),

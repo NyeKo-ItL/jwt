@@ -86,14 +86,14 @@ func TestMiddleware(t *testing.T) {
 
 	var seen *appClaims
 	final := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, ok := ClaimsFromContext[appClaims](r.Context())
+		c, ok := claimsFromContext[appClaims](r.Context())
 		if !ok {
 			t.Fatal("claims not in context")
 		}
 		seen = c
 		w.WriteHeader(http.StatusNoContent)
 	})
-	handler := Middleware[appClaims](keys, WithAllowedAlgorithms(HS256))(final)
+	handler := Middleware(keys, WithAllowedAlgorithms(HS256))(final)
 
 	t.Run("valid token passes through", func(t *testing.T) {
 		tok, _ := Sign(appClaims{
@@ -139,7 +139,7 @@ func TestMiddleware(t *testing.T) {
 
 func TestClaimsFromContextWrongType(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	if _, ok := ClaimsFromContext[appClaims](r.Context()); ok {
+	if _, ok := claimsFromContext[appClaims](r.Context()); ok {
 		t.Fatal("expected miss on a bare context")
 	}
 }

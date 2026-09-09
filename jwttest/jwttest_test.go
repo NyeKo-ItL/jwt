@@ -80,7 +80,8 @@ func TestNewSigningPair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := jwt.Parse[jwt.RegisteredClaims](context.Background(), tok, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
+	var got jwt.RegisteredClaims
+	if err := jwt.Parse(context.Background(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
 		t.Fatalf("round trip: %v", err)
 	}
 }

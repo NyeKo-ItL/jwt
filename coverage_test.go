@@ -113,7 +113,7 @@ func TestSignPropagatesRegisteredClaimsMarshalError(t *testing.T) {
 
 func TestParseInsecureRejectsBadPayloadJSON(t *testing.T) {
 	tok := "aa." + b64.Encode([]byte("not json"))
-	if _, err := ParseInsecure[appClaims](tok); !errors.Is(err, ErrMalformedToken) {
+	if _, err := parseInsecure[appClaims](tok); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("err = %v, want ErrMalformedToken", err)
 	}
 }
@@ -155,7 +155,7 @@ func TestParseRejectsPayloadNotMatchingC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Parse[int](ctx(), tok, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrMalformedToken) {
+	if _, err := parse[int](ctx(), tok, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("err = %v, want ErrMalformedToken", err)
 	}
 }

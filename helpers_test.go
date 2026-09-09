@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -100,3 +101,31 @@ type staticStr struct {
 func (s staticStr) Algorithm() Algorithm          { return s.alg }
 func (s staticStr) KeyID() string                 { return s.kid }
 func (s staticStr) Sign(_ []byte) ([]byte, error) { return []byte("x"), nil }
+
+// --- test shims: keep the pre-dst-argument call shape in existing tests ---
+
+func parse[T any](ctx context.Context, tok string, keys KeyProvider, opts ...ParseOption) (*T, error) {
+	var dst T
+	err := Parse(ctx, tok, &dst, keys, opts...)
+	return &dst, err
+}
+
+func parseInsecure[T any](tok string) (*T, error) {
+	var dst T
+	err := ParseInsecure(tok, &dst)
+	return &dst, err
+}
+
+func decryptClaims[T any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*T, error) {
+	var dst T
+	err := DecryptClaims(ctx, compact, &dst, dec, opts...)
+	return &dst, err
+}
+
+func claimsFromContext[T any](ctx context.Context) (*T, bool) {
+	var dst T
+	if err := ClaimsFromContext(ctx, &dst); err != nil {
+		return nil, false
+	}
+	return &dst, true
+}
