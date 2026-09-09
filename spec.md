@@ -426,7 +426,30 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 // "jti").
 func ParseInsecure[C any](token string, dst *C) error
 
-type ParseOption func(*parseConfig)
+// ParseOption configures Parse, DecryptClaims and Middleware. Both the
+// functional options below and a ParseOptions struct satisfy it and combine
+// in one call (applied left to right; a later one wins), so a shared config
+// can be declared once and reused, with per-call overrides:
+//
+//	var googleOpts = jwt.ParseOptions{
+//		AllowedAlgorithms: []jwt.Algorithm{jwt.RS256, jwt.ES256},
+//		Issuer:            "https://accounts.google.com",
+//	}
+//	err := jwt.Parse(ctx, tok, &claims, keys, googleOpts, jwt.WithAudience(clientID))
+type ParseOption interface{ applyParse(*parseConfig) }
+
+// ParseOptions is the reusable, declarative form of the same settings. A
+// zero field imposes no constraint (Clock keeps the default). AllowedAlgorithms
+// and RequiredClaims merge with any set via the functional options.
+type ParseOptions struct {
+	AllowedAlgorithms []Algorithm
+	Issuer            string
+	Audience          string
+	RequiredType      string
+	RequiredClaims    []string
+	Leeway            time.Duration
+	Clock             func() time.Time
+}
 
 func WithAllowedAlgorithms(algs ...Algorithm) ParseOption // required; RFC 8725 §3.1
 func WithIssuer(iss string) ParseOption

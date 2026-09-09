@@ -42,6 +42,17 @@ err := jwt.Parse(ctx, token, &claims, keys,
 `jwt.WithAllowedAlgorithms` is mandatory (RFC 8725 §3.1); `alg: none` is never
 representable in either direction.
 
+Options are reusable: declare a `jwt.ParseOptions{}` once and combine it with
+per-call `With*` overrides —
+
+```go
+var apiOpts = jwt.ParseOptions{
+    AllowedAlgorithms: []jwt.Algorithm{jwt.EdDSA},
+    Issuer:            "me",
+}
+err := jwt.Parse(ctx, token, &claims, keys, apiOpts, jwt.WithAudience("orders"))
+```
+
 ### Verify third-party ID tokens over JWKS
 
 ```go

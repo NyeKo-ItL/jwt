@@ -57,7 +57,7 @@ func ClaimsFromContext[C any](ctx context.Context, dst *C) error {
 func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
-		o(&cfg)
+		o.applyParse(&cfg)
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

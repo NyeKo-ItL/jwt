@@ -10,6 +10,10 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
 
 - `Sign` accepts variadic `SignOption`: `WithType` (override or omit `typ`,
   e.g. `AccessTokenType` for RFC 9068) and `WithContentType`.
+- `ParseOptions` struct — a reusable, declarative form of the parse config.
+  It satisfies `ParseOption`, so a shared `ParseOptions{}` and per-call
+  `With*` overrides combine in one `Parse` / `DecryptClaims` / `Middleware`
+  call (applied left to right).
 - `jwttest` sub-package: `FakeKeyProvider`, `FakeRevocationStore`,
   `NewSigningPair`, and the `RunKeyProviderConformance` /
   `RunRevocationStoreConformance` shared test suites.
@@ -56,6 +60,9 @@ follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
   (`jwt.Parse(ctx, token, &claims, keys, opts...)`). `Middleware` is no
   longer generic: it stores the verified payload for `ClaimsFromContext` to
   decode. New `ErrNoClaimsInContext`.
+- `ParseOption` is now an interface (was `func(*parseConfig)`, which callers
+  could never construct anyway); `With*` results and `ParseOptions` both
+  satisfy it.
 - **Removed generic `IDToken[Provider]` and its `Extra` catch-all.** Replaced
   by concrete flat structs `GoogleIDToken` / `OktaIDToken` / `EntraIDToken`
   (each embeds `RegisteredClaims` + `StandardClaims` + its provider claim

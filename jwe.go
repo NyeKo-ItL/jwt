@@ -243,7 +243,7 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 	}
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
-		o(&cfg)
+		o.applyParse(&cfg)
 	}
 	if err := validateClaims(payload, &reg, Header{}, cfg); err != nil {
 		return err

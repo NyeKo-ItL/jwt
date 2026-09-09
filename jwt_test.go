@@ -476,3 +476,111 @@ func TestSignOptions(t *testing.T) {
 		t.Fatalf("header = %v", hdr)
 	}
 }
+
+func TestParseOptionsStruct(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
+	now := time.Unix(1_700_000_000, 0)
+
+	tok, _ := Sign(appClaims{RegisteredClaims: RegisteredClaims{
+		Issuer:    "iss-a",
+		Audience:  Audience{"aud-1"},
+		ExpiresAt: NewNumericDate(now.Add(-30 * time.Second)), // just expired
+	}}, s)
+
+	// A reusable declarative config.
+	base := ParseOptions{
+		AllowedAlgorithms: []Algorithm{HS256},
+		Issuer:            "iss-a",
+		Clock:             func() time.Time { return now },
+	}
+
+	// struct alone: fails on expiry
+	var c1 appClaims
+	if err := Parse(ctx(), tok, &c1, prov, base); !errors.Is(err, ErrExpired) {
+		t.Fatalf("struct-only err = %v", err)
+	}
+
+	// struct + functional overrides combine; later option wins
+	var c2 appClaims
+	err := Parse(ctx(), tok, &c2, prov, base, WithLeeway(time.Minute), WithAudience("aud-1"))
+	if err != nil {
+		t.Fatalf("combined err = %v", err)
+	}
+	if c2.Issuer != "iss-a" {
+		t.Fatalf("issuer = %q", c2.Issuer)
+	}
+
+	// wrong audience via functional option still rejected on the reused base
+	var c3 appClaims
+	if err := Parse(ctx(), tok, &c3, prov, base, WithLeeway(time.Minute), WithAudience("nope")); !errors.Is(err, ErrAudienceMismatch) {
+		t.Fatalf("audience err = %v", err)
+	}
+
+	// a functional option BEFORE the struct is not silently overridden by a
+	// zero struct field (empty Issuer in base does not clear it)
+	var c4 appClaims
+	if err := Parse(ctx(), tok, &c4, prov, WithAudience("aud-1"), WithLeeway(time.Minute),
+		ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}); err != nil {
+		t.Fatalf("func-then-struct err = %v", err)
+	}
+}
+
+func TestParseOptionsAcceptedByDecryptAndMiddleware(t *testing.T) {
+	tk := newTestKeys(t)
+	// DecryptClaims
+	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "k")
+	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "k")
+	compact, _ := EncryptClaims(appClaims{RegisteredClaims: RegisteredClaims{Issuer: "e"}}, enc)
+	var got appClaims
+	if err := DecryptClaims(ctx(), compact, &got, dec, ParseOptions{Issuer: "e"}); err != nil {
+		t.Fatalf("DecryptClaims with ParseOptions: %v", err)
+	}
+	// Middleware
+	_ = Middleware(StaticKeyProvider(FromHMACSecret(tk.hmac, "k")),
+		ParseOptions{AllowedAlgorithms: []Algorithm{HS256}})
+}
+
+func TestParseOptionsAllFieldsViaStruct(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
+	now := time.Unix(1_700_000_000, 0)
+
+	typed := mintToken(t, Header{Algorithm: HS256, Type: "at+jwt", KeyID: "h1"}, map[string]any{
+		"iss":   "iss-x",
+		"aud":   "aud-x",
+		"scope": "read",
+		"exp":   now.Add(-10 * time.Second).Unix(),
+	}, s)
+
+	var c appClaims
+	err := Parse(ctx(), typed, &c, prov, ParseOptions{
+		AllowedAlgorithms: []Algorithm{HS256},
+		Issuer:            "iss-x",
+		Audience:          "aud-x",
+		RequiredType:      "at+jwt",
+		RequiredClaims:    []string{"scope"},
+		Leeway:            time.Minute,
+		Clock:             func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("all-struct-fields err = %v", err)
+	}
+	if c.Scope != "read" {
+		t.Fatalf("scope = %q", c.Scope)
+	}
+
+	// each constraint really bites
+	bad := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+	bad.RequiredType = "JWT"
+	if err := Parse(ctx(), typed, &c, prov, bad, WithLeeway(time.Minute)); !errors.Is(err, ErrTypeMismatch) {
+		t.Fatalf("RequiredType via struct: %v", err)
+	}
+	bad2 := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+	bad2.RequiredClaims = []string{"missing"}
+	if err := Parse(ctx(), typed, &c, prov, bad2, WithLeeway(time.Minute)); !errors.Is(err, ErrMissingClaim) {
+		t.Fatalf("RequiredClaims via struct: %v", err)
+	}
+}

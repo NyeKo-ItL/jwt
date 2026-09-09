@@ -120,7 +120,7 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, opts ...ParseOption) error {
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
-		o(&cfg)
+		o.applyParse(&cfg)
 	}
 	payloadJSON, err := parseVerified(ctx, token, keys, cfg)
 	if err != nil {
@@ -230,49 +230,100 @@ type parseConfig struct {
 	requiredClaims []string
 }
 
-// ParseOption configures Parse.
-type ParseOption func(*parseConfig)
+// ParseOption configures Parse, DecryptClaims and Middleware. Both the
+// functional options below (WithIssuer, WithAudience, ...) and a ParseOptions
+// struct satisfy it, so a reusable declarative config and per-call overrides
+// combine in a single call — options apply left to right, so a later one
+// wins:
+//
+//	base := jwt.ParseOptions{
+//		AllowedAlgorithms: []jwt.Algorithm{jwt.RS256, jwt.ES256},
+//		Issuer:            "https://accounts.google.com",
+//	}
+//	err := jwt.Parse(ctx, tok, &claims, keys, base, jwt.WithAudience(clientID))
+type ParseOption interface {
+	applyParse(*parseConfig)
+}
+
+type parseOptionFunc func(*parseConfig)
+
+func (f parseOptionFunc) applyParse(c *parseConfig) { f(c) }
+
+// ParseOptions is the reusable, declarative form of the parse configuration.
+// A zero field imposes no constraint (and, for Clock, keeps the default). It
+// carries exactly the same settings as the With* options; mix the two freely.
+type ParseOptions struct {
+	// AllowedAlgorithms is the mandatory algorithm allowlist (RFC 8725 §3.1).
+	// It is merged with any WithAllowedAlgorithms in the same call.
+	AllowedAlgorithms []Algorithm
+	Issuer            string        // require "iss" to equal this
+	Audience          string        // require this to be present in "aud"
+	RequiredType      string        // require the JOSE "typ" header to match (RFC 8725 §3.11)
+	RequiredClaims    []string      // require each named claim to be present
+	Leeway            time.Duration // clock-skew allowance on "exp"/"nbf" (default 0)
+	Clock             func() time.Time
+}
+
+func (o ParseOptions) applyParse(c *parseConfig) {
+	c.allowedAlgs = append(c.allowedAlgs, o.AllowedAlgorithms...)
+	if o.Issuer != "" {
+		c.issuer = o.Issuer
+	}
+	if o.Audience != "" {
+		c.audience = o.Audience
+	}
+	if o.RequiredType != "" {
+		c.requiredType = o.RequiredType
+	}
+	c.requiredClaims = append(c.requiredClaims, o.RequiredClaims...)
+	if o.Leeway != 0 {
+		c.leeway = o.Leeway
+	}
+	if o.Clock != nil {
+		c.now = o.Clock
+	}
+}
 
 // WithAllowedAlgorithms sets the mandatory algorithm allowlist (RFC 8725
 // §3.1). "none" and the empty string are never accepted, even if listed.
 func WithAllowedAlgorithms(algs ...Algorithm) ParseOption {
-	return func(c *parseConfig) { c.allowedAlgs = append(c.allowedAlgs, algs...) }
+	return parseOptionFunc(func(c *parseConfig) { c.allowedAlgs = append(c.allowedAlgs, algs...) })
 }
 
 // WithIssuer requires the "iss" claim to equal iss.
 func WithIssuer(iss string) ParseOption {
-	return func(c *parseConfig) { c.issuer = iss }
+	return parseOptionFunc(func(c *parseConfig) { c.issuer = iss })
 }
 
 // WithAudience requires aud to be present in the "aud" claim.
 func WithAudience(aud string) ParseOption {
-	return func(c *parseConfig) { c.audience = aud }
+	return parseOptionFunc(func(c *parseConfig) { c.audience = aud })
 }
 
 // WithRequiredType requires the JOSE "typ" header to match typ, ignoring an
 // optional "application/" prefix and case (RFC 8725 §3.11).
 func WithRequiredType(typ string) ParseOption {
-	return func(c *parseConfig) { c.requiredType = typ }
+	return parseOptionFunc(func(c *parseConfig) { c.requiredType = typ })
 }
 
 // WithClock overrides the clock used for every time-based check. A nil
 // function is ignored.
 func WithClock(now func() time.Time) ParseOption {
-	return func(c *parseConfig) {
+	return parseOptionFunc(func(c *parseConfig) {
 		if now != nil {
 			c.now = now
 		}
-	}
+	})
 }
 
 // WithLeeway allows d of clock skew on "exp" and "nbf" checks (default 0).
 func WithLeeway(d time.Duration) ParseOption {
-	return func(c *parseConfig) { c.leeway = d }
+	return parseOptionFunc(func(c *parseConfig) { c.leeway = d })
 }
 
 // WithRequiredClaims requires each named claim to be present in the payload.
 func WithRequiredClaims(names ...string) ParseOption {
-	return func(c *parseConfig) { c.requiredClaims = append(c.requiredClaims, names...) }
+	return parseOptionFunc(func(c *parseConfig) { c.requiredClaims = append(c.requiredClaims, names...) })
 }
 
 func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseConfig) error {
