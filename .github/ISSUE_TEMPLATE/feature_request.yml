@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose an addition or change to the API or behaviour.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, or what is awkward?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Sketch the API. Note any RFC section it implements.
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: It adds no third-party dependency to the importable module.
+        - label: It fits the scope in spec.md §2 (not an OAuth AS / RP flow).

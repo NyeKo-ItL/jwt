@@ -1,91 +1,68 @@
 # Changelog
 
 All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/), and the project aims to
-follow [Semantic Versioning](https://semver.org/) from `v0.1.0` onward.
+[Keep a Changelog](https://keepachangelog.com/); the project follows
+[Semantic Versioning](https://semver.org/) from `v0.1.0` onward. While on
+`v0.x` the public API may still change between minor versions.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-10
+
+First public release. Single package, zero third-party runtime dependencies,
+Go 1.27+.
+
 ### Added
 
-- `Sign` accepts variadic `SignOption`: `WithType` (override or omit `typ`,
-  e.g. `AccessTokenType` for RFC 9068) and `WithContentType`.
-- `SignOptions` struct — the declarative form of the `Sign` header options;
-  like `ParseOptions`, it combines with the functional `With*` in one call.
-- `ParseOptions` struct — a reusable, declarative form of the parse config.
-  It satisfies `ParseOption`, so a shared `ParseOptions{}` and per-call
-  `With*` overrides combine in one `Parse` / `DecryptClaims` / `Middleware`
-  call (applied left to right).
-- `jwttest` sub-package: `FakeKeyProvider`, `FakeRevocationStore`,
-  `NewSigningPair`, and the `RunKeyProviderConformance` /
-  `RunRevocationStoreConformance` shared test suites.
-- `examples/`: basic_hmac, verify_idtoken, jwe_roundtrip, refresh_rotation,
-  http_middleware.
-- JWS core: `Sign`, `Parse`, `ParseInsecure`, the `Signer` / `Verifier`
-  interfaces and built-in constructors for HMAC (HS256/384/512), RSA-PSS
-  (PS256/384/512) signing, RSA PKCS#1 v1.5 (RS256/384/512) verification,
-  ECDSA (ES256/384/512) and Ed25519. Mandatory algorithm allowlist,
-  `alg: none` unrepresentable, resolution-time anti-confusion check,
-  injectable clock and leeway.
-- Claim model: `RegisteredClaims`, generic `Claims[T]`, `Audience`,
-  `NumericDate`, `Confirmation`, and the full RFC 7515 §4.1 `Header`.
-- OIDC claims: `StandardClaims`, `Address`, `GoogleClaims`, `OktaClaims`,
+- **JWS.** `Sign` / `Parse` / `ParseInsecure` with a mandatory algorithm
+  allowlist (RFC 8725 §3.1), `alg: none` unrepresentable in either direction,
+  and a resolution-time anti-confusion check. Built-in `Signer` / `Verifier`
+  constructors for HMAC (HS256/384/512), RSA-PSS (PS256/384/512) signing,
+  RSA PKCS#1 v1.5 (RS256/384/512) verify-only, ECDSA (ES256/384/512) and
+  Ed25519. `Signer` / `Verifier` are open interfaces for HSM/KMS or other
+  algorithms.
+- **JWE.** `EncryptClaims` / `DecryptClaims`, the `Encrypter` / `Decrypter`
+  interfaces, AES-GCM content encryption, and key management for
+  `RSA-OAEP-256`, `ECDH-ES`, `ECDH-ES+A256KW`, `A256KW` and `dir` — with a
+  dependency-free RFC 3394 AES Key Wrap and RFC 7518 §4.6 Concat KDF.
+  Decryption fails closed with a single generic `ErrDecryptionFailed`.
+- **Claim model.** `RegisteredClaims` (embed it in your own struct;
+  `Sign`/`Parse` are generic over that struct, no wrapper type), `Audience`,
+  `NumericDate`, `Confirmation` (RFC 7800 `cnf`), and the full RFC 7515 §4.1
+  `Header`.
+- **OIDC.** `StandardClaims`, `Address`, `GoogleClaims` / `OktaClaims` /
   `EntraClaims`, and the ready-made `GoogleIDToken` / `OktaIDToken` /
   `EntraIDToken` structs.
-- RFC 9068: `AccessTokenClaims`, `AccessTokenType`,
-  `ValidateAccessTokenClaims`.
-- JWE: `EncryptClaims` / `DecryptClaims`, the `Encrypter` / `Decrypter`
-  interfaces, AES-GCM content encryption, and key management for
-  `RSA-OAEP-256`, `ECDH-ES`, `ECDH-ES+A256KW`, `A256KW` and `dir`
-  (dependency-free RFC 3394 key wrap and RFC 7518 §4.6 Concat KDF).
-- JWK / JWKS: `Key`, `ParseKey`, `From*PublicKey`, `FromHMACSecret`,
-  `Thumbprint` / `ThumbprintBytes` (RFC 7638), `KeySet` / `ParseKeySet`,
-  and `KeyFetcher` / `DiscoverJWKSURI` (HTTPS-only, size-capped,
-  `Cache-Control` aware).
-- Opaque tokens: `OpaqueToken`, `NewOpaqueToken`, `DeriveOpaqueToken`,
-  `Hash`, `Equal`, plus `TokenFamily` / `RotationResult` shapes.
-- Revocation: `RevocationStore` interface and `NewMemoryRevocationStore`.
-- HTTP: `BearerToken`, generic `Middleware`, `ClaimsFromContext`,
-  `WriteChallenge` (RFC 6750).
-- Key material parsers: PKCS#8, PKCS#1, SEC1, PKIX, raw Ed25519
-  seed/expanded/public, and a dependency-free unencrypted OpenSSH parser.
-
-### Changed
-
-- **Removed `Claims[T]`.** Pass and receive your own claims struct directly
-  (embed `RegisteredClaims` to flatten the registered members, or use
-  `RegisteredClaims` alone). No more `Custom` field, no custom-marshaler
-  merge.
-- **`Parse` / `ParseInsecure` / `DecryptClaims` / `ClaimsFromContext` fill a
-  destination pointer instead of returning `(*C, error)`** — the type is
-  inferred from `&dst`, so no call carries an explicit type argument
-  (`jwt.Parse(ctx, token, &claims, keys, opts...)`). `Middleware` is no
-  longer generic: it stores the verified payload for `ClaimsFromContext` to
-  decode. New `ErrNoClaimsInContext`.
-- `ParseOption` and `SignOption` are now interfaces (were `func(*...Config)`,
-  which callers could never construct anyway); `With*` results and the
-  `ParseOptions` / `SignOptions` structs satisfy them.
-- The trailing `kid` on every key constructor (`NewHMACSigner`, `From*Key`,
-  `NewECDHESEncrypter`, ...) is now variadic `kid ...string` — omit it in
-  the single-key case. `Thumbprint` / `ThumbprintBytes` take `hash
-  ...crypto.Hash` (defaults to SHA-256).
-- **Removed generic `IDToken[Provider]` and its `Extra` catch-all.** Replaced
-  by concrete flat structs `GoogleIDToken` / `OktaIDToken` / `EntraIDToken`
-  (each embeds `RegisteredClaims` + `StandardClaims` + its provider claim
-  set) so calls read `jwt.Parse[jwt.GoogleIDToken](...)` — no nested type
-  parameters, no reflection. Unmodeled members are ignored; for a catch-all,
-  add your own `map[string]any` handling or a second unmarshal.
-- `Sign` options trimmed to `WithType` and `WithContentType`
-  (`WithHeaderParam` removed).
-- `MapKeyProvider` now resolves an empty requested kid to the sole key,
-  matching `KeySet` and the `KeyProvider` contract.
-- `NewTokenFamily` no longer panics on CSPRNG failure (impossible since
-  Go 1.24); the package now contains no `panic` in non-test code.
-
-### Fixed
-
-- JWE `ECDH-ES+A256KW`: the Concat KDF `AlgorithmID` used `"A256KW"` instead
-  of the `"alg"` header value (`"ECDH-ES+A256KW"`) required by RFC 7518
-  §4.6.2. Round-tripping within this library worked, but tokens were not
-  interoperable with other JOSE implementations. Now verified against
+- **RFC 9068.** `AccessTokenClaims`, `AccessTokenType`,
+  `ValidateAccessTokenClaims`; emit `typ: at+jwt` with
+  `Sign(..., jwt.WithType(jwt.AccessTokenType))`.
+- **JWK / JWKS.** `Key`, `ParseKey`, `From{RSA,ECDSA,Ed25519}PublicKey`,
+  `FromHMACSecret`, `Thumbprint` / `ThumbprintBytes` (RFC 7638), `KeySet` /
+  `ParseKeySet`, and `KeyFetcher` / `DiscoverJWKSURI` (HTTPS-only,
+  size-capped, `Cache-Control` aware). `oct` keys refuse to marshal into a
+  servable JWKS document.
+- **Key resolution & storage** are injectable: `KeyProvider`
+  (`StaticKeyProvider`, `MapKeyProvider`, `KeySet`, `KeyFetcher`) and
+  `RevocationStore` (`NewMemoryRevocationStore`), both taking a
+  `context.Context`.
+- **Opaque tokens.** `OpaqueToken`, `NewOpaqueToken`, `DeriveOpaqueToken`,
+  `Hash`, constant-time `Equal`, plus `TokenFamily` / `RotationResult`
+  shapes for refresh rotation with reuse detection.
+- **HTTP (RFC 6750).** `BearerToken`, `Middleware`, `ClaimsFromContext`,
+  `WriteChallenge`.
+- **Key material parsers** (explicit per-encoding, no auto-detection):
+  PKCS#8, PKCS#1, SEC1, PKIX, raw Ed25519 seed / expanded / public, and a
+  dependency-free unencrypted OpenSSH parser.
+- **Options.** `Parse` / `DecryptClaims` / `Middleware` take `ParseOption`
+  (functional `With*`) or a reusable `ParseOptions{}` struct — they combine
+  in one call. `Sign` takes `SignOption` / `SignOptions{}` the same way.
+- **Testing helpers.** `jwttest` sub-package: `FakeKeyProvider`,
+  `FakeRevocationStore`, `NewSigningPair`, and the
+  `RunKeyProviderConformance` / `RunRevocationStoreConformance` suites.
+- Runnable `examples/` (basic HMAC, ID-token over JWKS, JWE round trip,
+  refresh rotation, HTTP middleware) and a separate `interop/` module that
+  cross-checks every algorithm against `golang-jwt/jwt/v5` and
   `go-jose/go-jose/v4` in both directions.
+
+[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/NyeKo-ItL/jwt/releases/tag/v0.1.0

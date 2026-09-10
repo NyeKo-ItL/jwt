@@ -1,0 +1,36 @@
+name: Bug report
+description: Something is wrong with signing, verification, encryption, parsing, or a key.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: For a security vulnerability, stop and use the Security tab instead.
+  - type: input
+    id: version
+    attributes:
+      label: Module version / commit
+      placeholder: v0.1.0 or a commit SHA
+    validations:
+      required: true
+  - type: input
+    id: go
+    attributes:
+      label: Go version
+      placeholder: go version go1.27.1 ...
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Expected vs actual. Include the exact error.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A short, self-contained snippet. Use generated or throwaway keys — never a real secret.
+      render: go
+    validations:
+      required: true

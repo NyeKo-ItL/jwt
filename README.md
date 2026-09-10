@@ -1,5 +1,11 @@
 # jwt
 
+[![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/NyeKo-ItL/jwt.svg)](https://pkg.go.dev/github.com/NyeKo-ItL/jwt)
+[![Go Report Card](https://goreportcard.com/badge/github.com/NyeKo-ItL/jwt)](https://goreportcard.com/report/github.com/NyeKo-ItL/jwt)
+[![codecov](https://codecov.io/gh/NyeKo-ItL/jwt/branch/main/graph/badge.svg)](https://codecov.io/gh/NyeKo-ItL/jwt)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A single-package JWT / JOSE library for Go: JWS signing and verification, JWE
 encryption, JWK / JWKS handling with pluggable key resolution, OIDC and
 provider-specific claim sets, opaque-token utilities, revocation, and a thin
