@@ -34,8 +34,8 @@ type ecdsaSigner struct {
 }
 
 // NewECDSASigner returns an ES256/ES384/ES512 Signer. The key's curve must
-// match the algorithm.
-func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid string) (Signer, error) {
+// match the algorithm. kid is optional.
+func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, error) {
 	curve, h, size, ok := ecdsaParams(alg)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, alg)
@@ -46,7 +46,7 @@ func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid string) (Signer, e
 	if key.Curve != curve {
 		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, alg, curve.Params().Name)
 	}
-	return &ecdsaSigner{alg: alg, key: key, kid: kid, hash: h, size: size}, nil
+	return &ecdsaSigner{alg: alg, key: key, kid: optKID(kid), hash: h, size: size}, nil
 }
 
 func (s *ecdsaSigner) Algorithm() Algorithm { return s.alg }
@@ -72,8 +72,8 @@ type ecdsaVerifier struct {
 	size int
 }
 
-// NewECDSAVerifier returns an ES256/ES384/ES512 Verifier.
-func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid string) (Verifier, error) {
+// NewECDSAVerifier returns an ES256/ES384/ES512 Verifier. kid is optional.
+func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifier, error) {
 	curve, h, size, ok := ecdsaParams(alg)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, alg)
@@ -84,7 +84,7 @@ func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid string) (Verifier
 	if key.Curve != curve {
 		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, alg, curve.Params().Name)
 	}
-	return &ecdsaVerifier{alg: alg, key: key, kid: kid, hash: h, size: size}, nil
+	return &ecdsaVerifier{alg: alg, key: key, kid: optKID(kid), hash: h, size: size}, nil
 }
 
 func (v *ecdsaVerifier) Algorithm() Algorithm { return v.alg }

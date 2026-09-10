@@ -131,7 +131,7 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 // NewECDHESEncrypter derives (ECDH-ES) or derives-and-wraps
 // (ECDH-ES+A256KW) the CEK against an EC public key. alg must be ECDHES or
 // ECDHESA256KW.
-func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentAlgorithm, kid string) (Encrypter, error) {
+func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentAlgorithm, kid ...string) (Encrypter, error) {
 	if pub == nil {
 		return nil, fmt.Errorf("%w: nil EC public key", ErrMalformedKey)
 	}
@@ -141,17 +141,17 @@ func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentA
 	if curveName(pub.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return newEncrypter(content, kid, ecdhWrapper{pub: pub, alg: alg})
+	return newEncrypter(content, optKID(kid), ecdhWrapper{pub: pub, alg: alg})
 }
 
 // NewECDHESDecrypter decrypts JWE tokens whose "alg" is ECDH-ES or
 // ECDH-ES+A256KW, using an EC private key.
-func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid string) (Decrypter, error) {
+func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error) {
 	if priv == nil {
 		return nil, fmt.Errorf("%w: nil EC private key", ErrMalformedKey)
 	}
 	if curveName(priv.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return &decrypter{kid: kid, unwrapper: ecdhUnwrapper{priv: priv}}, nil
+	return &decrypter{kid: optKID(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
 }

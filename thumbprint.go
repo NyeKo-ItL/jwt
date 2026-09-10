@@ -8,23 +8,25 @@ import (
 )
 
 // Thumbprint computes the RFC 7638 JWK thumbprint of an already-parsed Key.
-// A zero hash defaults to SHA-256 (the hash used for the "jkt" confirmation
-// value). The canonical form contains only the type-specific required
-// members, with keys in lexicographic order and no whitespace (RFC 7638 §3).
-func Thumbprint(k Key, hash crypto.Hash) (string, error) {
+// hash is optional and defaults to SHA-256 (the hash behind the "jkt"
+// confirmation value). The canonical form contains only the type-specific
+// required members, with keys in lexicographic order and no whitespace
+// (RFC 7638 §3).
+func Thumbprint(k Key, hash ...crypto.Hash) (string, error) {
 	canonical, err := k.thumbprintInput()
 	if err != nil {
 		return "", err
 	}
-	return digestThumbprint(canonical, hash)
+	return digestThumbprint(canonical, firstHash(hash))
 }
 
 // ThumbprintBytes computes an RFC 7638-shaped thumbprint directly from raw
 // key material the caller already holds, without a parsed Key. It supports
 // the unambiguous single-blob key types: "oct" (raw is the secret) and "OKP"
 // (raw is the 32-byte Ed25519 public key). RSA and EC keys have no single
-// canonical byte form — use Thumbprint with a parsed Key for those.
-func ThumbprintBytes(kty KeyType, raw []byte, hash crypto.Hash) (string, error) {
+// canonical byte form — use Thumbprint with a parsed Key for those. hash is
+// optional and defaults to SHA-256.
+func ThumbprintBytes(kty KeyType, raw []byte, hash ...crypto.Hash) (string, error) {
 	if len(raw) == 0 {
 		return "", fmt.Errorf("%w: empty key material", ErrMalformedKey)
 	}
@@ -37,7 +39,16 @@ func ThumbprintBytes(kty KeyType, raw []byte, hash crypto.Hash) (string, error) 
 	default:
 		return "", fmt.Errorf("%w: ThumbprintBytes supports only oct and OKP, not %q", ErrMalformedKey, kty)
 	}
-	return digestThumbprint(canonical, hash)
+	return digestThumbprint(canonical, firstHash(hash))
+}
+
+// firstHash resolves the optional trailing hash of a thumbprint call to a
+// concrete algorithm, defaulting to SHA-256.
+func firstHash(h []crypto.Hash) crypto.Hash {
+	if len(h) > 0 && h[0] != 0 {
+		return h[0]
+	}
+	return crypto.SHA256
 }
 
 func (k Key) thumbprintInput() (string, error) {

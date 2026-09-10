@@ -10,12 +10,12 @@ type ed25519Signer struct {
 	kid string
 }
 
-// NewEd25519Signer returns an EdDSA (Ed25519, RFC 8037) Signer.
-func NewEd25519Signer(key ed25519.PrivateKey, kid string) (Signer, error) {
+// NewEd25519Signer returns an EdDSA (Ed25519, RFC 8037) Signer. kid is optional.
+func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
 	if len(key) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 private key must be %d bytes, got %d", ErrMalformedKey, ed25519.PrivateKeySize, len(key))
 	}
-	return &ed25519Signer{key: append(ed25519.PrivateKey(nil), key...), kid: kid}, nil
+	return &ed25519Signer{key: append(ed25519.PrivateKey(nil), key...), kid: optKID(kid)}, nil
 }
 
 func (s *ed25519Signer) Algorithm() Algorithm { return EdDSA }
@@ -30,12 +30,12 @@ type ed25519Verifier struct {
 	kid string
 }
 
-// NewEd25519Verifier returns an EdDSA (Ed25519, RFC 8037) Verifier.
-func NewEd25519Verifier(key ed25519.PublicKey, kid string) (Verifier, error) {
+// NewEd25519Verifier returns an EdDSA (Ed25519, RFC 8037) Verifier. kid is optional.
+func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error) {
 	if len(key) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 public key must be %d bytes, got %d", ErrMalformedKey, ed25519.PublicKeySize, len(key))
 	}
-	return &ed25519Verifier{key: append(ed25519.PublicKey(nil), key...), kid: kid}, nil
+	return &ed25519Verifier{key: append(ed25519.PublicKey(nil), key...), kid: optKID(kid)}, nil
 }
 
 func (v *ed25519Verifier) Algorithm() Algorithm { return EdDSA }

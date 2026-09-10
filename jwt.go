@@ -45,26 +45,51 @@ var (
 // access token pass WithType(AccessTokenType).
 const DefaultType = "JWT"
 
-// SignOption customizes the JOSE header Sign emits. It never affects "alg",
-// which is always the signer's own algorithm.
-type SignOption func(*signConfig)
+// SignOption customizes the JOSE header Sign emits; it never affects "alg".
+// Both the functional options (WithType, WithContentType) and a SignOptions
+// struct satisfy it and combine in one call, applied left to right:
+//
+//	base := jwt.SignOptions{Type: jwt.AccessTokenType}
+//	tok, _ := jwt.Sign(claims, signer, base, jwt.WithContentType("example"))
+type SignOption interface{ applySign(*signConfig) }
 
 type signConfig struct {
 	typ         string
 	contentType string
 }
 
+type signOptionFunc func(*signConfig)
+
+func (f signOptionFunc) applySign(c *signConfig) { f(c) }
+
+// SignOptions is the reusable, declarative form of the header settings. A
+// zero Type keeps DefaultType (use WithType("") to omit "typ" entirely); a
+// zero ContentType leaves "cty" unset.
+type SignOptions struct {
+	Type        string
+	ContentType string
+}
+
+func (o SignOptions) applySign(c *signConfig) {
+	if o.Type != "" {
+		c.typ = o.Type
+	}
+	if o.ContentType != "" {
+		c.contentType = o.ContentType
+	}
+}
+
 // WithType overrides the "typ" header parameter (RFC 7515 §4.1.9). The
 // default is DefaultType; pass "" to omit "typ" entirely, or
 // AccessTokenType for the RFC 9068 profile.
 func WithType(typ string) SignOption {
-	return func(c *signConfig) { c.typ = typ }
+	return signOptionFunc(func(c *signConfig) { c.typ = typ })
 }
 
 // WithContentType sets the "cty" header parameter (RFC 7515 §4.1.10), used
 // mainly to mark a nested JWT payload.
 func WithContentType(cty string) SignOption {
-	return func(c *signConfig) { c.contentType = cty }
+	return signOptionFunc(func(c *signConfig) { c.contentType = cty })
 }
 
 // Sign JSON-encodes claims — any value that marshals to a JSON object, most
@@ -82,7 +107,7 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 	}
 	cfg := signConfig{typ: DefaultType}
 	for _, o := range opts {
-		o(&cfg)
+		o.applySign(&cfg)
 	}
 	headerJSON, err := json.Marshal(Header{
 		Algorithm:   alg,

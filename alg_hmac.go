@@ -27,8 +27,8 @@ type hmacSigner struct {
 }
 
 // NewHMACSigner returns an HS256/HS384/HS512 Signer. The key must be at
-// least as long as the hash output (spec §4.6).
-func NewHMACSigner(alg Algorithm, key []byte, kid string) (Signer, error) {
+// least as long as the hash output (spec §4.6). kid is optional.
+func NewHMACSigner(alg Algorithm, key []byte, kid ...string) (Signer, error) {
 	h, ok := hmacHash(alg)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an HMAC algorithm", ErrUnsupportedAlgorithm, alg)
@@ -36,7 +36,7 @@ func NewHMACSigner(alg Algorithm, key []byte, kid string) (Signer, error) {
 	if len(key) < h.Size() {
 		return nil, fmt.Errorf("%w: %s needs a key of >= %d bytes, got %d", ErrWeakKey, alg, h.Size(), len(key))
 	}
-	return &hmacSigner{alg: alg, key: append([]byte(nil), key...), kid: kid, hash: h}, nil
+	return &hmacSigner{alg: alg, key: append([]byte(nil), key...), kid: optKID(kid), hash: h}, nil
 }
 
 func (s *hmacSigner) Algorithm() Algorithm { return s.alg }
@@ -51,9 +51,9 @@ func (s *hmacSigner) Sign(signingInput []byte) ([]byte, error) {
 type hmacVerifier struct{ hmacSigner }
 
 // NewHMACVerifier returns an HS256/HS384/HS512 Verifier. The same minimum
-// key-size rule as NewHMACSigner applies (spec §4.6).
-func NewHMACVerifier(alg Algorithm, key []byte, kid string) (Verifier, error) {
-	s, err := NewHMACSigner(alg, key, kid)
+// key-size rule as NewHMACSigner applies (spec §4.6). kid is optional.
+func NewHMACVerifier(alg Algorithm, key []byte, kid ...string) (Verifier, error) {
+	s, err := NewHMACSigner(alg, key, kid...)
 	if err != nil {
 		return nil, err
 	}

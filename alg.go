@@ -99,3 +99,12 @@ func hashSum(h crypto.Hash, in []byte) []byte {
 	hh.Write(in)
 	return hh.Sum(nil)
 }
+
+// optKID resolves the optional trailing "kid" of a constructor: the first
+// value if given, "" otherwise.
+func optKID(kid []string) string {
+	if len(kid) > 0 {
+		return kid[0]
+	}
+	return ""
+}

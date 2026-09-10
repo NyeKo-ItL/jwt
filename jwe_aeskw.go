@@ -117,17 +117,17 @@ func (u aesKWUnwrapper) unwrap(_ *jweHeader, encryptedKey []byte, cekLen int) ([
 
 // NewA256KWEncrypter wraps a fresh CEK under a 256-bit key-encryption key
 // (JWE "alg":"A256KW").
-func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid string) (Encrypter, error) {
+func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid ...string) (Encrypter, error) {
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return newEncrypter(content, kid, aesKWWrapper{kek: append([]byte(nil), kek...)})
+	return newEncrypter(content, optKID(kid), aesKWWrapper{kek: append([]byte(nil), kek...)})
 }
 
 // NewA256KWDecrypter unwraps the CEK of a JWE "alg":"A256KW" token.
-func NewA256KWDecrypter(kek []byte, kid string) (Decrypter, error) {
+func NewA256KWDecrypter(kek []byte, kid ...string) (Decrypter, error) {
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return &decrypter{kid: kid, unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
+	return &decrypter{kid: optKID(kid), unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
 }

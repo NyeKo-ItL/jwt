@@ -35,8 +35,8 @@ type rsaPSSSigner struct {
 }
 
 // NewRSAPSSSigner returns a PS256/PS384/PS512 (RSA-PSS) Signer. PKCS#1 v1.5
-// signing is intentionally not offered as a built-in (spec §0.2).
-func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid string) (Signer, error) {
+// signing is intentionally not offered as a built-in (spec §0.2). kid is optional.
+func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, error) {
 	h, ok := rsaHash(alg)
 	if !ok || !isPSS(alg) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PSS algorithm", ErrUnsupportedAlgorithm, alg)
@@ -47,7 +47,7 @@ func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid string) (Signer, er
 	if key.N.BitLen() < minRSABits {
 		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, key.N.BitLen(), minRSABits)
 	}
-	return &rsaPSSSigner{alg: alg, key: key, kid: kid, hash: h}, nil
+	return &rsaPSSSigner{alg: alg, key: key, kid: optKID(kid), hash: h}, nil
 }
 
 func (s *rsaPSSSigner) Algorithm() Algorithm { return s.alg }
@@ -69,24 +69,24 @@ type rsaVerifier struct {
 	pss  bool
 }
 
-// NewRSAPSSVerifier returns a PS256/PS384/PS512 Verifier.
-func NewRSAPSSVerifier(alg Algorithm, key *rsa.PublicKey, kid string) (Verifier, error) {
+// NewRSAPSSVerifier returns a PS256/PS384/PS512 Verifier. kid is optional.
+func NewRSAPSSVerifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
 	h, ok := rsaHash(alg)
 	if !ok || !isPSS(alg) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PSS algorithm", ErrUnsupportedAlgorithm, alg)
 	}
-	return newRSAVerifier(alg, key, kid, h, true)
+	return newRSAVerifier(alg, key, optKID(kid), h, true)
 }
 
 // NewRSAPKCS1Verifier returns an RS256/RS384/RS512 (PKCS#1 v1.5) Verifier.
 // This is verify-only: common external IdPs (Google, Okta, Entra ID) issue
-// RS256 ID tokens (spec §0.2).
-func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid string) (Verifier, error) {
+// RS256 ID tokens (spec §0.2). kid is optional.
+func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
 	h, ok := rsaHash(alg)
 	if !ok || !isPKCS1(alg) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PKCS1 algorithm", ErrUnsupportedAlgorithm, alg)
 	}
-	return newRSAVerifier(alg, key, kid, h, false)
+	return newRSAVerifier(alg, key, optKID(kid), h, false)
 }
 
 func newRSAVerifier(alg Algorithm, key *rsa.PublicKey, kid string, h crypto.Hash, pss bool) (Verifier, error) {

@@ -25,13 +25,13 @@ type MyClaims struct {
     Role string `json:"role,omitempty"`
 }
 
-signer, _ := jwt.NewEd25519Signer(priv, "key-1")
+signer, _ := jwt.NewEd25519Signer(priv) // kid is optional
 token, _ := jwt.Sign(MyClaims{
     RegisteredClaims: jwt.RegisteredClaims{Issuer: "me", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
     Role:             "admin",
 }, signer)
 
-keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub, "key-1"))
+keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub))
 var claims MyClaims // type is inferred from &claims — no jwt.Parse[...]
 err := jwt.Parse(ctx, token, &claims, keys,
     jwt.WithAllowedAlgorithms(jwt.EdDSA),

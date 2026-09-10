@@ -107,10 +107,10 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 }
 
 // FromRSAPublicKey builds a "sig" JWK from an RSA public key.
-func FromRSAPublicKey(pub *rsa.PublicKey, kid string) Key {
+func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeRSA,
-		Kid: kid,
+		Kid: optKID(kid),
 		n:   pub.N.Bytes(),
 		e:   big.NewInt(int64(pub.E)).Bytes(),
 	}
@@ -119,8 +119,8 @@ func FromRSAPublicKey(pub *rsa.PublicKey, kid string) Key {
 // FromECDSAPublicKey builds a "sig" JWK from an ECDSA public key. If the
 // point is invalid the coordinate fields are left empty and the failure
 // surfaces later, at PublicKey/Verifier time.
-func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid string) Key {
-	k := Key{Kty: KeyTypeEC, Kid: kid, crv: curveName(pub.Curve)}
+func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
+	k := Key{Kty: KeyTypeEC, Kid: optKID(kid), crv: curveName(pub.Curve)}
 	size := (pub.Curve.Params().BitSize + 7) / 8
 	if b, err := pub.Bytes(); err == nil && len(b) == 1+2*size {
 		k.x = append([]byte(nil), b[1:1+size]...)
@@ -130,10 +130,10 @@ func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid string) Key {
 }
 
 // FromEd25519PublicKey builds a "sig" JWK from an Ed25519 public key.
-func FromEd25519PublicKey(pub ed25519.PublicKey, kid string) Key {
+func FromEd25519PublicKey(pub ed25519.PublicKey, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeOKP,
-		Kid: kid,
+		Kid: optKID(kid),
 		crv: "Ed25519",
 		x:   append([]byte(nil), pub...),
 	}
@@ -141,10 +141,10 @@ func FromEd25519PublicKey(pub ed25519.PublicKey, kid string) Key {
 
 // FromHMACSecret builds a symmetric (kty "oct") JWK. Such a key cannot be
 // marshaled into a servable JWKS document (see MarshalJSON).
-func FromHMACSecret(secret []byte, kid string) Key {
+func FromHMACSecret(secret []byte, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeOct,
-		Kid: kid,
+		Kid: optKID(kid),
 		k:   append([]byte(nil), secret...),
 	}
 }

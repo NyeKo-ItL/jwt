@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"context"
+	"crypto"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/x509"
@@ -582,5 +583,91 @@ func TestParseOptionsAllFieldsViaStruct(t *testing.T) {
 	bad2.RequiredClaims = []string{"missing"}
 	if err := Parse(ctx(), typed, &c, prov, bad2, WithLeeway(time.Minute)); !errors.Is(err, ErrMissingClaim) {
 		t.Fatalf("RequiredClaims via struct: %v", err)
+	}
+}
+
+func TestOptionalKIDAndHash(t *testing.T) {
+	tk := newTestKeys(t)
+
+	// constructors accept no kid
+	s, err := NewHMACSigner(HS256, tk.hmac)
+	if err != nil || s.KeyID() != "" {
+		t.Fatalf("NewHMACSigner without kid: %q %v", s.KeyID(), err)
+	}
+	v, _ := NewHMACVerifier(HS256, tk.hmac)
+	if v.KeyID() != "" {
+		t.Fatalf("verifier kid = %q", v.KeyID())
+	}
+	es, _ := NewECDSASigner(ES256, tk.p256)
+	ev, _ := NewECDSAVerifier(ES256, &tk.p256.PublicKey)
+	eds, _ := NewEd25519Signer(tk.edPriv)
+	edv, _ := NewEd25519Verifier(tk.edPub)
+	ps, _ := NewRSAPSSSigner(PS256, tk.rsa2048)
+	for _, g := range []interface{ KeyID() string }{es, ev, eds, edv, ps} {
+		if g.KeyID() != "" {
+			t.Fatalf("kid = %q, want empty", g.KeyID())
+		}
+	}
+	if k := FromEd25519PublicKey(tk.edPub); k.Kid != "" {
+		t.Fatalf("FromEd25519PublicKey kid = %q", k.Kid)
+	}
+	if _, err := NewRSAOAEP256Encrypter(&tk.rsa2048.PublicKey, A256GCM); err != nil {
+		t.Fatalf("NewRSAOAEP256Encrypter without kid: %v", err)
+	}
+
+	// and still accept one
+	s2, _ := NewHMACSigner(HS256, tk.hmac, "k9")
+	if s2.KeyID() != "k9" {
+		t.Fatalf("kid = %q", s2.KeyID())
+	}
+
+	// Thumbprint / ThumbprintBytes: hash optional, defaults to SHA-256
+	k := FromECDSAPublicKey(&tk.p256.PublicKey, "e")
+	a, err := Thumbprint(k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := Thumbprint(k, crypto.SHA256)
+	if a != b || len(a) != 43 {
+		t.Fatalf("Thumbprint default != SHA-256: %q vs %q", a, b)
+	}
+	tb, err := ThumbprintBytes(KeyTypeOct, tk.hmac)
+	if err != nil || len(tb) != 43 {
+		t.Fatalf("ThumbprintBytes without hash: %q %v", tb, err)
+	}
+}
+
+func TestSignOptionsStruct(t *testing.T) {
+	tk := newTestKeys(t)
+	s, _ := NewHMACSigner(HS256, tk.hmac)
+
+	decodeHeader := func(tok string) map[string]any {
+		h, _, _, _ := split3(tok)
+		raw, _ := b64.Decode(h)
+		var m map[string]any
+		_ = json.Unmarshal(raw, &m)
+		return m
+	}
+
+	// struct alone
+	tok, err := Sign(appClaims{}, s, SignOptions{Type: AccessTokenType})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decodeHeader(tok)["typ"] != AccessTokenType {
+		t.Fatalf("typ = %v", decodeHeader(tok)["typ"])
+	}
+
+	// struct + functional override; later wins
+	tok2, _ := Sign(appClaims{}, s, SignOptions{Type: "base", ContentType: "c1"}, WithType("override"))
+	h2 := decodeHeader(tok2)
+	if h2["typ"] != "override" || h2["cty"] != "c1" {
+		t.Fatalf("header = %v", h2)
+	}
+
+	// zero-value struct keeps DefaultType
+	tok3, _ := Sign(appClaims{}, s, SignOptions{})
+	if decodeHeader(tok3)["typ"] != DefaultType {
+		t.Fatalf("zero SignOptions typ = %v", decodeHeader(tok3)["typ"])
 	}
 }

@@ -309,18 +309,18 @@ type Verifier interface {
 	Verify(signingInput, signature []byte) error
 }
 
-func NewHMACSigner(alg Algorithm, key []byte, kid string) (Signer, error)
-func NewHMACVerifier(alg Algorithm, key []byte, kid string) (Verifier, error)
+func NewHMACSigner(alg Algorithm, key []byte, kid ...string) (Signer, error)
+func NewHMACVerifier(alg Algorithm, key []byte, kid ...string) (Verifier, error)
 
-func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid string) (Signer, error)
-func NewRSAPSSVerifier(alg Algorithm, key *rsa.PublicKey, kid string) (Verifier, error)
-func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid string) (Verifier, error) // RS256/384/512
+func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, error)
+func NewRSAPSSVerifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error)
+func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) // RS256/384/512
 
-func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid string) (Signer, error)
-func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid string) (Verifier, error)
+func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, error)
+func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifier, error)
 
-func NewEd25519Signer(key ed25519.PrivateKey, kid string) (Signer, error)
-func NewEd25519Verifier(key ed25519.PublicKey, kid string) (Verifier, error)
+func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error)
+func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error)
 
 // KeyProvider resolves a Key by "kid" (may be empty, meaning "the only
 // key"), used by both Parse (JWS verification) and Decrypt (JWE, §5.2). A
@@ -398,8 +398,15 @@ type Header struct {
 	Critical       []string  `json:"crit,omitempty"`
 }
 
-// SignOption customizes the JOSE header; it never affects "alg".
-type SignOption func(*signConfig)
+// SignOption customizes the JOSE header; it never affects "alg". Both the
+// functional options and a SignOptions struct satisfy it and combine in one
+// call (applied left to right).
+type SignOption interface{ applySign(*signConfig) }
+
+type SignOptions struct {
+	Type        string // "" keeps DefaultType; use WithType("") to omit "typ"
+	ContentType string
+}
 
 func WithType(typ string) SignOption        // override/omit "typ"; default DefaultType, AccessTokenType for RFC 9068
 func WithContentType(cty string) SignOption // "cty" (RFC 7515 §4.1.10)
@@ -528,17 +535,17 @@ type Decrypter interface {
 	Decrypt(ctx context.Context, compact string) (plaintext []byte, err error)
 }
 
-func NewRSAOAEP256Encrypter(pub *rsa.PublicKey, content ContentAlgorithm, kid string) (Encrypter, error)
-func NewRSAOAEP256Decrypter(priv *rsa.PrivateKey, kid string) (Decrypter, error)
+func NewRSAOAEP256Encrypter(pub *rsa.PublicKey, content ContentAlgorithm, kid ...string) (Encrypter, error)
+func NewRSAOAEP256Decrypter(priv *rsa.PrivateKey, kid ...string) (Decrypter, error)
 
-func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentAlgorithm, kid string) (Encrypter, error)
-func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid string) (Decrypter, error)
+func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentAlgorithm, kid ...string) (Encrypter, error)
+func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error)
 
-func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid string) (Encrypter, error)
-func NewA256KWDecrypter(kek []byte, kid string) (Decrypter, error)
+func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid ...string) (Encrypter, error)
+func NewA256KWDecrypter(kek []byte, kid ...string) (Decrypter, error)
 
-func NewDirectEncrypter(cek []byte, content ContentAlgorithm, kid string) (Encrypter, error)
-func NewDirectDecrypter(cek []byte, kid string) (Decrypter, error)
+func NewDirectEncrypter(cek []byte, content ContentAlgorithm, kid ...string) (Encrypter, error)
+func NewDirectDecrypter(cek []byte, kid ...string) (Decrypter, error)
 
 // EncryptClaims is the JWE analogue of Sign: JSON-marshal a claims value and
 // encrypt it as a compact JWE.
@@ -584,22 +591,22 @@ func (k Key) PublicKey() (crypto.PublicKey, error) // RSA/EC/OKP only
 func (k Key) Secret() ([]byte, error)               // oct only
 func (k Key) Verifier() (Verifier, error)           // PublicKey/Secret + Alg -> Verifier
 
-func FromRSAPublicKey(pub *rsa.PublicKey, kid string) Key
-func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid string) Key
-func FromEd25519PublicKey(pub ed25519.PublicKey, kid string) Key
-func FromHMACSecret(secret []byte, kid string) Key // Kty: oct
+func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key
+func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key
+func FromEd25519PublicKey(pub ed25519.PublicKey, kid ...string) Key
+func FromHMACSecret(secret []byte, kid ...string) Key // Kty: oct
 
 func ParseKey(data []byte) (Key, error)
 
 // Thumbprint computes the RFC 7638 thumbprint of an already-parsed Key.
-func Thumbprint(k Key, hash crypto.Hash) (string, error)
+func Thumbprint(k Key, hash ...crypto.Hash) (string, error) // hash defaults to SHA-256
 
 // ThumbprintBytes computes an RFC 7638-shaped thumbprint directly from raw
 // key material the caller already has (e.g. an HMAC/oct secret), without
 // requiring a parsed Key first. This is the identifier fed into
 // RevocationStore for key-level revocation (§5.6), or into
 // Confirmation.JWKThumbprint (§5.1).
-func ThumbprintBytes(kty KeyType, raw []byte, hash crypto.Hash) (string, error)
+func ThumbprintBytes(kty KeyType, raw []byte, hash ...crypto.Hash) (string, error)
 
 // KeySet is a mutable, concurrency-safe KeyProvider (RFC 7517 §5's JWK Set) —
 // the library's built-in in-memory implementation.
