@@ -27,7 +27,12 @@ jobs:
           # No third-party deps, so there is no go.sum; key the cache off go.mod.
           cache-dependency-path: go.mod
       - run: go build ./...
-      - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Test with race detector
+        if: matrix.os != 'windows-latest'
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Test on Windows
+        if: matrix.os == 'windows-latest'
+        run: go test ./...
       - name: Run examples
         shell: bash
         run: |
