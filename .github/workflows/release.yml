@@ -40,9 +40,7 @@ jobs:
         with:
           distribution: goreleaser
           version: ~> v2
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: release --clean --skip=publish
 
       # Keyless signing: GitHub's OIDC identity is short-lived and no private
       # signing key is stored as a repository secret.
@@ -53,7 +51,14 @@ jobs:
             --bundle dist/checksums.txt.sigstore.json \
             dist/checksums.txt
 
-      - name: Upload Sigstore bundle
+      - name: Create immutable GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/checksums.txt.sigstore.json --clobber
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.tar.gz \
+            dist/checksums.txt \
+            dist/checksums.txt.sigstore.json \
+            --verify-tag \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"
