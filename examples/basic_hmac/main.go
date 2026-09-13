@@ -40,10 +40,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Println("token:", token)
 
 	keys := jwt.StaticKeyProvider(jwt.FromHMACSecret(secret, "sess-key-1"))
+
 	var claims sessionClaims
+
 	err = jwt.Parse(context.Background(), token, &claims, keys,
 		jwt.WithAllowedAlgorithms(jwt.HS256),
 		jwt.WithIssuer("https://auth.example"),
@@ -52,5 +55,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Printf("verified: sub=%s role=%s\n", claims.Subject, claims.Role)
 }

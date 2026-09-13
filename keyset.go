@@ -21,6 +21,7 @@ func NewKeySet(keys ...Key) *KeySet {
 	for _, k := range keys {
 		s.Add(k)
 	}
+
 	return s
 }
 
@@ -28,6 +29,7 @@ func NewKeySet(keys ...Key) *KeySet {
 func (s *KeySet) Add(k Key) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if k.Kid != "" {
 		for i := range s.keys {
 			if s.keys[i].Kid == k.Kid {
@@ -36,6 +38,7 @@ func (s *KeySet) Add(k Key) {
 			}
 		}
 	}
+
 	s.keys = append(s.keys, k)
 }
 
@@ -43,12 +46,14 @@ func (s *KeySet) Add(k Key) {
 func (s *KeySet) Remove(kid string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	out := s.keys[:0]
 	for _, k := range s.keys {
 		if k.Kid != kid {
 			out = append(out, k)
 		}
 	}
+
 	s.keys = out
 }
 
@@ -58,17 +63,21 @@ func (s *KeySet) Remove(kid string) {
 func (s *KeySet) Lookup(_ context.Context, kid string) (Key, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	if kid == "" {
 		if len(s.keys) == 1 {
 			return s.keys[0], true, nil
 		}
+
 		return Key{}, false, nil
 	}
+
 	for _, k := range s.keys {
 		if k.Kid == kid {
 			return k, true, nil
 		}
 	}
+
 	return Key{}, false, nil
 }
 
@@ -76,6 +85,7 @@ func (s *KeySet) Lookup(_ context.Context, kid string) (Key, bool, error) {
 func (s *KeySet) Keys(_ context.Context) ([]Key, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return append([]Key(nil), s.keys...), nil
 }
 
@@ -85,6 +95,7 @@ func (s *KeySet) Keys(_ context.Context) ([]Key, error) {
 func (s *KeySet) MarshalJSON() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return json.Marshal(struct {
 		Keys []Key `json:"keys"`
 	}{Keys: s.keys})
@@ -100,16 +111,21 @@ func ParseKeySet(data []byte) (*KeySet, error) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("%w: JWKS document: %w", ErrMalformedKey, err)
 	}
+
 	if doc.Keys == nil {
 		return nil, fmt.Errorf("%w: JWKS document has no \"keys\" array", ErrMalformedKey)
 	}
+
 	s := &KeySet{}
+
 	for i, raw := range doc.Keys {
 		k, err := ParseKey(raw)
 		if err != nil {
 			return nil, fmt.Errorf("%w: JWKS key #%d: %w", ErrMalformedKey, i, err)
 		}
+
 		s.Add(k)
 	}
+
 	return s, nil
 }

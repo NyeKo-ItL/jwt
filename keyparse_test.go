@@ -27,14 +27,17 @@ func TestParsePKCS8PrivateKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: marshal: %v", name, err)
 		}
+
 		got, err := ParsePKCS8PrivateKey(der)
 		if err != nil {
 			t.Fatalf("%s: parse: %v", name, err)
 		}
+
 		if !got.Public().(interface{ Equal(x crypto.PublicKey) bool }).Equal(key.Public()) {
 			t.Fatalf("%s: public key mismatch", name)
 		}
 	}
+
 	if _, err := ParsePKCS8PrivateKey([]byte("garbage")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("garbage err = %v", err)
 	}
@@ -43,13 +46,16 @@ func TestParsePKCS8PrivateKey(t *testing.T) {
 func TestParsePKCS1PrivateKey(t *testing.T) {
 	tk := newTestKeys(t)
 	der := x509.MarshalPKCS1PrivateKey(tk.rsa2048)
+
 	got, err := ParsePKCS1PrivateKey(der)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if got.N.Cmp(tk.rsa2048.N) != 0 {
 		t.Fatal("modulus mismatch")
 	}
+
 	if _, err := ParsePKCS1PrivateKey([]byte("nope")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("err = %v", err)
 	}
@@ -57,17 +63,21 @@ func TestParsePKCS1PrivateKey(t *testing.T) {
 
 func TestParseSEC1ECPrivateKey(t *testing.T) {
 	tk := newTestKeys(t)
+
 	der, err := x509.MarshalECPrivateKey(tk.p384)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	got, err := ParseSEC1ECPrivateKey(der)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !got.Equal(tk.p384) {
 		t.Fatal("scalar mismatch")
 	}
+
 	if _, err := ParseSEC1ECPrivateKey([]byte("nope")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("err = %v", err)
 	}
@@ -84,10 +94,12 @@ func TestParsePKIXPublicKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
+
 		if _, err := ParsePKIXPublicKey(der); err != nil {
 			t.Fatalf("%s: parse: %v", name, err)
 		}
 	}
+
 	if _, err := ParsePKIXPublicKey([]byte("nope")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("err = %v", err)
 	}
@@ -98,12 +110,14 @@ func TestParseEd25519Raw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	seed := priv.Seed()
 
 	fromSeed, err := ParseEd25519PrivateKeySeed(seed)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !fromSeed.Equal(priv) {
 		t.Fatal("seed round trip mismatch")
 	}
@@ -112,6 +126,7 @@ func TestParseEd25519Raw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !fromExpanded.Equal(priv) {
 		t.Fatal("expanded round trip mismatch")
 	}
@@ -120,6 +135,7 @@ func TestParseEd25519Raw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !gotPub.Equal(pub) {
 		t.Fatal("public round trip mismatch")
 	}
@@ -128,13 +144,17 @@ func TestParseEd25519Raw(t *testing.T) {
 	if _, err := ParseEd25519PrivateKeySeed(seed[:31]); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("short seed err = %v", err)
 	}
+
 	if _, err := ParseEd25519PrivateKeyExpanded(priv[:63]); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("short expanded err = %v", err)
 	}
+
 	if _, err := ParseEd25519PublicKey(pub[:31]); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("short pub err = %v", err)
 	}
+
 	bad := append(ed25519.PrivateKey(nil), priv...)
+
 	bad[40] ^= 0xff // corrupt the appended public half
 	if _, err := ParseEd25519PrivateKeyExpanded(bad); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("inconsistent expanded err = %v", err)
@@ -191,10 +211,12 @@ wAAAAhAIQfDYJDaxMSIohjacvXOQSOPP4F0E1e08KZSUOphf+zAAAABHRlc3QBAgM=
 
 func opensshDER(t *testing.T, blk string) []byte {
 	t.Helper()
+
 	p, _ := pem.Decode([]byte(blk))
 	if p == nil {
 		t.Fatal("pem decode failed")
 	}
+
 	return p.Bytes
 }
 
@@ -209,17 +231,20 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 		{"ecdsa", opensshECDSA, &ecdsa.PrivateKey{}},
 	}
 	msg := []byte("openssh round trip")
+
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			signer, err := ParseOpenSSHPrivateKey(opensshDER(t, c.pem))
 			if err != nil {
 				t.Fatalf("parse: %v", err)
 			}
+
 			switch c.want.(type) {
 			case ed25519.PrivateKey:
 				if _, ok := signer.(ed25519.PrivateKey); !ok {
 					t.Fatalf("got %T", signer)
 				}
+
 				sig := ed25519.Sign(signer.(ed25519.PrivateKey), msg)
 				if !ed25519.Verify(signer.Public().(ed25519.PublicKey), msg, sig) {
 					t.Fatal("signature did not verify")
@@ -229,6 +254,7 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 				if !ok {
 					t.Fatalf("got %T", signer)
 				}
+
 				if err := k.Validate(); err != nil {
 					t.Fatalf("invalid RSA key: %v", err)
 				}
@@ -237,14 +263,18 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 				if !ok {
 					t.Fatalf("got %T", signer)
 				}
+
 				if _, err := k.PublicKey.Bytes(); err != nil {
 					t.Fatalf("public point invalid: %v", err)
 				}
+
 				h := msg
+
 				r, s, err := ecdsa.Sign(rand.Reader, k, h)
 				if err != nil {
 					t.Fatal(err)
 				}
+
 				if !ecdsa.Verify(&k.PublicKey, h, r, s) {
 					t.Fatal("signature did not verify")
 				}
@@ -257,6 +287,7 @@ func TestParseOpenSSHPrivateKeyRejects(t *testing.T) {
 	if _, err := ParseOpenSSHPrivateKey([]byte("not openssh")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("bad magic err = %v", err)
 	}
+
 	if _, err := ParseOpenSSHPrivateKey([]byte(opensshMagic + "\x00\x00")); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("truncated err = %v", err)
 	}
@@ -266,6 +297,7 @@ func TestParseOpenSSHPrivateKeyRejects(t *testing.T) {
 	// ciphername sits right after the 15-byte magic as a length-prefixed
 	// string "none"; turn it into "aead".
 	copy(enc[len(opensshMagic)+4:], []byte("aead"))
+
 	if _, err := ParseOpenSSHPrivateKey(enc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("encrypted-key err = %v", err)
 	}
@@ -280,6 +312,7 @@ func sshString(b []byte) []byte {
 
 func buildOpenSSHBlob(t *testing.T, cipher, kdf string, count uint32, keyType string, pubBody, privBody []byte, mismatchCheck bool) []byte {
 	t.Helper()
+
 	pub := append(sshString([]byte(keyType)), pubBody...)
 
 	priv := []byte{1, 2, 3, 4}
@@ -288,8 +321,10 @@ func buildOpenSSHBlob(t *testing.T, cipher, kdf string, count uint32, keyType st
 	} else {
 		priv = append(priv, 1, 2, 3, 4)
 	}
+
 	priv = append(priv, sshString([]byte(keyType))...)
 	priv = append(priv, privBody...)
+
 	priv = append(priv, sshString([]byte("comment"))...)
 	for i := byte(1); len(priv)%8 != 0; i++ {
 		priv = append(priv, i)
@@ -302,6 +337,7 @@ func buildOpenSSHBlob(t *testing.T, cipher, kdf string, count uint32, keyType st
 	out = binary.BigEndian.AppendUint32(out, count)
 	out = append(out, sshString(pub)...)
 	out = append(out, sshString(priv)...)
+
 	return out
 }
 
@@ -326,6 +362,7 @@ func TestParseOpenSSHSyntheticEdgeCases(t *testing.T) {
 	})
 	t.Run("ed25519 wrong private length", func(t *testing.T) {
 		body := append(sshString(make([]byte, 32)), sshString(make([]byte, 10))...)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ssh-ed25519", make([]byte, 32), body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -334,6 +371,7 @@ func TestParseOpenSSHSyntheticEdgeCases(t *testing.T) {
 	t.Run("ecdsa bad point", func(t *testing.T) {
 		body := append(sshString([]byte("nistp256")), sshString([]byte{4, 1, 2})...)
 		body = append(body, sshString([]byte{1})...) // d
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-nistp256", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -342,6 +380,7 @@ func TestParseOpenSSHSyntheticEdgeCases(t *testing.T) {
 	t.Run("ecdsa unknown curve", func(t *testing.T) {
 		body := append(sshString([]byte("nistp999")), sshString(make([]byte, 65))...)
 		body = append(body, sshString([]byte{1})...)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-nistp256", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -361,14 +400,17 @@ func TestParseOpenSSHSyntheticP384AndP521(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		point, err := key.PublicKey.Bytes()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		scalar, err := key.Bytes()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		body := append(sshString([]byte(tc.curveID)), sshString(point)...)
 		body = append(body, sshString(scalar)...)
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-"+tc.curveID, nil, body, false)
@@ -377,6 +419,7 @@ func TestParseOpenSSHSyntheticP384AndP521(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", tc.curveID, err)
 		}
+
 		if !got.(*ecdsa.PrivateKey).Equal(key) {
 			t.Fatalf("%s: scalar mismatch", tc.curveID)
 		}

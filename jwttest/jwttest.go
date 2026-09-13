@@ -33,6 +33,7 @@ func NewFakeKeyProvider(keys ...jwt.Key) *FakeKeyProvider {
 	for _, k := range keys {
 		m[k.Kid] = k
 	}
+
 	return &FakeKeyProvider{Keys: m}
 }
 
@@ -42,15 +43,19 @@ func (f *FakeKeyProvider) Lookup(_ context.Context, kid string) (jwt.Key, bool, 
 	if f.Err != nil {
 		return jwt.Key{}, false, f.Err
 	}
+
 	if kid == "" {
 		if len(f.Keys) == 1 {
 			for _, k := range f.Keys {
 				return k, true, nil
 			}
 		}
+
 		return jwt.Key{}, false, nil
 	}
+
 	k, ok := f.Keys[kid]
+
 	return k, ok, nil
 }
 
@@ -80,9 +85,12 @@ func (f *FakeRevocationStore) Revoke(_ context.Context, id string, reason jwt.Re
 	if f.Err != nil {
 		return f.Err
 	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.entries[id] = fakeRevocationEntry{reason: reason, expiresAt: expiresAt}
+
 	return nil
 }
 
@@ -91,16 +99,20 @@ func (f *FakeRevocationStore) IsRevoked(_ context.Context, id string) (bool, err
 	if f.Err != nil {
 		return false, f.Err
 	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	e, ok := f.entries[id]
 	if !ok {
 		return false, nil
 	}
+
 	if !e.expiresAt.IsZero() && !e.expiresAt.After(f.now()) {
 		delete(f.entries, id)
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -108,6 +120,7 @@ func (f *FakeRevocationStore) now() time.Time {
 	if f.Now != nil {
 		return f.Now()
 	}
+
 	return time.Now()
 }
 
@@ -116,14 +129,17 @@ func (f *FakeRevocationStore) now() time.Time {
 // need no key-generation boilerplate. kid may be "".
 func NewSigningPair(tb testing.TB, kid string) (jwt.Signer, jwt.KeyProvider) {
 	tb.Helper()
+
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		tb.Fatalf("jwttest: generate key: %v", err)
 	}
+
 	signer, err := jwt.NewEd25519Signer(priv, kid)
 	if err != nil {
 		tb.Fatalf("jwttest: new signer: %v", err)
 	}
+
 	return signer, jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub, kid))
 }
 
@@ -134,6 +150,7 @@ func NewSigningPair(tb testing.TB, kid string) (jwt.Signer, jwt.KeyProvider) {
 // injected.
 func RunKeyProviderConformance(t *testing.T, name string, newProvider func(keys ...jwt.Key) jwt.KeyProvider) {
 	t.Helper()
+
 	ctx := context.Background()
 	k1 := jwt.FromHMACSecret([]byte("k1-secret-k1-secret-k1-secret-32b"), "k1")
 	k2 := jwt.FromHMACSecret([]byte("k2-secret-k2-secret-k2-secret-32b"), "k2")
@@ -162,6 +179,7 @@ func RunKeyProviderConformance(t *testing.T, name string, newProvider func(keys 
 // behaviour suite against newStore (called once per sub-test for isolation).
 func RunRevocationStoreConformance(t *testing.T, name string, newStore func() jwt.RevocationStore) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	t.Run(name+"/unknown id is not revoked", func(t *testing.T) {
@@ -175,12 +193,14 @@ func RunRevocationStoreConformance(t *testing.T, name string, newStore func() jw
 		if err := s.Revoke(ctx, "jti-1", jwt.ReasonLogout, time.Now().Add(time.Hour)); err != nil {
 			t.Fatal(err)
 		}
+
 		if rev, err := s.IsRevoked(ctx, "jti-1"); !rev || err != nil {
 			t.Fatalf("IsRevoked = %v, %v", rev, err)
 		}
 	})
 	t.Run(name+"/already-expired revocation is inert", func(t *testing.T) {
 		s := newStore()
+
 		_ = s.Revoke(ctx, "jti-2", jwt.ReasonLogout, time.Now().Add(-time.Hour))
 		if rev, _ := s.IsRevoked(ctx, "jti-2"); rev {
 			t.Fatal("an expired revocation is still reported")
@@ -188,6 +208,7 @@ func RunRevocationStoreConformance(t *testing.T, name string, newStore func() jw
 	})
 	t.Run(name+"/zero expiry is permanent", func(t *testing.T) {
 		s := newStore()
+
 		_ = s.Revoke(ctx, "kid-x", jwt.ReasonKeyCompromised, time.Time{})
 		if rev, _ := s.IsRevoked(ctx, "kid-x"); !rev {
 			t.Fatal("a zero-expiry revocation is not honoured")

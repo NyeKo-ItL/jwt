@@ -13,9 +13,11 @@ func TestStaticKeyProviderKidMismatch(t *testing.T) {
 	if _, ok, _ := prov.Lookup(ctx(), "b"); ok {
 		t.Fatal("expected miss for non-matching kid")
 	}
+
 	if _, ok, _ := prov.Lookup(ctx(), "a"); !ok {
 		t.Fatal("expected hit for matching kid")
 	}
+
 	if _, ok, _ := prov.Lookup(ctx(), ""); !ok {
 		t.Fatal("expected hit for empty requested kid")
 	}
@@ -23,10 +25,12 @@ func TestStaticKeyProviderKidMismatch(t *testing.T) {
 
 func TestVerifierKeyIDGetters(t *testing.T) {
 	tk := newTestKeys(t)
+
 	v, err := NewRSAPKCS1Verifier(RS256, &tk.rsa2048.PublicKey, "kid-9")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if v.KeyID() != "kid-9" {
 		t.Fatalf("KeyID = %q", v.KeyID())
 	}
@@ -51,6 +55,7 @@ func TestPublicKeyRejectsOversizeRSAExponent(t *testing.T) {
 	if _, err := k.PublicKey(); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("err = %v, want ErrMalformedKey", err)
 	}
+
 	k2 := Key{Kty: KeyTypeRSA, n: []byte{1, 2, 3}, e: []byte{0, 0}}
 	if _, err := k2.PublicKey(); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("zero exponent err = %v, want ErrMalformedKey", err)
@@ -105,6 +110,7 @@ func TestSignPropagatesRegisteredClaimsMarshalError(t *testing.T) {
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	// An oct key embedded in cnf.jwk makes the claims value unmarshalable.
 	oct := FromHMACSecret([]byte("secret"), "h1")
+
 	c := appClaims{RegisteredClaims: RegisteredClaims{Confirmation: &Confirmation{JWK: &oct}}}
 	if _, err := Sign(c, s); !errors.Is(err, ErrOctNotServable) {
 		t.Fatalf("err = %v, want ErrOctNotServable", err)
@@ -131,6 +137,7 @@ func TestCurveNameUnknown(t *testing.T) {
 	if got := curveName(nil); got != "" {
 		t.Fatalf("curveName(nil) = %q, want empty", got)
 	}
+
 	if got := curveByName("P-999"); got != nil {
 		t.Fatalf("curveByName(P-999) = %v, want nil", got)
 	}
@@ -145,6 +152,7 @@ func TestParseRejectsPayloadNotMatchingC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := parse[int](ctx(), tok, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("err = %v, want ErrMalformedToken", err)
 	}

@@ -12,16 +12,20 @@ import (
 
 func jwksBytes(t *testing.T, keys ...Key) []byte {
 	t.Helper()
+
 	b, err := json.Marshal(NewKeySet(keys...))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return b
 }
 
 func TestKeyFetcherLookupAndCache(t *testing.T) {
 	tk := newTestKeys(t)
+
 	var hits atomic.Int32
+
 	body := jwksBytes(t, FromRSAPublicKey(&tk.rsa2048.PublicKey, "k1"))
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,9 +43,11 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if k, ok, err := f.Lookup(ctx, "k1"); err != nil || !ok || k.Kty != KeyTypeRSA {
 		t.Fatalf("first lookup: %v %v %v", k.Kty, ok, err)
 	}
+
 	if _, ok, _ := f.Lookup(ctx, "k1"); !ok {
 		t.Fatal("second lookup failed")
 	}
+
 	if got := hits.Load(); got != 1 {
 		t.Fatalf("expected 1 network hit while cache fresh, got %d", got)
 	}
@@ -50,6 +56,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if _, ok, _ := f.Lookup(ctx, "unknown"); ok {
 		t.Fatal("unknown kid resolved")
 	}
+
 	if got := hits.Load(); got != 1 {
 		t.Fatalf("cache-miss inside minRefresh refetched: %d hits", got)
 	}
@@ -59,6 +66,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	if _, ok, _ := f.Lookup(ctx, "unknown"); ok {
 		t.Fatal("unknown kid resolved after refresh")
 	}
+
 	if got := hits.Load(); got != 2 {
 		t.Fatalf("expected refetch after minRefresh, got %d hits", got)
 	}
@@ -67,12 +75,14 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 func TestKeyFetcherRefreshPicksUpRotation(t *testing.T) {
 	tk := newTestKeys(t)
 	current := jwksBytes(t, FromRSAPublicKey(&tk.rsa2048.PublicKey, "old"))
+
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(current)
 	}))
 	defer srv.Close()
 
 	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+
 	ctx := context.Background()
 	if _, ok, _ := f.Lookup(ctx, "old"); !ok {
 		t.Fatal("old key not found")
@@ -82,6 +92,7 @@ func TestKeyFetcherRefreshPicksUpRotation(t *testing.T) {
 	if err := f.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if k, ok, _ := f.Lookup(ctx, "new"); !ok || k.Kty != KeyTypeEC {
 		t.Fatalf("rotated key not found: %v %v", k.Kty, ok)
 	}
@@ -89,8 +100,11 @@ func TestKeyFetcherRefreshPicksUpRotation(t *testing.T) {
 
 func TestKeyFetcherHonorsMaxAge(t *testing.T) {
 	tk := newTestKeys(t)
+
 	var hits atomic.Int32
+
 	body := jwksBytes(t, FromRSAPublicKey(&tk.rsa2048.PublicKey, "k1"))
+
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
 		w.Header().Set("Cache-Control", "public, max-age=3600")
@@ -108,6 +122,7 @@ func TestKeyFetcherHonorsMaxAge(t *testing.T) {
 	// minRefresh is only 1s.
 	f.now = func() time.Time { return base.Add(10 * time.Minute) }
 	_, _, _ = f.Lookup(ctx, "k1")
+
 	if got := hits.Load(); got != 1 {
 		t.Fatalf("max-age not honored: %d hits", got)
 	}
@@ -124,6 +139,7 @@ func TestKeyFetcherErrors(t *testing.T) {
 		http.Error(w, "nope", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
+
 	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client())).Refresh(ctx); err == nil {
 		t.Fatal("expected non-200 error")
 	}
@@ -132,6 +148,7 @@ func TestKeyFetcherErrors(t *testing.T) {
 		_, _ = w.Write(make([]byte, 4096))
 	}))
 	defer big.Close()
+
 	f := NewKeyFetcher(big.URL, WithHTTPClient(big.Client()), WithMaxResponseBytes(1024))
 	if _, _, err := f.Lookup(ctx, "x"); err == nil {
 		t.Fatal("expected size-cap error")
@@ -161,6 +178,7 @@ func TestDiscoverJWKSURI(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"jwks_uri": "https://issuer.example/keys"})
 	})
+
 	srv := httptest.NewTLSServer(&mux)
 	defer srv.Close()
 
@@ -168,6 +186,7 @@ func TestDiscoverJWKSURI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if got != "https://issuer.example/keys" {
 		t.Fatalf("discovered %q", got)
 	}
@@ -175,10 +194,12 @@ func TestDiscoverJWKSURI(t *testing.T) {
 	// no discovery doc -> conventional fallback
 	blank := httptest.NewTLSServer(http.NotFoundHandler())
 	defer blank.Close()
+
 	got, err = DiscoverJWKSURI(ctx, blank.URL+"/", blank.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if got != blank.URL+"/.well-known/jwks.json" {
 		t.Fatalf("fallback = %q", got)
 	}
@@ -199,6 +220,7 @@ func TestKeyFetcherRejectsBadBodyAndURL(t *testing.T) {
 		_, _ = w.Write([]byte(`{"keys":"not an array"}`))
 	}))
 	defer srv.Close()
+
 	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client())).Refresh(ctx); err == nil {
 		t.Fatal("expected error for malformed JWKS body")
 	}

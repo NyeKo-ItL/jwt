@@ -65,6 +65,7 @@ func optKID(kid []string) string {
 	if len(kid) > 0 {
 		return kid[0]
 	}
+
 	return ""
 }
 
@@ -129,6 +130,7 @@ func ECDSAParams(name string) (elliptic.Curve, crypto.Hash, int, bool) {
 func HashSum(h crypto.Hash, in []byte) []byte {
 	hh := h.New()
 	hh.Write(in)
+
 	return hh.Sum(nil)
 }
 
@@ -144,9 +146,11 @@ func NewHMACSigner(a Algorithm, key []byte, kid ...string) (Signer, error) {
 	if !ok || FamilyOf(string(a)) != FamilyHMAC {
 		return nil, fmt.Errorf("%w: %q is not an HMAC algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	if len(key) < h.Size() {
 		return nil, fmt.Errorf("%w: %s needs a key of >= %d bytes, got %d", ErrWeakKey, a, h.Size(), len(key))
 	}
+
 	return &hmacSigner{alg: a, key: append([]byte(nil), key...), kid: optKID(kid), hash: h}, nil
 }
 func (s *hmacSigner) Algorithm() Algorithm { return s.alg }
@@ -154,6 +158,7 @@ func (s *hmacSigner) KeyID() string        { return s.kid }
 func (s *hmacSigner) Sign(in []byte) ([]byte, error) {
 	m := hmac.New(s.hash.New, s.key)
 	m.Write(in)
+
 	return m.Sum(nil), nil
 }
 
@@ -164,6 +169,7 @@ func NewHMACVerifier(a Algorithm, key []byte, kid ...string) (Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &hmacVerifier{*s.(*hmacSigner)}, nil
 }
 func (v *hmacVerifier) Verify(in, sig []byte) error {
@@ -171,6 +177,7 @@ func (v *hmacVerifier) Verify(in, sig []byte) error {
 	if !hmac.Equal(expected, sig) {
 		return ErrInvalidSignature
 	}
+
 	return nil
 }
 
@@ -187,12 +194,15 @@ func NewECDSASigner(a Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, 
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	if key == nil {
 		return nil, fmt.Errorf("%w: nil ECDSA private key", ErrMalformedKey)
 	}
+
 	if key.Curve != curve {
 		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, a, curve.Params().Name)
 	}
+
 	return &ecdsaSigner{a, key, optKID(kid), h, size}, nil
 }
 func (s *ecdsaSigner) Algorithm() Algorithm { return s.alg }
@@ -202,9 +212,11 @@ func (s *ecdsaSigner) Sign(in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	out := make([]byte, 2*s.size)
 	r.FillBytes(out[:s.size])
 	ss.FillBytes(out[s.size:])
+
 	return out, nil
 }
 
@@ -221,12 +233,15 @@ func NewECDSAVerifier(a Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifie
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	if key == nil {
 		return nil, fmt.Errorf("%w: nil ECDSA public key", ErrMalformedKey)
 	}
+
 	if key.Curve != curve {
 		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, a, curve.Params().Name)
 	}
+
 	return &ecdsaVerifier{a, key, optKID(kid), h, size}, nil
 }
 func (v *ecdsaVerifier) Algorithm() Algorithm { return v.alg }
@@ -235,11 +250,14 @@ func (v *ecdsaVerifier) Verify(in, sig []byte) error {
 	if len(sig) != 2*v.size {
 		return ErrInvalidSignature
 	}
+
 	r := new(big.Int).SetBytes(sig[:v.size])
+
 	s := new(big.Int).SetBytes(sig[v.size:])
 	if !ecdsa.Verify(v.key, HashSum(v.hash, in), r, s) {
 		return ErrInvalidSignature
 	}
+
 	return nil
 }
 
@@ -264,12 +282,15 @@ func NewRSAPSSSigner(a Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, e
 	if !ok || !IsPSS(string(a)) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PSS algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	if key == nil {
 		return nil, fmt.Errorf("%w: nil RSA private key", ErrMalformedKey)
 	}
+
 	if key.N.BitLen() < minRSABits {
 		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, key.N.BitLen(), minRSABits)
 	}
+
 	return &rsaPSSSigner{a, key, optKID(kid), h}, nil
 }
 func (s *rsaPSSSigner) Algorithm() Algorithm { return s.alg }
@@ -281,9 +302,11 @@ func newRSAVerifier(a Algorithm, key *rsa.PublicKey, kid string, h crypto.Hash, 
 	if key == nil {
 		return nil, fmt.Errorf("%w: nil RSA public key", ErrMalformedKey)
 	}
+
 	if key.N.BitLen() < minRSABits {
 		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, key.N.BitLen(), minRSABits)
 	}
+
 	return &rsaVerifier{a, key, kid, h, pss}, nil
 }
 func NewRSAPSSVerifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
@@ -291,6 +314,7 @@ func NewRSAPSSVerifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier
 	if !ok || !IsPSS(string(a)) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PSS algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	return newRSAVerifier(a, key, optKID(kid), h, true)
 }
 func NewRSAPKCS1Verifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
@@ -298,21 +322,25 @@ func NewRSAPKCS1Verifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifi
 	if !ok || !IsPKCS1(string(a)) {
 		return nil, fmt.Errorf("%w: %q is not an RSA-PKCS1 algorithm", ErrUnsupportedAlgorithm, a)
 	}
+
 	return newRSAVerifier(a, key, optKID(kid), h, false)
 }
 func (v *rsaVerifier) Algorithm() Algorithm { return v.alg }
 func (v *rsaVerifier) KeyID() string        { return v.kid }
 func (v *rsaVerifier) Verify(in, sig []byte) error {
 	var err error
+
 	sum := HashSum(v.hash, in)
 	if v.pss {
 		err = rsa.VerifyPSS(v.key, v.hash, sum, sig, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: v.hash})
 	} else {
 		err = rsa.VerifyPKCS1v15(v.key, v.hash, sum, sig)
 	}
+
 	if err != nil {
 		return ErrInvalidSignature
 	}
+
 	return nil
 }
 
@@ -325,6 +353,7 @@ func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
 	if len(key) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 private key must be %d bytes, got %d", ErrMalformedKey, ed25519.PrivateKeySize, len(key))
 	}
+
 	return &ed25519Signer{append(ed25519.PrivateKey(nil), key...), optKID(kid)}, nil
 }
 func (s *ed25519Signer) Algorithm() Algorithm           { return EdDSA }
@@ -340,6 +369,7 @@ func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error) 
 	if len(key) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 public key must be %d bytes, got %d", ErrMalformedKey, ed25519.PublicKeySize, len(key))
 	}
+
 	return &ed25519Verifier{append(ed25519.PublicKey(nil), key...), optKID(kid)}, nil
 }
 func (v *ed25519Verifier) Algorithm() Algorithm { return EdDSA }
@@ -348,5 +378,6 @@ func (v *ed25519Verifier) Verify(in, sig []byte) error {
 	if len(sig) != ed25519.SignatureSize || !ed25519.Verify(v.key, in, sig) {
 		return ErrInvalidSignature
 	}
+
 	return nil
 }

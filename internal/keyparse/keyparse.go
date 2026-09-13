@@ -30,10 +30,12 @@ func ParsePKCS8PrivateKey(der []byte) (crypto.Signer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: PKCS#8: %w", internalerr.ErrMalformedKey, err)
 	}
+
 	signer, ok := key.(crypto.Signer)
 	if !ok {
 		return nil, fmt.Errorf("%w: PKCS#8 key of type %T is not a signer", internalerr.ErrMalformedKey, key)
 	}
+
 	return signer, nil
 }
 
@@ -43,6 +45,7 @@ func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: PKCS#1: %w", internalerr.ErrMalformedKey, err)
 	}
+
 	return key, nil
 }
 
@@ -52,6 +55,7 @@ func ParseSEC1ECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: SEC1: %w", internalerr.ErrMalformedKey, err)
 	}
+
 	return key, nil
 }
 
@@ -62,6 +66,7 @@ func ParsePKIXPublicKey(der []byte) (crypto.PublicKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: PKIX: %w", internalerr.ErrMalformedKey, err)
 	}
+
 	return key, nil
 }
 
@@ -70,6 +75,7 @@ func ParseEd25519PrivateKeySeed(seed []byte) (ed25519.PrivateKey, error) {
 	if len(seed) != ed25519.SeedSize {
 		return nil, fmt.Errorf("%w: Ed25519 seed must be %d bytes, got %d", internalerr.ErrMalformedKey, ed25519.SeedSize, len(seed))
 	}
+
 	return ed25519.NewKeyFromSeed(seed), nil
 }
 
@@ -80,10 +86,12 @@ func ParseEd25519PrivateKeyExpanded(raw []byte) (ed25519.PrivateKey, error) {
 	if len(raw) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%w: expanded Ed25519 key must be %d bytes, got %d", internalerr.ErrMalformedKey, ed25519.PrivateKeySize, len(raw))
 	}
+
 	derived := ed25519.NewKeyFromSeed(raw[:ed25519.SeedSize])
 	if !bytes.Equal(derived, raw) {
 		return nil, fmt.Errorf("%w: expanded Ed25519 key halves are inconsistent", internalerr.ErrMalformedKey)
 	}
+
 	return append(ed25519.PrivateKey(nil), raw...), nil
 }
 
@@ -92,6 +100,7 @@ func ParseEd25519PublicKey(raw []byte) (ed25519.PublicKey, error) {
 	if len(raw) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 public key must be %d bytes, got %d", internalerr.ErrMalformedKey, ed25519.PublicKeySize, len(raw))
 	}
+
 	return append(ed25519.PublicKey(nil), raw...), nil
 }
 
@@ -110,36 +119,45 @@ func ParseOpenSSHPrivateKey(raw []byte) (crypto.Signer, error) {
 	if !bytes.HasPrefix(raw, []byte(opensshMagic)) {
 		return nil, fmt.Errorf("%w: not an openssh-key-v1 blob", internalerr.ErrMalformedKey)
 	}
+
 	r := &sshBuf{b: raw[len(opensshMagic):]}
 	cipher := string(r.str())
 	kdf := string(r.str())
 	r.str() // kdf options
 	count := r.u32()
 	r.str() // public key
+
 	priv := r.str()
 	if r.err != nil {
 		return nil, fmt.Errorf("%w: truncated OpenSSH header: %w", internalerr.ErrMalformedKey, r.err)
 	}
+
 	if cipher != "none" || kdf != "none" {
 		return nil, fmt.Errorf("%w: encrypted OpenSSH keys are not supported", internalerr.ErrMalformedKey)
 	}
+
 	if count != 1 {
 		return nil, fmt.Errorf("%w: OpenSSH blob holds %d keys, want 1", internalerr.ErrMalformedKey, count)
 	}
 
 	p := &sshBuf{b: priv}
+
 	check1, check2 := p.u32(), p.u32()
 	if check1 != check2 {
 		return nil, fmt.Errorf("%w: OpenSSH check integers differ (wrong passphrase or corrupt)", internalerr.ErrMalformedKey)
 	}
+
 	keyType := string(p.str())
+
 	signer, err := parseOpenSSHKeyBody(keyType, p)
 	if err != nil {
 		return nil, err
 	}
+
 	if p.err != nil {
 		return nil, fmt.Errorf("%w: truncated OpenSSH private section: %w", internalerr.ErrMalformedKey, p.err)
 	}
+
 	return signer, nil
 }
 
@@ -147,13 +165,16 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 	switch keyType {
 	case "ssh-ed25519":
 		p.str() // public key (32 bytes)
+
 		priv := p.str()
 		if p.err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH Ed25519: %w", internalerr.ErrMalformedKey, p.err)
 		}
+
 		if len(priv) != ed25519.PrivateKeySize {
 			return nil, fmt.Errorf("%w: OpenSSH Ed25519 private key is %d bytes", internalerr.ErrMalformedKey, len(priv))
 		}
+
 		return append(ed25519.PrivateKey(nil), priv...), nil
 
 	case "ssh-rsa":
@@ -162,10 +183,12 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 		d := p.mpint()
 		p.mpint() // iqmp (recomputed by Precompute)
 		primeP := p.mpint()
+
 		primeQ := p.mpint()
 		if p.err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", internalerr.ErrMalformedKey, p.err)
 		}
+
 		key := &rsa.PrivateKey{
 			N: n, E: int(e.Int64()),
 			D:      d,
@@ -174,31 +197,39 @@ func parseOpenSSHKeyBody(keyType string, p *sshBuf) (crypto.Signer, error) {
 		if err := key.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH RSA: %w", internalerr.ErrMalformedKey, err)
 		}
+
 		key.Precompute()
+
 		return key, nil
 
 	case "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521":
 		curveID := string(p.str())
 		point := p.str()
+
 		d := p.mpint()
 		if p.err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH ECDSA: %w", internalerr.ErrMalformedKey, p.err)
 		}
+
 		curve := sshCurve(curveID)
 		if curve == nil {
 			return nil, fmt.Errorf("%w: unknown OpenSSH EC curve %q", internalerr.ErrMalformedKey, curveID)
 		}
+
 		size := (curve.Params().BitSize + 7) / 8
 		if len(point) != 1+2*size || point[0] != 4 {
 			return nil, fmt.Errorf("%w: malformed OpenSSH EC point", internalerr.ErrMalformedKey)
 		}
+
 		priv, err := ecdsa.ParseRawPrivateKey(curve, internalbytes.LeftPad(d.Bytes(), size))
 		if err != nil {
 			return nil, fmt.Errorf("%w: OpenSSH ECDSA: %w", internalerr.ErrMalformedKey, err)
 		}
+
 		if pub, err := priv.PublicKey.Bytes(); err != nil || !bytes.Equal(pub, point) {
 			return nil, fmt.Errorf("%w: OpenSSH ECDSA public point does not match the scalar", internalerr.ErrMalformedKey)
 		}
+
 		return priv, nil
 
 	default:
@@ -232,12 +263,15 @@ func (r *sshBuf) u32() uint32 {
 	if r.err != nil {
 		return 0
 	}
+
 	if len(r.b) < 4 {
 		r.err = errSSHShort
 		return 0
 	}
+
 	v := binary.BigEndian.Uint32(r.b)
 	r.b = r.b[4:]
+
 	return v
 }
 
@@ -246,12 +280,15 @@ func (r *sshBuf) str() []byte {
 	if r.err != nil {
 		return nil
 	}
+
 	if uint64(n) > uint64(len(r.b)) {
 		r.err = errSSHShort
 		return nil
 	}
+
 	s := r.b[:n]
 	r.b = r.b[n:]
+
 	return s
 }
 

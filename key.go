@@ -62,19 +62,24 @@ func (k Key) MarshalJSON() ([]byte, error) {
 	if k.Kty == KeyTypeOct {
 		return nil, ErrOctNotServable
 	}
+
 	j := jwkJSON{Kty: k.Kty, Kid: k.Kid, Use: k.Use, Alg: k.Alg, Crv: k.crv}
 	if len(k.n) > 0 {
 		j.N = b64.Encode(k.n)
 	}
+
 	if len(k.e) > 0 {
 		j.E = b64.Encode(k.e)
 	}
+
 	if len(k.x) > 0 {
 		j.X = b64.Encode(k.x)
 	}
+
 	if len(k.y) > 0 {
 		j.Y = b64.Encode(k.y)
 	}
+
 	return json.Marshal(j)
 }
 
@@ -84,29 +89,37 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &j); err != nil {
 		return err
 	}
+
 	k.Kty, k.Kid, k.Use, k.Alg, k.crv = j.Kty, j.Kid, j.Use, j.Alg, j.Crv
 	dec := func(s string) ([]byte, error) {
 		if s == "" {
 			return nil, nil
 		}
+
 		return b64.Decode(s)
 	}
+
 	var err error
 	if k.n, err = dec(j.N); err != nil {
 		return err
 	}
+
 	if k.e, err = dec(j.E); err != nil {
 		return err
 	}
+
 	if k.x, err = dec(j.X); err != nil {
 		return err
 	}
+
 	if k.y, err = dec(j.Y); err != nil {
 		return err
 	}
+
 	if k.k, err = dec(j.K); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -125,11 +138,13 @@ func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
 // surfaces later, at PublicKey/Verifier time.
 func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
 	k := Key{Kty: KeyTypeEC, Kid: option.FirstString(kid), crv: curveName(pub.Curve)}
+
 	size := (pub.Curve.Params().BitSize + 7) / 8
 	if b, err := pub.Bytes(); err == nil && len(b) == 1+2*size {
 		k.x = append([]byte(nil), b[1:1+size]...)
 		k.y = append([]byte(nil), b[1+size:]...)
 	}
+
 	return k
 }
 
@@ -160,34 +175,42 @@ func (k Key) PublicKey() (crypto.PublicKey, error) {
 		if len(k.n) == 0 || len(k.e) == 0 {
 			return nil, ErrMalformedKey
 		}
+
 		e := new(big.Int).SetBytes(k.e)
 		if e.BitLen() == 0 || e.BitLen() > 32 {
 			return nil, ErrMalformedKey
 		}
+
 		return &rsa.PublicKey{N: new(big.Int).SetBytes(k.n), E: int(e.Int64())}, nil
 	case KeyTypeEC:
 		c := curveByName(k.crv)
 		if c == nil || len(k.x) == 0 || len(k.y) == 0 {
 			return nil, ErrMalformedKey
 		}
+
 		size := (c.Params().BitSize + 7) / 8
+
 		x, y := internalbytes.LeftPad(k.x, size), internalbytes.LeftPad(k.y, size)
 		if len(x) != size || len(y) != size {
 			return nil, ErrMalformedKey
 		}
+
 		uncompressed := make([]byte, 0, 1+2*size)
 		uncompressed = append(uncompressed, 4)
 		uncompressed = append(uncompressed, x...)
 		uncompressed = append(uncompressed, y...)
+
 		pub, err := ecdsa.ParseUncompressedPublicKey(c, uncompressed)
 		if err != nil {
 			return nil, ErrMalformedKey
 		}
+
 		return pub, nil
 	case KeyTypeOKP:
 		if k.crv != "Ed25519" || len(k.x) != ed25519.PublicKeySize {
 			return nil, ErrMalformedKey
 		}
+
 		return ed25519.PublicKey(append([]byte(nil), k.x...)), nil
 	default:
 		return nil, ErrMalformedKey
@@ -199,9 +222,11 @@ func (k Key) Secret() ([]byte, error) {
 	if k.Kty != KeyTypeOct {
 		return nil, ErrKeyTypeMismatch
 	}
+
 	if len(k.k) == 0 {
 		return nil, ErrMalformedKey
 	}
+
 	return append([]byte(nil), k.k...), nil
 }
 
@@ -219,36 +244,43 @@ func (k Key) verifierForAlg(alg Algorithm) (Verifier, error) {
 		if err != nil {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		return NewHMACVerifier(alg, secret, k.Kid)
 	case internalalg.FamilyRSAPSS:
 		pub, err := k.rsaPublic()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewRSAPSSVerifier(alg, pub, k.Kid)
 	case internalalg.FamilyRSAPKCS1:
 		pub, err := k.rsaPublic()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewRSAPKCS1Verifier(alg, pub, k.Kid)
 	case internalalg.FamilyECDSA:
 		if k.Kty != KeyTypeEC {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		pub, err := k.PublicKey()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewECDSAVerifier(alg, pub.(*ecdsa.PublicKey), k.Kid)
 	case internalalg.FamilyEdDSA:
 		if k.Kty != KeyTypeOKP {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		pub, err := k.PublicKey()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewEd25519Verifier(pub.(ed25519.PublicKey), k.Kid)
 	default:
 		return nil, ErrUnsupportedAlgorithm
@@ -259,10 +291,12 @@ func (k Key) rsaPublic() (*rsa.PublicKey, error) {
 	if k.Kty != KeyTypeRSA {
 		return nil, ErrAlgorithmNotAllowed
 	}
+
 	pub, err := k.PublicKey()
 	if err != nil {
 		return nil, err
 	}
+
 	return pub.(*rsa.PublicKey), nil
 }
 

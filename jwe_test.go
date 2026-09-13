@@ -17,6 +17,7 @@ func jweCtx() context.Context { return context.Background() }
 func mkKEK(n int) []byte {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
+
 	return b
 }
 
@@ -29,6 +30,7 @@ func TestJWERoundTripAllAlgorithms(t *testing.T) {
 		enc  func(ContentAlgorithm) (Encrypter, error)
 		dec  func() (Decrypter, error)
 	}
+
 	factories := []factory{
 		{
 			name: "RSA-OAEP-256",
@@ -59,6 +61,7 @@ func TestJWERoundTripAllAlgorithms(t *testing.T) {
 	}
 
 	msg := []byte(`{"hello":"world","n":42}`)
+
 	for _, f := range factories {
 		for _, c := range contents {
 			t.Run(f.name+"/"+string(c), func(t *testing.T) {
@@ -66,24 +69,30 @@ func TestJWERoundTripAllAlgorithms(t *testing.T) {
 				if err != nil {
 					t.Fatalf("new encrypter: %v", err)
 				}
+
 				if enc.ContentAlgorithm() != c {
 					t.Fatalf("ContentAlgorithm() = %s", enc.ContentAlgorithm())
 				}
+
 				compact, err := enc.Encrypt(msg)
 				if err != nil {
 					t.Fatalf("encrypt: %v", err)
 				}
+
 				if n := strings.Count(compact, "."); n != 4 {
 					t.Fatalf("compact JWE has %d dots, want 4", n)
 				}
+
 				dec, err := f.dec()
 				if err != nil {
 					t.Fatalf("new decrypter: %v", err)
 				}
+
 				got, err := dec.Decrypt(jweCtx(), compact)
 				if err != nil {
 					t.Fatalf("decrypt: %v", err)
 				}
+
 				if string(got) != string(msg) {
 					t.Fatalf("plaintext = %q, want %q", got, msg)
 				}
@@ -95,13 +104,16 @@ func TestJWERoundTripAllAlgorithms(t *testing.T) {
 func TestJWEDirectRoundTrip(t *testing.T) {
 	for _, c := range []ContentAlgorithm{A128GCM, A192GCM, A256GCM} {
 		cek := mkKEK(contentKeyLen(c))
+
 		enc, err := NewDirectEncrypter(cek, c, "d1")
 		if err != nil {
 			t.Fatalf("%s: %v", c, err)
 		}
+
 		if enc.KeyAlgorithm() != Direct || enc.KeyID() != "d1" {
 			t.Fatalf("%s: getters wrong", c)
 		}
+
 		compact, err := enc.Encrypt([]byte("secret payload"))
 		if err != nil {
 			t.Fatalf("%s: encrypt: %v", c, err)
@@ -110,10 +122,12 @@ func TestJWEDirectRoundTrip(t *testing.T) {
 		if parts := strings.Split(compact, "."); parts[1] != "" {
 			t.Fatalf("%s: dir encrypted_key not empty: %q", c, parts[1])
 		}
+
 		dec, err := NewDirectDecrypter(cek, "d1")
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		got, err := dec.Decrypt(jweCtx(), compact)
 		if err != nil || string(got) != "secret payload" {
 			t.Fatalf("%s: decrypt: %q %v", c, got, err)
@@ -125,26 +139,31 @@ func TestJWEFailsClosedOnTamper(t *testing.T) {
 	tk := newTestKeys(t)
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "")
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "")
+
 	compact, err := enc.Encrypt([]byte("top secret"))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	parts := strings.Split(compact, ".")
 
 	mutate := func(i int, s string) string {
 		cp := append([]string(nil), parts...)
 		cp[i] = s
+
 		return strings.Join(cp, ".")
 	}
 
 	// flip a byte in the ciphertext
 	ctBytes, _ := b64.Decode(parts[3])
+
 	ctBytes[0] ^= 0xff
 	if _, err := dec.Decrypt(jweCtx(), mutate(3, b64.Encode(ctBytes))); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("tampered ciphertext err = %v", err)
 	}
 	// flip a byte in the tag
 	tagBytes, _ := b64.Decode(parts[4])
+
 	tagBytes[0] ^= 0xff
 	if _, err := dec.Decrypt(jweCtx(), mutate(4, b64.Encode(tagBytes))); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("tampered tag err = %v", err)
@@ -176,6 +195,7 @@ func TestJWERejectsWrongRecipient(t *testing.T) {
 
 func TestJWEMalformedCompact(t *testing.T) {
 	tk := newTestKeys(t)
+
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "")
 	for _, bad := range []string{
 		"",
@@ -198,24 +218,31 @@ func TestJWEConstructorValidation(t *testing.T) {
 	if _, err := NewRSAOAEP256Encrypter(&tk.rsa1024.PublicKey, A256GCM, ""); !errors.Is(err, ErrWeakKey) {
 		t.Fatalf("weak RSA enc err = %v", err)
 	}
+
 	if _, err := NewRSAOAEP256Decrypter(tk.rsa1024, ""); !errors.Is(err, ErrWeakKey) {
 		t.Fatalf("weak RSA dec err = %v", err)
 	}
+
 	if _, err := NewRSAOAEP256Encrypter(nil, A256GCM, ""); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("nil RSA err = %v", err)
 	}
+
 	if _, err := NewA256KWEncrypter(make([]byte, 16), A256GCM, ""); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("short KEK err = %v", err)
 	}
+
 	if _, err := NewDirectEncrypter(make([]byte, 16), A256GCM, ""); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("dir key/enc mismatch err = %v", err)
 	}
+
 	if _, err := NewDirectDecrypter(make([]byte, 20), ""); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("dir dec bad len err = %v", err)
 	}
+
 	if _, err := NewECDHESEncrypter(&tk.p256.PublicKey, A256KW, A256GCM, ""); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("ecdh bad alg err = %v", err)
 	}
+
 	if _, err := NewRSAOAEP256Encrypter(&tk.rsa2048.PublicKey, "A999GCM", ""); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("bad content alg err = %v", err)
 	}
@@ -229,7 +256,9 @@ func TestDirCekLengthMustMatchContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	enc, _ := NewDirectEncrypter(tk.hmac[:16], A128GCM, "")
+
 	compact, _ := enc.Encrypt([]byte("x"))
 	if _, err := dec.Decrypt(jweCtx(), compact); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("CEK-length mismatch err = %v", err)
@@ -250,15 +279,18 @@ func TestEncryptDecryptClaims(t *testing.T) {
 		},
 		Scope: "read",
 	}
+
 	compact, err := EncryptClaims(in, enc)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	out, err := decryptClaims[appClaims](jweCtx(), compact, dec,
 		WithIssuer("enc-issuer"), WithAudience("aud9"))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if out.Subject != "u9" || out.Scope != "read" {
 		t.Fatalf("claims = %+v", out)
 	}
@@ -266,6 +298,7 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	// claim validation still runs after decryption
 	expired := in
 	expired.ExpiresAt = NewNumericDate(time.Now().Add(-time.Hour))
+
 	badCompact, _ := EncryptClaims(expired, enc)
 	if _, err := decryptClaims[appClaims](jweCtx(), badCompact, dec); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired enc claims err = %v", err)
@@ -284,15 +317,18 @@ func TestEncryptDecryptClaimsNilAndGarbage(t *testing.T) {
 	if _, err := EncryptClaims(appClaims{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil encrypter err = %v", err)
 	}
+
 	if _, err := decryptClaims[appClaims](jweCtx(), "x.y.z.a.b", nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil decrypter err = %v", err)
 	}
+
 	if _, err := decryptClaims[appClaims](jweCtx(), "garbage", dec); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("garbage err = %v", err)
 	}
 
 	// valid JWE whose plaintext is not a JSON object
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "")
+
 	compact, _ := enc.Encrypt([]byte("not-json"))
 	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("non-json plaintext err = %v", err)

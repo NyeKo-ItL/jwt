@@ -25,6 +25,7 @@ const familyIDBytes = 16
 func NewTokenFamily() TokenFamily {
 	buf := make([]byte, familyIDBytes)
 	_, _ = rand.Read(buf)
+
 	return TokenFamily{ID: b64.Encode(buf)}
 }
 

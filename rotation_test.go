@@ -26,7 +26,9 @@ func (r *familyRotator) issue(ctx context.Context, fam TokenFamily) (OpaqueToken
 	if err != nil {
 		return OpaqueToken{}, err
 	}
+
 	r.current[fam.ID] = tok.Hash
+
 	return tok, nil
 }
 
@@ -39,17 +41,22 @@ func (r *familyRotator) rotate(ctx context.Context, fam TokenFamily, presentedRa
 	} else if revoked {
 		return RotationResult{ReuseDetected: true}, nil
 	}
+
 	if !Equal(r.current[fam.ID], presentedRaw) {
 		if err := r.revoke.Revoke(ctx, fam.ID, ReasonReuseDetected, time.Time{}); err != nil {
 			return RotationResult{}, err
 		}
+
 		return RotationResult{ReuseDetected: true}, nil
 	}
+
 	next, err := NewOpaqueToken()
 	if err != nil {
 		return RotationResult{}, err
 	}
+
 	r.current[fam.ID] = next.Hash
+
 	return RotationResult{Next: next}, nil
 }
 
@@ -73,12 +80,14 @@ func TestRefreshRotationReuseDetection(t *testing.T) {
 	if err != nil || res.ReuseDetected {
 		t.Fatalf("first rotation: %+v, %v", res, err)
 	}
+
 	t1 := res.Next
 
 	res, err = rot.rotate(ctx, fam, t1.Raw)
 	if err != nil || res.ReuseDetected {
 		t.Fatalf("second rotation: %+v, %v", res, err)
 	}
+
 	t2 := res.Next
 
 	// Replay the already-rotated-away t1: reuse must be detected and the
@@ -87,9 +96,11 @@ func TestRefreshRotationReuseDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !res.ReuseDetected {
 		t.Fatal("replaying a superseded token was not flagged as reuse")
 	}
+
 	if revoked, _ := store.IsRevoked(ctx, fam.ID); !revoked {
 		t.Fatal("family was not revoked after reuse")
 	}
@@ -99,6 +110,7 @@ func TestRefreshRotationReuseDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !res.ReuseDetected {
 		t.Fatal("family revocation did not invalidate the live token")
 	}

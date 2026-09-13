@@ -25,7 +25,9 @@ func (r *rotator) issue(fam jwt.TokenFamily) (jwt.OpaqueToken, error) {
 	if err != nil {
 		return jwt.OpaqueToken{}, err
 	}
+
 	r.live[fam.ID] = tok.Hash // persist only the hash
+
 	return tok, nil
 }
 
@@ -35,16 +37,20 @@ func (r *rotator) rotate(ctx context.Context, fam jwt.TokenFamily, presented str
 	} else if revoked {
 		return jwt.RotationResult{ReuseDetected: true}, nil
 	}
+
 	if !jwt.Equal(r.live[fam.ID], presented) {
 		// a superseded (or forged) token — burn the family permanently
 		_ = r.revoke.Revoke(ctx, fam.ID, jwt.ReasonReuseDetected, time.Time{})
 		return jwt.RotationResult{ReuseDetected: true}, nil
 	}
+
 	next, err := jwt.NewOpaqueToken()
 	if err != nil {
 		return jwt.RotationResult{}, err
 	}
+
 	r.live[fam.ID] = next.Hash
+
 	return jwt.RotationResult{Next: next}, nil
 }
 
@@ -53,6 +59,7 @@ func main() {
 	r := &rotator{live: map[string]string{}, revoke: jwt.NewMemoryRevocationStore()}
 
 	fam := jwt.NewTokenFamily()
+
 	t0, err := r.issue(fam)
 	if err != nil {
 		log.Fatal(err)
