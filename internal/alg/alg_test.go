@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"errors"
 	"testing"
 )
 
@@ -145,6 +146,55 @@ func TestECDSARoundTrip(t *testing.T) {
 	}
 }
 
+func TestHMACRejectsInvalidInputs(t *testing.T) {
+	if _, err := NewHMACSigner("custom", make([]byte, 32)); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported HMAC algorithm: %v", err)
+	}
+
+	if _, err := NewHMACSigner(HS256, make([]byte, 31)); !errors.Is(err, ErrWeakKey) {
+		t.Fatalf("short HMAC key: %v", err)
+	}
+
+	s, _ := NewHMACSigner(HS256, make([]byte, 32))
+
+	v, _ := NewHMACVerifier(HS256, make([]byte, 32))
+	if s.Algorithm() != HS256 || s.KeyID() != "" || v.KeyID() != "" {
+		t.Fatal("HMAC metadata mismatch")
+	}
+
+	if err := v.Verify([]byte("input"), []byte("bad")); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("invalid HMAC signature: %v", err)
+	}
+}
+
+func TestECDSARejectsInvalidInputs(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewECDSASigner("custom", key); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported ECDSA algorithm: %v", err)
+	}
+
+	if _, err := NewECDSASigner(ES256, nil); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("nil ECDSA signer key: %v", err)
+	}
+
+	if _, err := NewECDSAVerifier(ES256, nil); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("nil ECDSA verifier key: %v", err)
+	}
+
+	v, _ := NewECDSAVerifier(ES256, &key.PublicKey, "e1")
+	if v.Algorithm() != ES256 || v.KeyID() != "e1" {
+		t.Fatal("ECDSA metadata mismatch")
+	}
+
+	if err := v.Verify([]byte("input"), []byte("bad")); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("invalid ECDSA signature: %v", err)
+	}
+}
+
 func TestRSARoundTrips(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -178,5 +228,72 @@ func TestRSARoundTrips(t *testing.T) {
 	pkcsSig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
 	if err != nil || pkcsVerifier.Verify(input, pkcsSig) != nil {
 		t.Fatalf("RSA PKCS#1 verification failed: %v", err)
+	}
+
+	if pssSigner.Algorithm() != PS256 || pssSigner.KeyID() != "" || pkcsVerifier.Algorithm() != RS256 {
+		t.Fatal("RSA metadata mismatch")
+	}
+
+	bad := append([]byte(nil), sig...)
+	bad[0] ^= 1
+
+	if err := pssVerifier.Verify(input, bad); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("invalid RSA-PSS signature: %v", err)
+	}
+}
+
+func TestRSARejectsInvalidInputs(t *testing.T) {
+	//nolint:gosec // Deliberately exercise rejection of weak RSA keys.
+	weak, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := NewRSAPSSSigner(PS256, weak); !errors.Is(err, ErrWeakKey) {
+		t.Fatalf("weak RSA signer key: %v", err)
+	}
+
+	if _, err := NewRSAPSSSigner("custom", weak); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported RSA signer algorithm: %v", err)
+	}
+
+	if _, err := NewRSAPSSVerifier(PS256, &weak.PublicKey); !errors.Is(err, ErrWeakKey) {
+		t.Fatalf("weak RSA verifier key: %v", err)
+	}
+
+	// Keep each invalid-constructor assertion visually isolated.
+	if _, err := NewRSAPKCS1Verifier("custom", &weak.PublicKey); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported RSA verifier algorithm: %v", err)
+	}
+
+	if _, err := NewRSAPSSVerifier(PS256, nil); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("nil RSA verifier key: %v", err)
+	}
+}
+
+func TestEd25519RejectsInvalidInputs(t *testing.T) {
+	if _, err := NewEd25519Signer(ed25519.PrivateKey{1, 2, 3}); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("short Ed25519 signer key: %v", err)
+	}
+
+	if _, err := NewEd25519Verifier(ed25519.PublicKey{1, 2, 3}); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("short Ed25519 verifier key: %v", err)
+	}
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v, _ := NewEd25519Verifier(pub, "e1")
+	if v.Algorithm() != EdDSA || v.KeyID() != "e1" {
+		t.Fatal("Ed25519 metadata mismatch")
+	}
+
+	s, _ := NewEd25519Signer(priv)
+
+	sig, _ := s.Sign([]byte("input"))
+	if err := v.Verify([]byte("input"), append(sig, 0)); !errors.Is(err, ErrInvalidSignature) {
+		t.Fatalf("invalid Ed25519 signature: %v", err)
 	}
 }
