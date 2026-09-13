@@ -1,0 +1,9 @@
+version: 2
+
+# This repository is a library. GoReleaser publishes the GitHub release and
+# source archive without building command binaries.
+builds: []
+
+
+checksum:
+  name_template: "checksums.txt"

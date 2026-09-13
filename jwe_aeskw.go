@@ -68,7 +68,7 @@ func aesKWUnwrap(kek, ciphertext []byte) ([]byte, error) {
 	buf := make([]byte, 16)
 	for j := 5; j >= 0; j-- {
 		for i := n - 1; i >= 0; i-- {
-			t := uint64(n*j + i + 1)
+			t := uint64(n)*uint64(j) + uint64(i) + 1 //nolint:gosec // n and i are bounded by the ciphertext size.
 			var tb [8]byte
 			binary.BigEndian.PutUint64(tb[:], t)
 			at := make([]byte, 8)

@@ -1,8 +1,15 @@
 # jwt
 
-[![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/NyeKo-ItL/jwt.svg)](https://pkg.go.dev/github.com/NyeKo-ItL/jwt)
+[![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
+[![Scheduled fuzzing](https://github.com/NyeKo-ItL/jwt/actions/workflows/fuzz.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/fuzz.yml)
+[![Release](https://github.com/NyeKo-ItL/jwt/actions/workflows/release.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/NyeKo-ItL/jwt?display_name=tag&sort=semver)](https://github.com/NyeKo-ItL/jwt/releases/latest)
 [![codecov](https://codecov.io/gh/NyeKo-ItL/jwt/graph/badge.svg?token=9IQF77HVZA)](https://codecov.io/gh/NyeKo-ItL/jwt)
+[![CodeQL](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql)
+[![Security scans](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/NyeKo-ItL/jwt/badge)](https://securityscorecards.dev/viewer/?uri=github.com/NyeKo-ItL/jwt)
+[![Dependabot Updates](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A single-package JWT / JOSE library for Go: JWS signing and verification, JWE

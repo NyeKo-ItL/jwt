@@ -9,6 +9,7 @@ linters:
     - errcheck
     - errorlint
     - govet
+    - gosec
     - ineffassign
     - misspell
     - staticcheck

@@ -272,6 +272,7 @@ func TestParseOpenSSHPrivateKeyRejects(t *testing.T) {
 // ---- synthetic openssh-key-v1 blobs for edge cases --------------------
 
 func sshString(b []byte) []byte {
+	//nolint:gosec // Synthetic test data uses the OpenSSH uint32 length format.
 	return append(binary.BigEndian.AppendUint32(nil, uint32(len(b))), b...)
 }
 

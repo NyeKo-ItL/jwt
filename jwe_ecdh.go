@@ -14,9 +14,10 @@ import (
 // outputs). apu/apv are always empty here.
 func concatKDF(z []byte, algID string, keyBits int) []byte {
 	var other bytes.Buffer
-	writeLenPrefixed(&other, []byte(algID))                     // AlgorithmID
-	writeLenPrefixed(&other, nil)                               // PartyUInfo (apu)
-	writeLenPrefixed(&other, nil)                               // PartyVInfo (apv)
+	writeLenPrefixed(&other, []byte(algID)) // AlgorithmID
+	writeLenPrefixed(&other, nil)           // PartyUInfo (apu)
+	writeLenPrefixed(&other, nil)           // PartyVInfo (apv)
+	//nolint:gosec // RFC 7518 encodes SuppPubInfo as an unsigned 32-bit value; keyBits is a validated algorithm constant.
 	_ = binary.Write(&other, binary.BigEndian, uint32(keyBits)) // SuppPubInfo
 	// SuppPrivInfo: empty
 
@@ -28,6 +29,7 @@ func concatKDF(z []byte, algID string, keyBits int) []byte {
 }
 
 func writeLenPrefixed(buf *bytes.Buffer, b []byte) {
+	//nolint:gosec // JOSE length-prefixed fields use an unsigned 32-bit length; callers provide bounded protocol fields.
 	_ = binary.Write(buf, binary.BigEndian, uint32(len(b)))
 	buf.Write(b)
 }

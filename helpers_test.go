@@ -35,6 +35,7 @@ func newTestKeys(t testing.TB) testKeys {
 	if tk.rsa2048, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
 		t.Fatal(err)
 	}
+	//nolint:gosec // This deliberately exercises rejection/compatibility of weak RSA keys.
 	if tk.rsa1024, err = rsa.GenerateKey(rand.Reader, 1024); err != nil {
 		t.Fatal(err)
 	}
