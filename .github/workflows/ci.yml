@@ -48,6 +48,17 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  test-gate:
+    name: test (1.27)
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every OS test
+        if: needs.test.result != 'success'
+        run: exit 1
+      - run: echo "All Go 1.27 platform tests passed"
+
   fuzz:
     runs-on: ubuntu-latest
     strategy:
