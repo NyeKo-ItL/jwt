@@ -55,10 +55,12 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 				},
 				Scope: "read",
 			}
+
 			tok, err := Sign(in, c.sign)
 			if err != nil {
 				t.Fatalf("Sign: %v", err)
 			}
+
 			out, err := parse[appClaims](ctx(), tok, StaticKeyProvider(c.key),
 				WithAllowedAlgorithms(c.alg),
 				WithIssuer("https://issuer.example"),
@@ -67,6 +69,7 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Parse: %v", err)
 			}
+
 			if out.Subject != "user-1" || out.Scope != "read" {
 				t.Fatalf("claims mismatch: %+v", out)
 			}
@@ -77,19 +80,24 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 func TestSignStampsDefaultType(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
+
 	tok, err := Sign(appClaims{}, s)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	h, _, _, _ := split3(tok)
+
 	raw, err := b64.Decode(h)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var hdr Header
 	if err := json.Unmarshal(raw, &hdr); err != nil {
 		t.Fatal(err)
 	}
+
 	if hdr.Type != DefaultType {
 		t.Fatalf("typ = %q, want %q", hdr.Type, DefaultType)
 	}
@@ -104,9 +112,11 @@ func TestParseRequiresAllowlist(t *testing.T) {
 	if _, err := parse[appClaims](ctx(), tok, prov); !errors.Is(err, ErrNoAllowedAlgorithms) {
 		t.Fatalf("no option: err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms()); !errors.Is(err, ErrNoAllowedAlgorithms) {
 		t.Fatalf("empty option: err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(Algorithm("none"), "")); !errors.Is(err, ErrNoAllowedAlgorithms) {
 		t.Fatalf("none-only option: err = %v", err)
 	}
@@ -116,6 +126,7 @@ func TestParseRejectsAlgNotInAllowlist(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	tok, _ := Sign(appClaims{}, s)
+
 	_, err := parse[appClaims](ctx(), tok, StaticKeyProvider(FromHMACSecret(tk.hmac, "h1")),
 		WithAllowedAlgorithms(ES256))
 	if !errors.Is(err, ErrAlgorithmNotAllowed) {
@@ -143,9 +154,11 @@ func TestSignRejectsNoneAndNilSigner(t *testing.T) {
 	if _, err := Sign(appClaims{}, nil); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("nil signer err = %v", err)
 	}
+
 	if _, err := Sign(appClaims{}, staticStr{alg: "none"}); !errors.Is(err, ErrAlgorithmNotAllowed) {
 		t.Fatalf("none signer err = %v", err)
 	}
+
 	if _, err := Sign(appClaims{}, staticStr{alg: ""}); !errors.Is(err, ErrAlgorithmNotAllowed) {
 		t.Fatalf("empty-alg signer err = %v", err)
 	}
@@ -156,14 +169,17 @@ func TestParseAlgConfusionRSAasHMAC(t *testing.T) {
 	// Attacker forges an RS256 token, then presents the RSA public key bytes
 	// as an HMAC secret. Structural family check must refuse it.
 	rsS := rs256TestSigner{key: tk.rsa2048, kid: "r1"}
+
 	tok, err := Sign(appClaims{RegisteredClaims: RegisteredClaims{Subject: "attacker"}}, rsS)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pubDER, err := x509.MarshalPKIXPublicKey(&tk.rsa2048.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	forgedProvider := StaticKeyProvider(FromHMACSecret(pubDER, "r1"))
 	if _, err := parse[appClaims](ctx(), tok, forgedProvider, WithAllowedAlgorithms(RS256, HS256)); !errors.Is(err, ErrAlgorithmNotAllowed) {
 		t.Fatalf("alg-confusion err = %v, want ErrAlgorithmNotAllowed", err)
@@ -177,6 +193,7 @@ func TestParseSignatureFailure(t *testing.T) {
 
 	wrong := make([]byte, 64)
 	wrong[0] = 0xAB
+
 	_, err := parse[appClaims](ctx(), tok, StaticKeyProvider(FromHMACSecret(wrong, "h1")), WithAllowedAlgorithms(HS256))
 	if !errors.Is(err, ErrInvalidSignature) {
 		t.Fatalf("wrong-key verify err = %v, want ErrInvalidSignature", err)
@@ -217,6 +234,7 @@ func TestParseTimeChecks(t *testing.T) {
 	if _, err := parse[appClaims](ctx(), future, prov, WithAllowedAlgorithms(HS256), WithClock(func() time.Time { return now })); !errors.Is(err, ErrNotYetValid) {
 		t.Fatalf("nbf err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), future, prov, WithAllowedAlgorithms(HS256),
 		WithClock(func() time.Time { return now }), WithLeeway(2*time.Minute)); err != nil {
 		t.Fatalf("nbf-with-leeway err = %v", err)
@@ -235,9 +253,11 @@ func TestParseIssuerAndAudience(t *testing.T) {
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256), WithIssuer("iss-b")); !errors.Is(err, ErrIssuerMismatch) {
 		t.Fatalf("issuer err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256), WithAudience("aud-x")); !errors.Is(err, ErrAudienceMismatch) {
 		t.Fatalf("audience err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256), WithIssuer("iss-a"), WithAudience("aud-2")); err != nil {
 		t.Fatalf("valid iss/aud err = %v", err)
 	}
@@ -272,6 +292,7 @@ func TestParseRequiredTypeAndClaims(t *testing.T) {
 	if _, err := parse[appClaims](ctx(), plain, prov, WithAllowedAlgorithms(HS256), WithRequiredClaims("scope")); err != nil {
 		t.Fatalf("present required claim err = %v", err)
 	}
+
 	if _, err := parse[appClaims](ctx(), plain, prov, WithAllowedAlgorithms(HS256), WithRequiredClaims("scope", "sub")); !errors.Is(err, ErrMissingClaim) {
 		t.Fatalf("missing required claim err = %v", err)
 	}
@@ -305,6 +326,7 @@ func TestParseBadPayloadJSONAfterValidSig(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	prov := StaticKeyProvider(FromHMACSecret(tk.hmac, "h1"))
+
 	tok := mintToken(t, Header{Algorithm: HS256, KeyID: "h1"}, "not-an-object", s)
 	if _, err := parse[appClaims](ctx(), tok, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("err = %v, want ErrMalformedToken", err)
@@ -317,6 +339,7 @@ func TestParseKeyResolution(t *testing.T) {
 	tok, _ := Sign(appClaims{}, s1)
 
 	other := make([]byte, 64)
+
 	prov := MapKeyProvider(map[string]Key{
 		"k1": FromHMACSecret(other, "k1"),
 		"k2": FromHMACSecret(tk.hmac, "k2"),
@@ -327,6 +350,7 @@ func TestParseKeyResolution(t *testing.T) {
 
 	// token with an unknown kid
 	sX, _ := NewHMACSigner(HS256, tk.hmac, "nope")
+
 	tokX, _ := Sign(appClaims{}, sX)
 	if _, err := parse[appClaims](ctx(), tokX, prov, WithAllowedAlgorithms(HS256)); !errors.Is(err, ErrKeyNotFound) {
 		t.Fatalf("unknown kid err = %v", err)
@@ -345,6 +369,7 @@ func TestParsePropagatesProviderError(t *testing.T) {
 	tk := newTestKeys(t)
 	s, _ := NewHMACSigner(HS256, tk.hmac, "h1")
 	tok, _ := Sign(appClaims{}, s)
+
 	sentinel := errors.New("boom")
 	if _, err := parse[appClaims](ctx(), tok, errProvider{err: sentinel}, WithAllowedAlgorithms(HS256)); !errors.Is(err, sentinel) {
 		t.Fatalf("err = %v, want sentinel", err)
@@ -363,6 +388,7 @@ func TestParseInsecure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseInsecure on expired token: %v", err)
 	}
+
 	if out.Subject != "peek" || out.Scope != "read" {
 		t.Fatalf("claims mismatch: %+v", out)
 	}
@@ -438,14 +464,17 @@ func TestSignOptions(t *testing.T) {
 
 	decodeHeader := func(tok string) map[string]any {
 		h, _, _, _ := split3(tok)
+
 		raw, err := b64.Decode(h)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		var m map[string]any
 		if err := json.Unmarshal(raw, &m); err != nil {
 			t.Fatal(err)
 		}
+
 		return m
 	}
 
@@ -454,9 +483,11 @@ func TestSignOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if decodeHeader(at)["typ"] != AccessTokenType {
 		t.Fatalf("typ = %v", decodeHeader(at)["typ"])
 	}
+
 	if _, err := parse[appClaims](ctx(), at, prov, WithAllowedAlgorithms(HS256), WithRequiredType(AccessTokenType)); err != nil {
 		t.Fatalf("RFC 9068 typ round trip: %v", err)
 	}
@@ -472,6 +503,7 @@ func TestSignOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	hdr := decodeHeader(full)
 	if hdr["cty"] != "JWT" || hdr["alg"] != "HS256" {
 		t.Fatalf("header = %v", hdr)
@@ -505,10 +537,12 @@ func TestParseOptionsStruct(t *testing.T) {
 
 	// struct + functional overrides combine; later option wins
 	var c2 appClaims
+
 	err := Parse(ctx(), tok, &c2, prov, base, WithLeeway(time.Minute), WithAudience("aud-1"))
 	if err != nil {
 		t.Fatalf("combined err = %v", err)
 	}
+
 	if c2.Issuer != "iss-a" {
 		t.Fatalf("issuer = %q", c2.Issuer)
 	}
@@ -534,6 +568,7 @@ func TestParseOptionsAcceptedByDecryptAndMiddleware(t *testing.T) {
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "k")
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "k")
 	compact, _ := EncryptClaims(appClaims{RegisteredClaims: RegisteredClaims{Issuer: "e"}}, enc)
+
 	var got appClaims
 	if err := DecryptClaims(ctx(), compact, &got, dec, ParseOptions{Issuer: "e"}); err != nil {
 		t.Fatalf("DecryptClaims with ParseOptions: %v", err)
@@ -557,6 +592,7 @@ func TestParseOptionsAllFieldsViaStruct(t *testing.T) {
 	}, s)
 
 	var c appClaims
+
 	err := Parse(ctx(), typed, &c, prov, ParseOptions{
 		AllowedAlgorithms: []Algorithm{HS256},
 		Issuer:            "iss-x",
@@ -569,17 +605,21 @@ func TestParseOptionsAllFieldsViaStruct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("all-struct-fields err = %v", err)
 	}
+
 	if c.Scope != "read" {
 		t.Fatalf("scope = %q", c.Scope)
 	}
 
 	// each constraint really bites
 	bad := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+
 	bad.RequiredType = "JWT"
 	if err := Parse(ctx(), typed, &c, prov, bad, WithLeeway(time.Minute)); !errors.Is(err, ErrTypeMismatch) {
 		t.Fatalf("RequiredType via struct: %v", err)
 	}
+
 	bad2 := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+
 	bad2.RequiredClaims = []string{"missing"}
 	if err := Parse(ctx(), typed, &c, prov, bad2, WithLeeway(time.Minute)); !errors.Is(err, ErrMissingClaim) {
 		t.Fatalf("RequiredClaims via struct: %v", err)
@@ -594,23 +634,28 @@ func TestOptionalKIDAndHash(t *testing.T) {
 	if err != nil || s.KeyID() != "" {
 		t.Fatalf("NewHMACSigner without kid: %q %v", s.KeyID(), err)
 	}
+
 	v, _ := NewHMACVerifier(HS256, tk.hmac)
 	if v.KeyID() != "" {
 		t.Fatalf("verifier kid = %q", v.KeyID())
 	}
+
 	es, _ := NewECDSASigner(ES256, tk.p256)
 	ev, _ := NewECDSAVerifier(ES256, &tk.p256.PublicKey)
 	eds, _ := NewEd25519Signer(tk.edPriv)
 	edv, _ := NewEd25519Verifier(tk.edPub)
+
 	ps, _ := NewRSAPSSSigner(PS256, tk.rsa2048)
 	for _, g := range []interface{ KeyID() string }{es, ev, eds, edv, ps} {
 		if g.KeyID() != "" {
 			t.Fatalf("kid = %q, want empty", g.KeyID())
 		}
 	}
+
 	if k := FromEd25519PublicKey(tk.edPub); k.Kid != "" {
 		t.Fatalf("FromEd25519PublicKey kid = %q", k.Kid)
 	}
+
 	if _, err := NewRSAOAEP256Encrypter(&tk.rsa2048.PublicKey, A256GCM); err != nil {
 		t.Fatalf("NewRSAOAEP256Encrypter without kid: %v", err)
 	}
@@ -623,14 +668,17 @@ func TestOptionalKIDAndHash(t *testing.T) {
 
 	// Thumbprint / ThumbprintBytes: hash optional, defaults to SHA-256
 	k := FromECDSAPublicKey(&tk.p256.PublicKey, "e")
+
 	a, err := Thumbprint(k)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	b, _ := Thumbprint(k, crypto.SHA256)
 	if a != b || len(a) != 43 {
 		t.Fatalf("Thumbprint default != SHA-256: %q vs %q", a, b)
 	}
+
 	tb, err := ThumbprintBytes(KeyTypeOct, tk.hmac)
 	if err != nil || len(tb) != 43 {
 		t.Fatalf("ThumbprintBytes without hash: %q %v", tb, err)
@@ -644,8 +692,11 @@ func TestSignOptionsStruct(t *testing.T) {
 	decodeHeader := func(tok string) map[string]any {
 		h, _, _, _ := split3(tok)
 		raw, _ := b64.Decode(h)
+
 		var m map[string]any
+
 		_ = json.Unmarshal(raw, &m)
+
 		return m
 	}
 
@@ -654,12 +705,14 @@ func TestSignOptionsStruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if decodeHeader(tok)["typ"] != AccessTokenType {
 		t.Fatalf("typ = %v", decodeHeader(tok)["typ"])
 	}
 
 	// struct + functional override; later wins
 	tok2, _ := Sign(appClaims{}, s, SignOptions{Type: "base", ContentType: "c1"}, WithType("override"))
+
 	h2 := decodeHeader(tok2)
 	if h2["typ"] != "override" || h2["cty"] != "c1" {
 		t.Fatalf("header = %v", h2)

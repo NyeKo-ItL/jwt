@@ -102,6 +102,7 @@ func newEncrypter(enc ContentAlgorithm, kid string, w keyWrapper) (Encrypter, er
 	if contentKeyLen(enc) == 0 {
 		return nil, fmt.Errorf("%w: unsupported content algorithm %q", ErrUnsupportedAlgorithm, enc)
 	}
+
 	return &encrypter{alg: w.keyAlg(), enc: enc, kid: kid, wrapper: w}, nil
 }
 
@@ -112,24 +113,29 @@ func (e *encrypter) KeyID() string                      { return e.kid }
 func (e *encrypter) Encrypt(plaintext []byte) (string, error) {
 	cekLen := contentKeyLen(e.enc)
 	hdr := jweHeader{Alg: e.alg, Enc: e.enc, Kid: e.kid}
+
 	cek, encryptedKey, err := e.wrapper.wrap(&hdr, cekLen)
 	if err != nil {
 		return "", err
 	}
+
 	protectedJSON, err := json.Marshal(hdr)
 	if err != nil {
 		return "", err
 	}
+
 	protected := b64.Encode(protectedJSON)
 
 	gcm, err := newGCM(cek)
 	if err != nil {
 		return "", err
 	}
+
 	iv := make([]byte, gcm.NonceSize())
 	if _, err := rand.Read(iv); err != nil {
 		return "", err
 	}
+
 	sealed := gcm.Seal(nil, iv, plaintext, []byte(protected))
 	ciphertext, tag := sealed[:len(sealed)-gcm.Overhead()], sealed[len(sealed)-gcm.Overhead():]
 
@@ -154,14 +160,17 @@ func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 	if len(parts) != 5 {
 		return nil, ErrDecryptionFailed
 	}
+
 	protectedJSON, err := b64.Decode(parts[0])
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	var hdr jweHeader
 	if err := json.Unmarshal(protectedJSON, &hdr); err != nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	cekLen := contentKeyLen(hdr.Enc)
 	if cekLen == 0 || !d.unwrapper.supports(hdr.Alg) {
 		return nil, ErrDecryptionFailed
@@ -170,6 +179,7 @@ func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 	encryptedKey, e1 := b64.Decode(parts[1])
 	iv, e2 := b64.Decode(parts[2])
 	ciphertext, e3 := b64.Decode(parts[3])
+
 	tag, e4 := b64.Decode(parts[4])
 	if e1 != nil || e2 != nil || e3 != nil || e4 != nil {
 		return nil, ErrDecryptionFailed
@@ -179,14 +189,17 @@ func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	gcm, err := newGCM(cek)
 	if err != nil || len(iv) != gcm.NonceSize() || len(tag) != gcm.Overhead() {
 		return nil, ErrDecryptionFailed
 	}
+
 	plaintext, err := gcm.Open(nil, iv, append(ciphertext, tag...), []byte(parts[0]))
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	return plaintext, nil
 }
 
@@ -208,6 +221,7 @@ func newGCM(cek []byte) (cipher.AEAD, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return cipher.NewGCM(block)
 }
 
@@ -217,10 +231,12 @@ func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
 	if enc == nil {
 		return "", fmt.Errorf("%w: nil Encrypter", ErrUnsupportedAlgorithm)
 	}
+
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
 	}
+
 	return enc.Encrypt(payload)
 }
 
@@ -233,23 +249,29 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 	if dec == nil {
 		return fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
 	}
+
 	payload, err := dec.Decrypt(ctx, compact)
 	if err != nil {
 		return err
 	}
+
 	var reg RegisteredClaims
 	if err := json.Unmarshal(payload, &reg); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
 		o.applyParse(&cfg)
 	}
+
 	if err := validateClaims(payload, &reg, Header{}, cfg); err != nil {
 		return err
 	}
+
 	if err := json.Unmarshal(payload, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	return nil
 }

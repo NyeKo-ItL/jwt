@@ -60,26 +60,32 @@ func NewMemoryRevocationStore() RevocationStore {
 func (s *memoryRevocationStore) Revoke(_ context.Context, id string, reason RevocationReason, expiresAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	now := s.now()
 	for k, e := range s.items { // full sweep on write keeps the map from growing unbounded
 		if !e.live(now) {
 			delete(s.items, k)
 		}
 	}
+
 	s.items[id] = revocationEntry{reason: reason, expiresAt: expiresAt}
+
 	return nil
 }
 
 func (s *memoryRevocationStore) IsRevoked(_ context.Context, id string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	e, ok := s.items[id]
 	if !ok {
 		return false, nil
 	}
+
 	if !e.live(s.now()) {
 		delete(s.items, id)
 		return false, nil
 	}
+
 	return true, nil
 }

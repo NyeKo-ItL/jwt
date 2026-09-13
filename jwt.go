@@ -3,7 +3,6 @@ package jwt
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -15,29 +14,6 @@ import (
 // maxTokenBytes bounds the input accepted by Parse / ParseInsecure so a
 // malformed or hostile token cannot force unbounded work (spec §4.11).
 const maxTokenBytes = 1 << 20 // 1 MiB
-
-// Sentinel errors. All are comparable with errors.Is (spec §6.3).
-var (
-	ErrInvalidSignature    = errors.New("jwt: invalid signature")
-	ErrExpired             = errors.New("jwt: token expired")
-	ErrNotYetValid         = errors.New("jwt: token not yet valid")
-	ErrIssuerMismatch      = errors.New("jwt: issuer mismatch")
-	ErrAudienceMismatch    = errors.New("jwt: audience mismatch")
-	ErrAlgorithmNotAllowed = errors.New("jwt: algorithm not in allowlist")
-	ErrNoAllowedAlgorithms = errors.New("jwt: WithAllowedAlgorithms is required")
-	ErrMissingClaim        = errors.New("jwt: required claim missing")
-	ErrMalformedToken      = errors.New("jwt: malformed token")
-	ErrTypeMismatch        = errors.New("jwt: unexpected \"typ\" header")
-
-	// Sentinels beyond the §5.1 list, needed by the constructors and the
-	// key-resolution path.
-	ErrWeakKey              = errors.New("jwt: key does not meet minimum size")
-	ErrUnsupportedAlgorithm = errors.New("jwt: unsupported algorithm")
-	ErrKeyNotFound          = errors.New("jwt: no key for kid")
-	ErrKeyTypeMismatch      = errors.New("jwt: key type does not match algorithm")
-	ErrMalformedKey         = errors.New("jwt: malformed key material")
-	ErrOctNotServable       = errors.New("jwt: oct keys must not be serialized into a JWKS document")
-)
 
 // DefaultType is the "typ" header value Sign stamps on a token unless
 // WithType overrides it: the RFC 7519 §5.1 recommended media type, also
@@ -74,6 +50,7 @@ func (o SignOptions) applySign(c *signConfig) {
 	if o.Type != "" {
 		c.typ = o.Type
 	}
+
 	if o.ContentType != "" {
 		c.contentType = o.ContentType
 	}
@@ -101,14 +78,17 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 	if signer == nil {
 		return "", fmt.Errorf("%w: nil signer", ErrUnsupportedAlgorithm)
 	}
+
 	alg := signer.Algorithm()
 	if alg == "" || strings.EqualFold(string(alg), "none") {
 		return "", fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, alg)
 	}
+
 	cfg := signConfig{typ: DefaultType}
 	for _, o := range opts {
 		o.applySign(&cfg)
 	}
+
 	headerJSON, err := json.Marshal(Header{
 		Algorithm:   alg,
 		Type:        cfg.typ,
@@ -118,15 +98,19 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	payloadJSON, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
 	}
+
 	signingInput := b64.Encode(headerJSON) + "." + b64.Encode(payloadJSON)
+
 	sig, err := signer.Sign([]byte(signingInput))
 	if err != nil {
 		return "", err
 	}
+
 	return signingInput + "." + b64.Encode(sig), nil
 }
 
@@ -147,13 +131,16 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 	for _, o := range opts {
 		o.applyParse(&cfg)
 	}
+
 	payloadJSON, err := parseVerified(ctx, token, keys, cfg)
 	if err != nil {
 		return err
 	}
+
 	if err := json.Unmarshal(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	return nil
 }
 
@@ -164,9 +151,11 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	if len(allowed) == 0 {
 		return nil, ErrNoAllowedAlgorithms
 	}
+
 	if keys == nil {
 		return nil, fmt.Errorf("%w: nil KeyProvider", ErrKeyNotFound)
 	}
+
 	if len(token) > maxTokenBytes {
 		return nil, fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
@@ -175,17 +164,21 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	if !ok {
 		return nil, fmt.Errorf("%w: expected three '.'-separated segments", ErrMalformedToken)
 	}
+
 	headerJSON, err := b64.Decode(h)
 	if err != nil {
 		return nil, fmt.Errorf("%w: header is not base64url", ErrMalformedToken)
 	}
+
 	var header Header
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
 		return nil, fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
 	}
+
 	if header.Algorithm == "" || strings.EqualFold(string(header.Algorithm), "none") {
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
 	}
+
 	if !containsAlg(allowed, header.Algorithm) {
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
 	}
@@ -194,17 +187,21 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	if err != nil {
 		return nil, err
 	}
+
 	if !found {
 		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, header.KeyID)
 	}
+
 	verifier, err := key.verifierForAlg(header.Algorithm)
 	if err != nil {
 		return nil, err
 	}
+
 	sig, err := b64.Decode(s)
 	if err != nil {
 		return nil, fmt.Errorf("%w: signature is not base64url", ErrMalformedToken)
 	}
+
 	if err := verifier.Verify([]byte(h+"."+p), sig); err != nil {
 		return nil, ErrInvalidSignature
 	}
@@ -213,13 +210,16 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	if err != nil {
 		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
+
 	var reg RegisteredClaims
 	if err := json.Unmarshal(payloadJSON, &reg); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	if err := validateClaims(payloadJSON, &reg, header, cfg); err != nil {
 		return nil, err
 	}
+
 	return payloadJSON, nil
 }
 
@@ -231,17 +231,21 @@ func ParseInsecure[C any](token string, dst *C) error {
 	if len(token) > maxTokenBytes {
 		return fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
+
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
 		return fmt.Errorf("%w: need at least a header and a payload", ErrMalformedToken)
 	}
+
 	payloadJSON, err := b64.Decode(parts[1])
 	if err != nil {
 		return fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
+
 	if err := json.Unmarshal(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	return nil
 }
 
@@ -294,16 +298,20 @@ func (o ParseOptions) applyParse(c *parseConfig) {
 	if o.Issuer != "" {
 		c.issuer = o.Issuer
 	}
+
 	if o.Audience != "" {
 		c.audience = o.Audience
 	}
+
 	if o.RequiredType != "" {
 		c.requiredType = o.RequiredType
 	}
+
 	c.requiredClaims = append(c.requiredClaims, o.RequiredClaims...)
 	if o.Leeway != 0 {
 		c.leeway = o.Leeway
 	}
+
 	if o.Clock != nil {
 		c.now = o.Clock
 	}
@@ -356,29 +364,36 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 	if rc.ExpiresAt != nil && !now.Add(-cfg.leeway).Before(rc.ExpiresAt.Time) {
 		return ErrExpired
 	}
+
 	if rc.NotBefore != nil && now.Add(cfg.leeway).Before(rc.NotBefore.Time) {
 		return ErrNotYetValid
 	}
+
 	if cfg.issuer != "" && rc.Issuer != cfg.issuer {
 		return ErrIssuerMismatch
 	}
+
 	if cfg.audience != "" && !rc.Audience.Has(cfg.audience) {
 		return ErrAudienceMismatch
 	}
+
 	if cfg.requiredType != "" && !typeMatches(header.Type, cfg.requiredType) {
 		return ErrTypeMismatch
 	}
+
 	if len(cfg.requiredClaims) > 0 {
 		present := map[string]json.RawMessage{}
 		if err := json.Unmarshal(raw, &present); err != nil {
 			return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 		}
+
 		for _, name := range cfg.requiredClaims {
 			if _, ok := present[name]; !ok {
 				return fmt.Errorf("%w: %q", ErrMissingClaim, name)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -390,8 +405,10 @@ func typeMatches(got, want string) bool {
 		if i := strings.IndexByte(s, '/'); i >= 0 {
 			s = s[i+1:]
 		}
+
 		return strings.ToLower(s)
 	}
+
 	return norm(got) == norm(want)
 }
 
@@ -401,14 +418,17 @@ func split3(s string) (a, b, c string, ok bool) {
 	if i < 0 {
 		return "", "", "", false
 	}
+
 	j := strings.IndexByte(s[i+1:], '.')
 	if j < 0 {
 		return "", "", "", false
 	}
+
 	j += i + 1
 	if strings.IndexByte(s[j+1:], '.') >= 0 {
 		return "", "", "", false
 	}
+
 	return s[:i], s[i+1 : j], s[j+1:], true
 }
 
@@ -419,8 +439,10 @@ func withoutNone(algs []Algorithm) []Algorithm {
 		if a == "" || strings.EqualFold(string(a), "none") {
 			continue
 		}
+
 		out = append(out, a)
 	}
+
 	return out
 }
 

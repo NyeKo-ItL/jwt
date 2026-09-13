@@ -80,6 +80,7 @@ func NewKeyFetcher(uri string, opts ...FetcherOption) *KeyFetcher {
 	for _, o := range opts {
 		o(f)
 	}
+
 	return f
 }
 
@@ -107,9 +108,11 @@ func (f *KeyFetcher) Lookup(ctx context.Context, kid string) (Key, bool, error) 
 	if err := f.Refresh(ctx); err != nil {
 		return Key{}, false, err
 	}
+
 	f.mu.Lock()
 	set = f.set
 	f.mu.Unlock()
+
 	return set.Lookup(ctx, kid)
 }
 
@@ -120,6 +123,7 @@ func (f *KeyFetcher) stale() bool {
 	if window <= 0 {
 		window = f.minRefresh
 	}
+
 	return f.now().Sub(f.fetchedAt) >= window
 }
 
@@ -133,11 +137,13 @@ func (f *KeyFetcher) Refresh(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	f.mu.Lock()
 	f.set = set
 	f.fetchedAt = f.now()
 	f.freshFor = maxAge
 	f.mu.Unlock()
+
 	return nil
 }
 
@@ -150,6 +156,7 @@ func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes in
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
+
 	req.Header.Set("Accept", "application/jwk-set+json, application/json")
 	//nolint:gosec // The fetch URL is explicit caller configuration; HTTPS is enforced above.
 	resp, err := client.Do(req)
@@ -157,20 +164,25 @@ func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes in
 		return nil, 0, fmt.Errorf("jwt: fetching JWKS: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("jwt: fetching JWKS: unexpected status %s", resp.Status)
 	}
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, 0, fmt.Errorf("jwt: reading JWKS: %w", err)
 	}
+
 	if int64(len(body)) > maxBytes {
 		return nil, 0, fmt.Errorf("%w: JWKS document exceeds %d bytes", ErrMalformedKey, maxBytes)
 	}
+
 	set, err := ParseKeySet(body)
 	if err != nil {
 		return nil, 0, err
 	}
+
 	return set, parseMaxAge(resp.Header.Get("Cache-Control")), nil
 }
 
@@ -179,9 +191,11 @@ func requireHTTPS(raw string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
+
 	if u.Scheme != "https" {
 		return fmt.Errorf("%w: JWKS URI must be https, got %q", ErrMalformedKey, u.Scheme)
 	}
+
 	return nil
 }
 
@@ -190,14 +204,17 @@ func requireHTTPS(raw string) error {
 func parseMaxAge(header string) time.Duration {
 	for part := range strings.SplitSeq(header, ",") {
 		part = strings.TrimSpace(part)
+
 		v, ok := strings.CutPrefix(part, "max-age=")
 		if !ok {
 			continue
 		}
+
 		if secs, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && secs > 0 {
 			return time.Duration(secs) * time.Second
 		}
 	}
+
 	return 0
 }
 
@@ -209,6 +226,7 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (s
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	base := strings.TrimRight(issuer, "/")
 	if base == "" {
 		return "", fmt.Errorf("%w: empty issuer", ErrMalformedKey)
@@ -218,19 +236,24 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (s
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
+
 	req.Header.Set("Accept", "application/json")
+
 	resp, err := client.Do(req)
 	if err == nil {
 		defer func() { _ = resp.Body.Close() }()
+
 		if resp.StatusCode == http.StatusOK {
 			var doc struct {
 				JWKSURI string `json:"jwks_uri"`
 			}
+
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, defaultMaxJWKSBytes))
 			if json.Unmarshal(body, &doc) == nil && doc.JWKSURI != "" {
 				return doc.JWKSURI, nil
 			}
 		}
 	}
+
 	return base + wellKnownJWKSFallback, nil
 }

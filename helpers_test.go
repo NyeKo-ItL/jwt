@@ -30,8 +30,11 @@ type testKeys struct {
 
 func newTestKeys(t testing.TB) testKeys {
 	t.Helper()
-	var tk testKeys
-	var err error
+
+	var (
+		tk  testKeys
+		err error
+	)
 	if tk.rsa2048, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
 		t.Fatal(err)
 	}
@@ -39,22 +42,28 @@ func newTestKeys(t testing.TB) testKeys {
 	if tk.rsa1024, err = rsa.GenerateKey(rand.Reader, 1024); err != nil {
 		t.Fatal(err)
 	}
+
 	if tk.p256, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader); err != nil {
 		t.Fatal(err)
 	}
+
 	if tk.p384, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader); err != nil {
 		t.Fatal(err)
 	}
+
 	if tk.p521, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader); err != nil {
 		t.Fatal(err)
 	}
+
 	if tk.edPub, tk.edPriv, err = ed25519.GenerateKey(rand.Reader); err != nil {
 		t.Fatal(err)
 	}
+
 	tk.hmac = make([]byte, 64)
 	if _, err = rand.Read(tk.hmac); err != nil {
 		t.Fatal(err)
 	}
+
 	return tk
 }
 
@@ -62,21 +71,26 @@ func newTestKeys(t testing.TB) testKeys {
 // payload value, and an optional signer (nil signer => empty signature).
 func mintToken(t *testing.T, header Header, payload any, signer Signer) string {
 	t.Helper()
+
 	hb, err := json.Marshal(header)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pb, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	signingInput := b64.Encode(hb) + "." + b64.Encode(pb)
+
 	var sig []byte
 	if signer != nil {
 		if sig, err = signer.Sign([]byte(signingInput)); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	return signingInput + "." + b64.Encode(sig)
 }
 
@@ -107,19 +121,25 @@ func (s staticStr) Sign(_ []byte) ([]byte, error) { return []byte("x"), nil }
 
 func parse[T any](ctx context.Context, tok string, keys KeyProvider, opts ...ParseOption) (*T, error) {
 	var dst T
+
 	err := Parse(ctx, tok, &dst, keys, opts...)
+
 	return &dst, err
 }
 
 func parseInsecure[T any](tok string) (*T, error) {
 	var dst T
+
 	err := ParseInsecure(tok, &dst)
+
 	return &dst, err
 }
 
 func decryptClaims[T any](ctx context.Context, compact string, dec Decrypter, opts ...ParseOption) (*T, error) {
 	var dst T
+
 	err := DecryptClaims(ctx, compact, &dst, dec, opts...)
+
 	return &dst, err
 }
 
@@ -128,5 +148,6 @@ func claimsFromContext[T any](ctx context.Context) (*T, bool) {
 	if err := ClaimsFromContext(ctx, &dst); err != nil {
 		return nil, false
 	}
+
 	return &dst, true
 }

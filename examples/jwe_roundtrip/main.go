@@ -30,6 +30,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	compact, err := jwt.EncryptClaims(payload{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://issuer.example",
@@ -41,18 +42,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Println("compact JWE:", compact)
 
 	dec, err := jwt.NewECDHESDecrypter(recipient, "kid-1")
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	var claims payload
+
 	err = jwt.DecryptClaims(context.Background(), compact, &claims, dec,
 		jwt.WithIssuer("https://issuer.example"),
 	)
 	if err != nil {
 		log.Fatal(err) // any failure is a single generic error: fails closed
 	}
+
 	fmt.Printf("decrypted: account=%s tier=%s\n", claims.AccountID, claims.Tier)
 }

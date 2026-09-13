@@ -16,14 +16,17 @@ import (
 // whitespace.
 func BearerToken(r *http.Request) (string, bool) {
 	const scheme = "bearer "
+
 	h := r.Header.Get("Authorization")
 	if len(h) < len(scheme) || !strings.EqualFold(h[:len(scheme)], scheme) {
 		return "", false
 	}
+
 	token := h[len(scheme):]
 	if token == "" || strings.ContainsAny(token, " \t\r\n") {
 		return "", false
 	}
+
 	return token, true
 }
 
@@ -44,9 +47,11 @@ func ClaimsFromContext[C any](ctx context.Context, dst *C) error {
 	if !ok {
 		return ErrNoClaimsInContext
 	}
+
 	if err := json.Unmarshal(payload, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
+
 	return nil
 }
 
@@ -59,6 +64,7 @@ func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.H
 	for _, o := range opts {
 		o.applyParse(&cfg)
 	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := BearerToken(r)
@@ -66,11 +72,13 @@ func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.H
 				WriteChallenge(w, "", nil)
 				return
 			}
+
 			payload, err := parseVerified(r.Context(), token, keys, cfg)
 			if err != nil {
 				WriteChallenge(w, "", err)
 				return
 			}
+
 			ctx := context.WithValue(r.Context(), claimsContextKey{}, payload)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -89,11 +97,13 @@ func WriteChallenge(w http.ResponseWriter, realm string, err error) {
 	}
 
 	status := http.StatusUnauthorized
+
 	switch {
 	case err == nil:
 		// bare challenge
 	case errors.Is(err, ErrMalformedToken):
 		status = http.StatusBadRequest
+
 		params = append(params, `error="invalid_request"`,
 			fmt.Sprintf("error_description=%q", quoteSafe(err.Error())))
 	default:
@@ -105,6 +115,7 @@ func WriteChallenge(w http.ResponseWriter, realm string, err error) {
 	if len(params) > 0 {
 		challenge += " " + strings.Join(params, ", ")
 	}
+
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
@@ -119,6 +130,7 @@ func quoteSafe(s string) string {
 		if r == '"' || r == '\\' || r < 0x20 || r == 0x7f {
 			return -1
 		}
+
 		return r
 	}, s)
 }

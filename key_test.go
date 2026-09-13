@@ -11,18 +11,22 @@ import (
 
 func TestFromRSAPublicKeyRoundTrip(t *testing.T) {
 	tk := newTestKeys(t)
+
 	k := FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1")
 	if k.Kty != KeyTypeRSA || k.Kid != "r1" {
 		t.Fatalf("unexpected key header: %+v", k)
 	}
+
 	pub, err := k.PublicKey()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	rp, ok := pub.(*rsa.PublicKey)
 	if !ok {
 		t.Fatalf("PublicKey returned %T", pub)
 	}
+
 	if rp.N.Cmp(tk.rsa2048.N) != 0 || rp.E != tk.rsa2048.E {
 		t.Fatal("RSA public key material mismatch after round trip")
 	}
@@ -32,10 +36,12 @@ func TestFromECDSAPublicKeyRoundTrip(t *testing.T) {
 	tk := newTestKeys(t)
 	for _, priv := range []*ecdsa.PrivateKey{tk.p256, tk.p384, tk.p521} {
 		k := FromECDSAPublicKey(&priv.PublicKey, "e1")
+
 		pub, err := k.PublicKey()
 		if err != nil {
 			t.Fatalf("%s: %v", priv.Curve.Params().Name, err)
 		}
+
 		if !pub.(*ecdsa.PublicKey).Equal(&priv.PublicKey) {
 			t.Fatalf("%s: EC key material mismatch", priv.Curve.Params().Name)
 		}
@@ -45,10 +51,12 @@ func TestFromECDSAPublicKeyRoundTrip(t *testing.T) {
 func TestFromEd25519PublicKeyRoundTrip(t *testing.T) {
 	tk := newTestKeys(t)
 	k := FromEd25519PublicKey(tk.edPub, "o1")
+
 	pub, err := k.PublicKey()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if !pub.(ed25519.PublicKey).Equal(tk.edPub) {
 		t.Fatal("Ed25519 public key mismatch after round trip")
 	}
@@ -56,6 +64,7 @@ func TestFromEd25519PublicKeyRoundTrip(t *testing.T) {
 
 func TestKeyJSONRoundTrip(t *testing.T) {
 	tk := newTestKeys(t)
+
 	keys := []Key{
 		FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1"),
 		FromECDSAPublicKey(&tk.p256.PublicKey, "e1"),
@@ -66,10 +75,12 @@ func TestKeyJSONRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: marshal: %v", k.Kty, err)
 		}
+
 		var back Key
 		if err := json.Unmarshal(raw, &back); err != nil {
 			t.Fatalf("%s: unmarshal: %v", k.Kty, err)
 		}
+
 		if _, err := back.PublicKey(); err != nil {
 			t.Fatalf("%s: PublicKey after JSON round trip: %v", k.Kty, err)
 		}
@@ -81,10 +92,12 @@ func TestOctKeyDoesNotMarshal(t *testing.T) {
 	if _, err := json.Marshal(k); !errors.Is(err, ErrOctNotServable) {
 		t.Fatalf("Marshal(oct) error = %v, want ErrOctNotServable", err)
 	}
+
 	secret, err := k.Secret()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if string(secret) != "0123456789abcdef0123456789abcdef" {
 		t.Fatal("Secret returned wrong bytes")
 	}
@@ -92,6 +105,7 @@ func TestOctKeyDoesNotMarshal(t *testing.T) {
 
 func TestSecretRejectsNonOct(t *testing.T) {
 	tk := newTestKeys(t)
+
 	k := FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1")
 	if _, err := k.Secret(); !errors.Is(err, ErrKeyTypeMismatch) {
 		t.Fatalf("Secret on RSA key = %v, want ErrKeyTypeMismatch", err)
@@ -100,6 +114,7 @@ func TestSecretRejectsNonOct(t *testing.T) {
 
 func TestKeyJSONUnmarshalRejectsBadBase64(t *testing.T) {
 	var k Key
+
 	err := json.Unmarshal([]byte(`{"kty":"RSA","n":"!!!!","e":"AQAB"}`), &k)
 	if err == nil {
 		t.Fatal("expected error for non-base64url n")
@@ -126,10 +141,12 @@ func TestKeyVerifierUsesOwnAlg(t *testing.T) {
 	tk := newTestKeys(t)
 	k := FromECDSAPublicKey(&tk.p256.PublicKey, "e1")
 	k.Alg = string(ES256)
+
 	v, err := k.Verifier()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if v.Algorithm() != ES256 || v.KeyID() != "e1" {
 		t.Fatalf("unexpected verifier: alg=%s kid=%s", v.Algorithm(), v.KeyID())
 	}
@@ -165,6 +182,7 @@ func TestVerifierForAlgAntiConfusion(t *testing.T) {
 
 func TestVerifierForAlgHappyPaths(t *testing.T) {
 	tk := newTestKeys(t)
+
 	cases := []struct {
 		key Key
 		alg Algorithm
@@ -180,6 +198,7 @@ func TestVerifierForAlgHappyPaths(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.alg, err)
 		}
+
 		if v.Algorithm() != c.alg {
 			t.Fatalf("%s: verifier alg = %s", c.alg, v.Algorithm())
 		}

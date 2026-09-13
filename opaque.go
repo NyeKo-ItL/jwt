@@ -27,7 +27,9 @@ func NewOpaqueToken() (OpaqueToken, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return OpaqueToken{}, err
 	}
+
 	raw := b64.Encode(buf)
+
 	return OpaqueToken{Raw: raw, Hash: Hash(raw)}, nil
 }
 

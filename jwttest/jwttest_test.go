@@ -18,14 +18,17 @@ func TestFakeKeyProvider(t *testing.T) {
 	if got, ok, err := p.Lookup(ctx, "k1"); !ok || err != nil || got.Kid != "k1" {
 		t.Fatalf("Lookup(k1) = %+v, %v, %v", got, ok, err)
 	}
+
 	if got, ok, err := p.Lookup(ctx, ""); !ok || err != nil || got.Kid != "k1" {
 		t.Fatalf(`Lookup("") = %+v, %v, %v`, got, ok, err)
 	}
+
 	if _, ok, _ := p.Lookup(ctx, "missing"); ok {
 		t.Fatal("missing kid resolved")
 	}
 
 	sentinel := errors.New("store down")
+
 	p.Err = sentinel
 	if _, _, err := p.Lookup(ctx, "k1"); !errors.Is(err, sentinel) {
 		t.Fatalf("Err not propagated: %v", err)
@@ -47,10 +50,12 @@ func TestFakeRevocationStore(t *testing.T) {
 	if rev, _ := s.IsRevoked(ctx, "x"); rev {
 		t.Fatal("unknown id revoked")
 	}
+
 	_ = s.Revoke(ctx, "x", jwt.ReasonLogout, base.Add(time.Minute))
 	if rev, _ := s.IsRevoked(ctx, "x"); !rev {
 		t.Fatal("should be revoked before expiry")
 	}
+
 	s.Now = func() time.Time { return base.Add(2 * time.Minute) }
 	if rev, _ := s.IsRevoked(ctx, "x"); rev {
 		t.Fatal("should have expired")
@@ -62,10 +67,12 @@ func TestFakeRevocationStore(t *testing.T) {
 	}
 
 	sentinel := errors.New("redis down")
+
 	s.Err = sentinel
 	if err := s.Revoke(ctx, "y", jwt.ReasonLogout, base); !errors.Is(err, sentinel) {
 		t.Fatalf("Revoke Err: %v", err)
 	}
+
 	if _, err := s.IsRevoked(ctx, "y"); !errors.Is(err, sentinel) {
 		t.Fatalf("IsRevoked Err: %v", err)
 	}
@@ -76,10 +83,12 @@ func TestNewSigningPair(t *testing.T) {
 	if signer.Algorithm() != jwt.EdDSA {
 		t.Fatalf("alg = %s", signer.Algorithm())
 	}
+
 	tok, err := jwt.Sign(jwt.RegisteredClaims{}, signer)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var got jwt.RegisteredClaims
 	if err := jwt.Parse(context.Background(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
 		t.Fatalf("round trip: %v", err)

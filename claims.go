@@ -19,6 +19,7 @@ func (a Audience) MarshalJSON() ([]byte, error) {
 	if len(a) == 1 {
 		return json.Marshal(a[0])
 	}
+
 	return json.Marshal([]string(a))
 }
 
@@ -29,19 +30,25 @@ func (a *Audience) UnmarshalJSON(b []byte) error {
 		*a = nil
 		return nil
 	}
+
 	if b[0] == '[' {
 		var s []string
 		if err := json.Unmarshal(b, &s); err != nil {
 			return err
 		}
+
 		*a = s
+
 		return nil
 	}
+
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
 		return err
 	}
+
 	*a = Audience{s}
+
 	return nil
 }
 
@@ -71,15 +78,19 @@ func (n *NumericDate) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 || string(b) == "null" {
 		return nil
 	}
+
 	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
 		b = b[1 : len(b)-1]
 	}
+
 	f, err := strconv.ParseFloat(string(b), 64)
 	if err != nil {
 		return err
 	}
+
 	sec, frac := math.Modf(f)
 	n.Time = time.Unix(int64(sec), int64(math.Round(frac*1e9))).UTC()
+
 	return nil
 }
 

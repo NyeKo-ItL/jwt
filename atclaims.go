@@ -32,23 +32,30 @@ func ValidateAccessTokenClaims(claims AccessTokenClaims) error {
 	if claims.Issuer == "" {
 		missing = append(missing, "iss")
 	}
+
 	if claims.ExpiresAt == nil {
 		missing = append(missing, "exp")
 	}
+
 	if len(claims.Audience) == 0 {
 		missing = append(missing, "aud")
 	}
+
 	if claims.Subject == "" {
 		missing = append(missing, "sub")
 	}
+
 	if claims.ClientID == "" {
 		missing = append(missing, "client_id")
 	}
+
 	if claims.IssuedAt == nil {
 		missing = append(missing, "iat")
 	}
+
 	if len(missing) > 0 {
 		return fmt.Errorf("%w: %s", ErrMissingClaim, strings.Join(missing, ", "))
 	}
+
 	return nil
 }

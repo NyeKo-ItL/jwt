@@ -24,13 +24,16 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 		if bytes.ContainsAny([]byte(enc), "=+/") {
 			t.Fatalf("Encode(%q) = %q, contains padding or non-url alphabet", in, enc)
 		}
+
 		out, err := b64.Decode(enc)
 		if err != nil {
 			t.Fatalf("Decode(%q): %v", enc, err)
 		}
+
 		if len(in) == 0 && len(out) == 0 {
 			continue
 		}
+
 		if !bytes.Equal(in, out) {
 			t.Fatalf("round trip mismatch: in=%q out=%q", in, out)
 		}

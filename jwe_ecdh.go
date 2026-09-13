@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // concatKDF is the NIST SP 800-56A Concatenation KDF as profiled by RFC 7518
@@ -25,6 +27,7 @@ func concatKDF(z []byte, algID string, keyBits int) []byte {
 	_ = binary.Write(h, binary.BigEndian, uint32(1)) // round counter
 	h.Write(z)
 	h.Write(other.Bytes())
+
 	return h.Sum(nil)[:keyBits/8]
 }
 
@@ -40,14 +43,17 @@ func ecdhZ(priv *ecdsa.PrivateKey, pub *ecdsa.PublicKey) ([]byte, error) {
 	if priv.Curve != pub.Curve {
 		return nil, fmt.Errorf("%w: ECDH curve mismatch", ErrDecryptionFailed)
 	}
+
 	ep, err := priv.ECDH()
 	if err != nil {
 		return nil, err
 	}
+
 	epub, err := pub.ECDH()
 	if err != nil {
 		return nil, err
 	}
+
 	return ep.ECDH(epub)
 }
 
@@ -63,10 +69,12 @@ func (w ecdhWrapper) wrap(hdr *jweHeader, cekLen int) (cek, encryptedKey []byte,
 	if err != nil {
 		return nil, nil, err
 	}
+
 	z, err := ecdhZ(ephemeral, w.pub)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	epk := FromECDSAPublicKey(&ephemeral.PublicKey, "")
 	hdr.EPK = &epk
 
@@ -78,11 +86,14 @@ func (w ecdhWrapper) wrap(hdr *jweHeader, cekLen int) (cek, encryptedKey []byte,
 		// Key Agreement with Key Wrapping: the Concat KDF AlgorithmID is the
 		// "alg" value, not the wrap algorithm (RFC 7518 §4.6.2).
 		kek := concatKDF(z, string(w.alg), 256)
+
 		cek = make([]byte, cekLen)
 		if _, err = rand.Read(cek); err != nil {
 			return nil, nil, err
 		}
+
 		encryptedKey, err = aesKWWrap(kek, cek)
+
 		return cek, encryptedKey, err
 	default:
 		return nil, nil, fmt.Errorf("%w: %q", ErrUnsupportedAlgorithm, w.alg)
@@ -99,14 +110,17 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 	if hdr.EPK == nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	epub, err := hdr.EPK.PublicKey()
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
+
 	ecPub, ok := epub.(*ecdsa.PublicKey)
 	if !ok {
 		return nil, ErrDecryptionFailed
 	}
+
 	z, err := ecdhZ(u.priv, ecPub)
 	if err != nil {
 		return nil, ErrDecryptionFailed
@@ -117,13 +131,16 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 		if len(encryptedKey) != 0 {
 			return nil, ErrDecryptionFailed
 		}
+
 		return concatKDF(z, string(hdr.Enc), cekLen*8), nil
 	case ECDHESA256KW:
 		kek := concatKDF(z, string(hdr.Alg), 256) // AlgorithmID = "alg" (RFC 7518 §4.6.2)
+
 		cek, err := aesKWUnwrap(kek, encryptedKey)
 		if err != nil || len(cek) != cekLen {
 			return nil, ErrDecryptionFailed
 		}
+
 		return cek, nil
 	default:
 		return nil, ErrDecryptionFailed
@@ -137,13 +154,16 @@ func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentA
 	if pub == nil {
 		return nil, fmt.Errorf("%w: nil EC public key", ErrMalformedKey)
 	}
+
 	if alg != ECDHES && alg != ECDHESA256KW {
 		return nil, fmt.Errorf("%w: %q is not an ECDH-ES key algorithm", ErrUnsupportedAlgorithm, alg)
 	}
+
 	if curveName(pub.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return newEncrypter(content, optKID(kid), ecdhWrapper{pub: pub, alg: alg})
+
+	return newEncrypter(content, option.FirstString(kid), ecdhWrapper{pub: pub, alg: alg})
 }
 
 // NewECDHESDecrypter decrypts JWE tokens whose "alg" is ECDH-ES or
@@ -152,8 +172,10 @@ func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error
 	if priv == nil {
 		return nil, fmt.Errorf("%w: nil EC private key", ErrMalformedKey)
 	}
+
 	if curveName(priv.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
+
+	return &decrypter{kid: option.FirstString(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
 }

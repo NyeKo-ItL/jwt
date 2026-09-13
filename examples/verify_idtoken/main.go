@@ -23,6 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	const kid = "2024-06"
 
 	signer, err := jwt.NewECDSASigner(jwt.ES256, priv, kid)
@@ -31,6 +32,7 @@ func main() {
 	}
 
 	verified := true
+
 	idToken, err := jwt.Sign(jwt.GoogleIDToken{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://accounts.google.com",
@@ -48,12 +50,14 @@ func main() {
 
 	// The provider's published JWKS document.
 	jwks, _ := json.Marshal(jwt.NewKeySet(jwt.FromECDSAPublicKey(&priv.PublicKey, kid)))
+
 	keys, err := jwt.ParseKeySet(jwks)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	var claims jwt.GoogleIDToken
+
 	err = jwt.Parse(context.Background(), idToken, &claims, keys,
 		jwt.WithAllowedAlgorithms(jwt.ES256, jwt.RS256), // Google normally uses RS256
 		jwt.WithIssuer("https://accounts.google.com"),
@@ -62,6 +66,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Printf("verified ID token: sub=%s email=%s hd=%s\n",
 		claims.Subject, claims.Email, claims.HostedDomain)
 }

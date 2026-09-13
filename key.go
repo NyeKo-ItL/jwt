@@ -9,7 +9,11 @@ import (
 	"encoding/json"
 	"math/big"
 
+	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 	"github.com/NyeKo-ItL/jwt/internal/b64"
+	internalbytes "github.com/NyeKo-ItL/jwt/internal/bytes"
+	internalkeyparse "github.com/NyeKo-ItL/jwt/internal/keyparse"
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // KeyType is the RFC 7517 §4.1 "kty" value.
@@ -58,19 +62,24 @@ func (k Key) MarshalJSON() ([]byte, error) {
 	if k.Kty == KeyTypeOct {
 		return nil, ErrOctNotServable
 	}
+
 	j := jwkJSON{Kty: k.Kty, Kid: k.Kid, Use: k.Use, Alg: k.Alg, Crv: k.crv}
 	if len(k.n) > 0 {
 		j.N = b64.Encode(k.n)
 	}
+
 	if len(k.e) > 0 {
 		j.E = b64.Encode(k.e)
 	}
+
 	if len(k.x) > 0 {
 		j.X = b64.Encode(k.x)
 	}
+
 	if len(k.y) > 0 {
 		j.Y = b64.Encode(k.y)
 	}
+
 	return json.Marshal(j)
 }
 
@@ -80,29 +89,37 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &j); err != nil {
 		return err
 	}
+
 	k.Kty, k.Kid, k.Use, k.Alg, k.crv = j.Kty, j.Kid, j.Use, j.Alg, j.Crv
 	dec := func(s string) ([]byte, error) {
 		if s == "" {
 			return nil, nil
 		}
+
 		return b64.Decode(s)
 	}
+
 	var err error
 	if k.n, err = dec(j.N); err != nil {
 		return err
 	}
+
 	if k.e, err = dec(j.E); err != nil {
 		return err
 	}
+
 	if k.x, err = dec(j.X); err != nil {
 		return err
 	}
+
 	if k.y, err = dec(j.Y); err != nil {
 		return err
 	}
+
 	if k.k, err = dec(j.K); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -110,7 +127,7 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeRSA,
-		Kid: optKID(kid),
+		Kid: option.FirstString(kid),
 		n:   pub.N.Bytes(),
 		e:   big.NewInt(int64(pub.E)).Bytes(),
 	}
@@ -120,12 +137,14 @@ func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
 // point is invalid the coordinate fields are left empty and the failure
 // surfaces later, at PublicKey/Verifier time.
 func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
-	k := Key{Kty: KeyTypeEC, Kid: optKID(kid), crv: curveName(pub.Curve)}
+	k := Key{Kty: KeyTypeEC, Kid: option.FirstString(kid), crv: curveName(pub.Curve)}
+
 	size := (pub.Curve.Params().BitSize + 7) / 8
 	if b, err := pub.Bytes(); err == nil && len(b) == 1+2*size {
 		k.x = append([]byte(nil), b[1:1+size]...)
 		k.y = append([]byte(nil), b[1+size:]...)
 	}
+
 	return k
 }
 
@@ -133,7 +152,7 @@ func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
 func FromEd25519PublicKey(pub ed25519.PublicKey, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeOKP,
-		Kid: optKID(kid),
+		Kid: option.FirstString(kid),
 		crv: "Ed25519",
 		x:   append([]byte(nil), pub...),
 	}
@@ -144,7 +163,7 @@ func FromEd25519PublicKey(pub ed25519.PublicKey, kid ...string) Key {
 func FromHMACSecret(secret []byte, kid ...string) Key {
 	return Key{
 		Kty: KeyTypeOct,
-		Kid: optKID(kid),
+		Kid: option.FirstString(kid),
 		k:   append([]byte(nil), secret...),
 	}
 }
@@ -156,34 +175,42 @@ func (k Key) PublicKey() (crypto.PublicKey, error) {
 		if len(k.n) == 0 || len(k.e) == 0 {
 			return nil, ErrMalformedKey
 		}
+
 		e := new(big.Int).SetBytes(k.e)
 		if e.BitLen() == 0 || e.BitLen() > 32 {
 			return nil, ErrMalformedKey
 		}
+
 		return &rsa.PublicKey{N: new(big.Int).SetBytes(k.n), E: int(e.Int64())}, nil
 	case KeyTypeEC:
 		c := curveByName(k.crv)
 		if c == nil || len(k.x) == 0 || len(k.y) == 0 {
 			return nil, ErrMalformedKey
 		}
+
 		size := (c.Params().BitSize + 7) / 8
-		x, y := leftPad(k.x, size), leftPad(k.y, size)
+
+		x, y := internalbytes.LeftPad(k.x, size), internalbytes.LeftPad(k.y, size)
 		if len(x) != size || len(y) != size {
 			return nil, ErrMalformedKey
 		}
+
 		uncompressed := make([]byte, 0, 1+2*size)
 		uncompressed = append(uncompressed, 4)
 		uncompressed = append(uncompressed, x...)
 		uncompressed = append(uncompressed, y...)
+
 		pub, err := ecdsa.ParseUncompressedPublicKey(c, uncompressed)
 		if err != nil {
 			return nil, ErrMalformedKey
 		}
+
 		return pub, nil
 	case KeyTypeOKP:
 		if k.crv != "Ed25519" || len(k.x) != ed25519.PublicKeySize {
 			return nil, ErrMalformedKey
 		}
+
 		return ed25519.PublicKey(append([]byte(nil), k.x...)), nil
 	default:
 		return nil, ErrMalformedKey
@@ -195,9 +222,11 @@ func (k Key) Secret() ([]byte, error) {
 	if k.Kty != KeyTypeOct {
 		return nil, ErrKeyTypeMismatch
 	}
+
 	if len(k.k) == 0 {
 		return nil, ErrMalformedKey
 	}
+
 	return append([]byte(nil), k.k...), nil
 }
 
@@ -209,42 +238,49 @@ func (k Key) Verifier() (Verifier, error) {
 // verifierForAlg builds a Verifier for alg, enforcing the anti-confusion
 // rule that the key's type must match the algorithm family (spec §4.10).
 func (k Key) verifierForAlg(alg Algorithm) (Verifier, error) {
-	switch family(alg) {
-	case familyHMAC:
+	switch internalalg.FamilyOf(string(alg)) {
+	case internalalg.FamilyHMAC:
 		secret, err := k.Secret()
 		if err != nil {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		return NewHMACVerifier(alg, secret, k.Kid)
-	case familyRSAPSS:
+	case internalalg.FamilyRSAPSS:
 		pub, err := k.rsaPublic()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewRSAPSSVerifier(alg, pub, k.Kid)
-	case familyRSAPKCS1:
+	case internalalg.FamilyRSAPKCS1:
 		pub, err := k.rsaPublic()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewRSAPKCS1Verifier(alg, pub, k.Kid)
-	case familyECDSA:
+	case internalalg.FamilyECDSA:
 		if k.Kty != KeyTypeEC {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		pub, err := k.PublicKey()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewECDSAVerifier(alg, pub.(*ecdsa.PublicKey), k.Kid)
-	case familyEdDSA:
+	case internalalg.FamilyEdDSA:
 		if k.Kty != KeyTypeOKP {
 			return nil, ErrAlgorithmNotAllowed
 		}
+
 		pub, err := k.PublicKey()
 		if err != nil {
 			return nil, err
 		}
+
 		return NewEd25519Verifier(pub.(ed25519.PublicKey), k.Kid)
 	default:
 		return nil, ErrUnsupportedAlgorithm
@@ -255,10 +291,12 @@ func (k Key) rsaPublic() (*rsa.PublicKey, error) {
 	if k.Kty != KeyTypeRSA {
 		return nil, ErrAlgorithmNotAllowed
 	}
+
 	pub, err := k.PublicKey()
 	if err != nil {
 		return nil, err
 	}
+
 	return pub.(*rsa.PublicKey), nil
 }
 
@@ -288,11 +326,42 @@ func curveByName(s string) elliptic.Curve {
 	}
 }
 
-func leftPad(b []byte, size int) []byte {
-	if len(b) >= size {
-		return b
-	}
-	out := make([]byte, size)
-	copy(out[size-len(b):], b)
-	return out
+// ParsePKCS8PrivateKey parses a DER-encoded PKCS#8 private key.
+func ParsePKCS8PrivateKey(der []byte) (crypto.Signer, error) {
+	return internalkeyparse.ParsePKCS8PrivateKey(der)
+}
+
+// ParsePKCS1PrivateKey parses a DER-encoded PKCS#1 RSA private key.
+func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
+	return internalkeyparse.ParsePKCS1PrivateKey(der)
+}
+
+// ParseSEC1ECPrivateKey parses a DER-encoded SEC1 EC private key.
+func ParseSEC1ECPrivateKey(der []byte) (*ecdsa.PrivateKey, error) {
+	return internalkeyparse.ParseSEC1ECPrivateKey(der)
+}
+
+// ParsePKIXPublicKey parses a DER-encoded PKIX public key.
+func ParsePKIXPublicKey(der []byte) (crypto.PublicKey, error) {
+	return internalkeyparse.ParsePKIXPublicKey(der)
+}
+
+// ParseEd25519PrivateKeySeed parses a raw Ed25519 seed.
+func ParseEd25519PrivateKeySeed(seed []byte) (ed25519.PrivateKey, error) {
+	return internalkeyparse.ParseEd25519PrivateKeySeed(seed)
+}
+
+// ParseEd25519PrivateKeyExpanded parses a raw expanded Ed25519 private key.
+func ParseEd25519PrivateKeyExpanded(raw []byte) (ed25519.PrivateKey, error) {
+	return internalkeyparse.ParseEd25519PrivateKeyExpanded(raw)
+}
+
+// ParseEd25519PublicKey parses a raw Ed25519 public key.
+func ParseEd25519PublicKey(raw []byte) (ed25519.PublicKey, error) {
+	return internalkeyparse.ParseEd25519PublicKey(raw)
+}
+
+// ParseOpenSSHPrivateKey parses an unencrypted OpenSSH private key blob.
+func ParseOpenSSHPrivateKey(raw []byte) (crypto.Signer, error) {
+	return internalkeyparse.ParseOpenSSHPrivateKey(raw)
 }

@@ -6,6 +6,8 @@ import (
 	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // aesKWDefaultIV is the RFC 3394 §2.2.3.1 default initial value.
@@ -17,35 +19,45 @@ func aesKWWrap(kek, plaintext []byte) ([]byte, error) {
 	if len(plaintext) < 16 || len(plaintext)%8 != 0 {
 		return nil, fmt.Errorf("%w: AES-KW input must be a multiple of 8 bytes (>=16)", ErrMalformedKey)
 	}
+
 	block, err := aes.NewCipher(kek)
 	if err != nil {
 		return nil, err
 	}
+
 	n := len(plaintext) / 8
+
 	r := make([][]byte, n)
 	for i := range r {
 		r[i] = append([]byte(nil), plaintext[i*8:(i+1)*8]...)
 	}
+
 	a := append([]byte(nil), aesKWDefaultIV...)
 	buf := make([]byte, 16)
+
 	for j := range 6 {
 		for i := range n {
 			copy(buf[:8], a)
 			copy(buf[8:], r[i])
 			block.Encrypt(buf, buf)
 			copy(a, buf[:8])
+
 			t := uint64(n*j + i + 1)
+
 			var tb [8]byte
 			binary.BigEndian.PutUint64(tb[:], t)
 			subtle.XORBytes(a, a, tb[:])
 			copy(r[i], buf[8:])
 		}
 	}
+
 	out := make([]byte, 0, 8+len(plaintext))
+
 	out = append(out, a...)
 	for _, ri := range r {
 		out = append(out, ri...)
 	}
+
 	return out, nil
 }
 
@@ -55,22 +67,29 @@ func aesKWUnwrap(kek, ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < 24 || len(ciphertext)%8 != 0 {
 		return nil, ErrDecryptionFailed
 	}
+
 	block, err := aes.NewCipher(kek)
 	if err != nil {
 		return nil, err
 	}
+
 	n := len(ciphertext)/8 - 1
 	a := append([]byte(nil), ciphertext[:8]...)
+
 	r := make([][]byte, n)
 	for i := range r {
 		r[i] = append([]byte(nil), ciphertext[8+i*8:8+(i+1)*8]...)
 	}
+
 	buf := make([]byte, 16)
+
 	for j := 5; j >= 0; j-- {
 		for i := n - 1; i >= 0; i-- {
 			t := uint64(n)*uint64(j) + uint64(i) + 1 //nolint:gosec // n and i are bounded by the ciphertext size.
+
 			var tb [8]byte
 			binary.BigEndian.PutUint64(tb[:], t)
+
 			at := make([]byte, 8)
 			subtle.XORBytes(at, a, tb[:])
 			copy(buf[:8], at)
@@ -80,13 +99,16 @@ func aesKWUnwrap(kek, ciphertext []byte) ([]byte, error) {
 			copy(r[i], buf[8:])
 		}
 	}
+
 	if subtle.ConstantTimeCompare(a, aesKWDefaultIV) != 1 {
 		return nil, ErrDecryptionFailed
 	}
+
 	out := make([]byte, 0, n*8)
 	for _, ri := range r {
 		out = append(out, ri...)
 	}
+
 	return out, nil
 }
 
@@ -99,7 +121,9 @@ func (w aesKWWrapper) wrap(_ *jweHeader, cekLen int) (cek, encryptedKey []byte, 
 	if _, err = rand.Read(cek); err != nil {
 		return nil, nil, err
 	}
+
 	encryptedKey, err = aesKWWrap(w.kek, cek)
+
 	return cek, encryptedKey, err
 }
 
@@ -112,6 +136,7 @@ func (u aesKWUnwrapper) unwrap(_ *jweHeader, encryptedKey []byte, cekLen int) ([
 	if err != nil || len(cek) != cekLen {
 		return nil, ErrDecryptionFailed
 	}
+
 	return cek, nil
 }
 
@@ -121,7 +146,8 @@ func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid ...string) (En
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return newEncrypter(content, optKID(kid), aesKWWrapper{kek: append([]byte(nil), kek...)})
+
+	return newEncrypter(content, option.FirstString(kid), aesKWWrapper{kek: append([]byte(nil), kek...)})
 }
 
 // NewA256KWDecrypter unwraps the CEK of a JWE "alg":"A256KW" token.
@@ -129,5 +155,6 @@ func NewA256KWDecrypter(kek []byte, kid ...string) (Decrypter, error) {
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
+
+	return &decrypter{kid: option.FirstString(kid), unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
 }

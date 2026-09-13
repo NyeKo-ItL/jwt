@@ -21,6 +21,7 @@ func TestKeyProviderConformance(t *testing.T) {
 		for _, k := range keys {
 			m[k.Kid] = k
 		}
+
 		return jwt.MapKeyProvider(m)
 	})
 	jwttest.RunKeyProviderConformance(t, "FakeKeyProvider", func(keys ...jwt.Key) jwt.KeyProvider {
@@ -44,10 +45,12 @@ func TestFakesPluggableIntoParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var got jwt.RegisteredClaims
 	if err := jwt.Parse(t.Context(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
 		t.Fatalf("Parse via jwttest pair: %v", err)
 	}
+
 	if got.Subject != "u1" {
 		t.Fatalf("subject = %q", got.Subject)
 	}
