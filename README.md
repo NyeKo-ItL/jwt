@@ -8,6 +8,7 @@
 [![codecov](https://codecov.io/gh/NyeKo-ItL/jwt/graph/badge.svg?token=9IQF77HVZA)](https://codecov.io/gh/NyeKo-ItL/jwt)
 [![CodeQL](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql)
 [![Security scans](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/NyeKo-ItL/jwt/badge)](https://securityscorecards.dev/viewer/?uri=github.com/NyeKo-ItL/jwt)
 [![Dependabot Updates](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
