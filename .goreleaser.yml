@@ -4,8 +4,6 @@ version: 2
 # source archive without building command binaries.
 builds: []
 
-release:
-  generate_release_notes: true
 
 checksum:
   name_template: "checksums.txt"
