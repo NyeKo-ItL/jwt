@@ -1,0 +1,27 @@
+name: Scheduled fuzzing
+
+on:
+  schedule:
+    - cron: "41 3 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [FuzzParse, FuzzDecryptClaims, FuzzParseKeySet]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.mod
+      - name: Fuzz for five minutes
+        run: go test -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 5m .

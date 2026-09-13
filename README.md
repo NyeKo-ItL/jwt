@@ -2,6 +2,9 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/NyeKo-ItL/jwt.svg)](https://pkg.go.dev/github.com/NyeKo-ItL/jwt)
 [![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
+[![Scheduled fuzzing](https://github.com/NyeKo-ItL/jwt/actions/workflows/fuzz.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/fuzz.yml)
+[![Release](https://github.com/NyeKo-ItL/jwt/actions/workflows/release.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/NyeKo-ItL/jwt?display_name=tag&sort=semver)](https://github.com/NyeKo-ItL/jwt/releases/latest)
 [![codecov](https://codecov.io/gh/NyeKo-ItL/jwt/graph/badge.svg?token=9IQF77HVZA)](https://codecov.io/gh/NyeKo-ItL/jwt)
 [![CodeQL](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql)
 [![Security scans](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml)

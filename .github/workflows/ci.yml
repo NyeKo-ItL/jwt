@@ -10,12 +10,14 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        # The module requires Go 1.27 (promoted-field struct literals,
-        # reflect.Type.Fields). Add newer minors here as they ship.
+        # Go 1.27 is the minimum supported version. Run on every supported
+        # runner because crypto implementations vary by operating system.
+        os: [ubuntu-latest, macos-latest, windows-latest]
         go: ["1.27"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -26,7 +28,15 @@ jobs:
           cache-dependency-path: go.mod
       - run: go build ./...
       - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Run examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          for example in examples/*; do
+            go run "./$example"
+          done
       - name: Upload coverage reports to Codecov
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v7
         with:
           files: coverage.out
