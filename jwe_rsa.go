@@ -5,7 +5,11 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
+
+const minRSABits = 2048
 
 type rsaOAEPWrapper struct{ pub *rsa.PublicKey }
 
@@ -41,7 +45,7 @@ func NewRSAOAEP256Encrypter(pub *rsa.PublicKey, content ContentAlgorithm, kid ..
 	if pub.N.BitLen() < minRSABits {
 		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, pub.N.BitLen(), minRSABits)
 	}
-	return newEncrypter(content, optKID(kid), rsaOAEPWrapper{pub: pub})
+	return newEncrypter(content, option.FirstString(kid), rsaOAEPWrapper{pub: pub})
 }
 
 // NewRSAOAEP256Decrypter unwraps the CEK of a JWE "alg":"RSA-OAEP-256" token.
@@ -52,5 +56,5 @@ func NewRSAOAEP256Decrypter(priv *rsa.PrivateKey, kid ...string) (Decrypter, err
 	if priv.N.BitLen() < minRSABits {
 		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, priv.N.BitLen(), minRSABits)
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: rsaOAEPUnwrapper{priv: priv}}, nil
+	return &decrypter{kid: option.FirstString(kid), unwrapper: rsaOAEPUnwrapper{priv: priv}}, nil
 }

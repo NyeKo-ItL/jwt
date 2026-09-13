@@ -1,110 +1,80 @@
 package jwt
 
 import (
-	"crypto"
-	_ "crypto/sha256" // register SHA-256 for crypto.Hash.New
-	_ "crypto/sha512" // register SHA-384 / SHA-512 for crypto.Hash.New
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+
+	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 )
 
 // Algorithm identifies a JWA/EdDSA signing algorithm. It is an open string
-// type, not a closed enum: a caller implementing a custom Signer/Verifier
-// can define their own Algorithm value and it works exactly like a built-in
-// one everywhere an Algorithm is accepted (spec §0.2, §5.1).
-type Algorithm string
-
-// Registered algorithm identifiers (spec §5.1). "none" (RFC 7518 §3.6)
-// deliberately has no constant and is never representable in either
-// direction (spec §0.2, §4.2).
-const (
-	HS256 Algorithm = "HS256"
-	HS384 Algorithm = "HS384"
-	HS512 Algorithm = "HS512"
-	RS256 Algorithm = "RS256" // built-in verify-only (spec §0.2)
-	RS384 Algorithm = "RS384" // built-in verify-only
-	RS512 Algorithm = "RS512" // built-in verify-only
-	PS256 Algorithm = "PS256"
-	PS384 Algorithm = "PS384"
-	PS512 Algorithm = "PS512"
-	ES256 Algorithm = "ES256"
-	ES384 Algorithm = "ES384"
-	ES512 Algorithm = "ES512"
-	EdDSA Algorithm = "EdDSA"
-)
-
-// Signer produces a JWS signature over the ASCII signing input
-// "<base64url header>.<base64url payload>" (RFC 7515 §5.1). It is a plain
-// interface: a caller may implement it for an algorithm the built-in
-// constructors do not cover (e.g. PKCS#1 v1.5 RSA, or an HSM/KMS-backed
-// key). Sign has no type-switch over a closed set of known signers.
-type Signer interface {
-	// Algorithm reports the JWS "alg" value this signer produces; Sign stamps
-	// it into the protected header.
-	Algorithm() Algorithm
-	// KeyID is the RFC 7515 §4.1.4 "kid"; empty if the key has none.
-	KeyID() string
-	// Sign returns the signature over signingInput
-	// ("<b64url header>.<b64url payload>").
-	Sign(signingInput []byte) (signature []byte, err error)
-}
-
-// Verifier checks a JWS signature. The library ships constructors for the
-// full applicable registry, including verify-only algorithms, because it
-// must validate tokens issued by third parties this library would never
-// itself sign with. Like Signer, it is a plain interface open to caller
-// extension.
-type Verifier interface {
-	// Algorithm reports the JWS "alg" value this verifier accepts; Parse
-	// requires it to match the token header before calling Verify.
-	Algorithm() Algorithm
-	// KeyID is the RFC 7515 §4.1.4 "kid"; empty if the key has none.
-	KeyID() string
-	// Verify returns nil if signature is a valid signature over signingInput,
-	// and a non-nil error otherwise.
-	Verify(signingInput, signature []byte) error
-}
-
-// algFamily groups algorithms that share a key type, used for the
-// anti-confusion check at key-resolution time (spec §4.10).
-type algFamily int
+// type, not a closed enum: callers may define custom algorithm values.
+type Algorithm = internalalg.Algorithm
 
 const (
-	familyUnknown algFamily = iota
-	familyHMAC
-	familyRSAPSS
-	familyRSAPKCS1
-	familyECDSA
-	familyEdDSA
+	HS256 Algorithm = internalalg.HS256
+	HS384 Algorithm = internalalg.HS384
+	HS512 Algorithm = internalalg.HS512
+	RS256 Algorithm = internalalg.RS256
+	RS384 Algorithm = internalalg.RS384
+	RS512 Algorithm = internalalg.RS512
+	PS256 Algorithm = internalalg.PS256
+	PS384 Algorithm = internalalg.PS384
+	PS512 Algorithm = internalalg.PS512
+	ES256 Algorithm = internalalg.ES256
+	ES384 Algorithm = internalalg.ES384
+	ES512 Algorithm = internalalg.ES512
+	EdDSA Algorithm = internalalg.EdDSA
 )
 
-func family(alg Algorithm) algFamily {
-	switch alg {
-	case HS256, HS384, HS512:
-		return familyHMAC
-	case PS256, PS384, PS512:
-		return familyRSAPSS
-	case RS256, RS384, RS512:
-		return familyRSAPKCS1
-	case ES256, ES384, ES512:
-		return familyECDSA
-	case EdDSA:
-		return familyEdDSA
-	default:
-		return familyUnknown
-	}
+// Signer produces a JWS signature over the ASCII signing input.
+type Signer = internalalg.Signer
+
+// Verifier checks a JWS signature.
+type Verifier = internalalg.Verifier
+
+// NewHMACSigner returns an HS256/HS384/HS512 Signer.
+func NewHMACSigner(alg Algorithm, key []byte, kid ...string) (Signer, error) {
+	return internalalg.NewHMACSigner(alg, key, kid...)
 }
 
-// hashSum returns h(in). h must be a registered crypto.Hash.
-func hashSum(h crypto.Hash, in []byte) []byte {
-	hh := h.New()
-	hh.Write(in)
-	return hh.Sum(nil)
+// NewHMACVerifier returns an HS256/HS384/HS512 Verifier.
+func NewHMACVerifier(alg Algorithm, key []byte, kid ...string) (Verifier, error) {
+	return internalalg.NewHMACVerifier(alg, key, kid...)
 }
 
-// optKID resolves the optional trailing "kid" of a constructor: the first
-// value if given, "" otherwise.
-func optKID(kid []string) string {
-	if len(kid) > 0 {
-		return kid[0]
-	}
-	return ""
+// NewECDSASigner returns an ES256/ES384/ES512 Signer.
+func NewECDSASigner(alg Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, error) {
+	return internalalg.NewECDSASigner(alg, key, kid...)
+}
+
+// NewECDSAVerifier returns an ES256/ES384/ES512 Verifier.
+func NewECDSAVerifier(alg Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifier, error) {
+	return internalalg.NewECDSAVerifier(alg, key, kid...)
+}
+
+// NewRSAPSSSigner returns a PS256/PS384/PS512 Signer.
+func NewRSAPSSSigner(alg Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, error) {
+	return internalalg.NewRSAPSSSigner(alg, key, kid...)
+}
+
+// NewRSAPSSVerifier returns a PS256/PS384/PS512 Verifier.
+func NewRSAPSSVerifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
+	return internalalg.NewRSAPSSVerifier(alg, key, kid...)
+}
+
+// NewRSAPKCS1Verifier returns an RS256/RS384/RS512 Verifier.
+func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
+	return internalalg.NewRSAPKCS1Verifier(alg, key, kid...)
+}
+
+// NewEd25519Signer returns an EdDSA (Ed25519) Signer.
+func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
+	return internalalg.NewEd25519Signer(key, kid...)
+}
+
+// NewEd25519Verifier returns an EdDSA (Ed25519) Verifier.
+func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error) {
+	return internalalg.NewEd25519Verifier(key, kid...)
 }

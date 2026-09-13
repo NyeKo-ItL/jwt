@@ -1,6 +1,10 @@
 package jwt
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
+)
 
 type directWrapper struct{ cek []byte }
 
@@ -31,7 +35,7 @@ func NewDirectEncrypter(cek []byte, content ContentAlgorithm, kid ...string) (En
 	if n := contentKeyLen(content); n == 0 || len(cek) != n {
 		return nil, fmt.Errorf("%w: dir key must be %d bytes for %s, got %d", ErrMalformedKey, contentKeyLen(content), content, len(cek))
 	}
-	return newEncrypter(content, optKID(kid), directWrapper{cek: append([]byte(nil), cek...)})
+	return newEncrypter(content, option.FirstString(kid), directWrapper{cek: append([]byte(nil), cek...)})
 }
 
 // NewDirectDecrypter decrypts JWE "alg":"dir" tokens with a pre-shared CEK.
@@ -39,5 +43,5 @@ func NewDirectDecrypter(cek []byte, kid ...string) (Decrypter, error) {
 	if len(cek) != 16 && len(cek) != 24 && len(cek) != 32 {
 		return nil, fmt.Errorf("%w: dir key must be 16, 24 or 32 bytes, got %d", ErrMalformedKey, len(cek))
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: directUnwrapper{cek: append([]byte(nil), cek...)}}, nil
+	return &decrypter{kid: option.FirstString(kid), unwrapper: directUnwrapper{cek: append([]byte(nil), cek...)}}, nil
 }

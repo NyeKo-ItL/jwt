@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // concatKDF is the NIST SP 800-56A Concatenation KDF as profiled by RFC 7518
@@ -143,7 +145,7 @@ func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentA
 	if curveName(pub.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return newEncrypter(content, optKID(kid), ecdhWrapper{pub: pub, alg: alg})
+	return newEncrypter(content, option.FirstString(kid), ecdhWrapper{pub: pub, alg: alg})
 }
 
 // NewECDHESDecrypter decrypts JWE tokens whose "alg" is ECDH-ES or
@@ -155,5 +157,5 @@ func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error
 	if curveName(priv.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
+	return &decrypter{kid: option.FirstString(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
 }

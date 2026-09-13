@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
+	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
 
@@ -85,7 +86,7 @@ func digestThumbprint(canonical string, hash crypto.Hash) (string, error) {
 	if !hash.Available() {
 		return "", fmt.Errorf("%w: hash %v is not linked into the binary", ErrUnsupportedAlgorithm, hash)
 	}
-	return b64.Encode(hashSum(hash, []byte(canonical))), nil
+	return b64.Encode(internalalg.HashSum(hash, []byte(canonical))), nil
 }
 
 // ParseKey parses a single JSON Web Key (RFC 7517 §4).

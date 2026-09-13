@@ -6,6 +6,8 @@ import (
 	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // aesKWDefaultIV is the RFC 3394 §2.2.3.1 default initial value.
@@ -121,7 +123,7 @@ func NewA256KWEncrypter(kek []byte, content ContentAlgorithm, kid ...string) (En
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return newEncrypter(content, optKID(kid), aesKWWrapper{kek: append([]byte(nil), kek...)})
+	return newEncrypter(content, option.FirstString(kid), aesKWWrapper{kek: append([]byte(nil), kek...)})
 }
 
 // NewA256KWDecrypter unwraps the CEK of a JWE "alg":"A256KW" token.
@@ -129,5 +131,5 @@ func NewA256KWDecrypter(kek []byte, kid ...string) (Decrypter, error) {
 	if len(kek) != 32 {
 		return nil, fmt.Errorf("%w: A256KW KEK must be 32 bytes, got %d", ErrMalformedKey, len(kek))
 	}
-	return &decrypter{kid: optKID(kid), unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
+	return &decrypter{kid: option.FirstString(kid), unwrapper: aesKWUnwrapper{kek: append([]byte(nil), kek...)}}, nil
 }

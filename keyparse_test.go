@@ -14,6 +14,8 @@ import (
 	"testing"
 )
 
+const opensshMagic = "openssh-key-v1\x00"
+
 func TestParsePKCS8PrivateKey(t *testing.T) {
 	tk := newTestKeys(t)
 	for name, key := range map[string]crypto.Signer{

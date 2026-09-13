@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
 
@@ -18,7 +19,7 @@ const maxTokenBytes = 1 << 20 // 1 MiB
 
 // Sentinel errors. All are comparable with errors.Is (spec §6.3).
 var (
-	ErrInvalidSignature    = errors.New("jwt: invalid signature")
+	ErrInvalidSignature    = internalalg.ErrInvalidSignature
 	ErrExpired             = errors.New("jwt: token expired")
 	ErrNotYetValid         = errors.New("jwt: token not yet valid")
 	ErrIssuerMismatch      = errors.New("jwt: issuer mismatch")
@@ -31,11 +32,11 @@ var (
 
 	// Sentinels beyond the §5.1 list, needed by the constructors and the
 	// key-resolution path.
-	ErrWeakKey              = errors.New("jwt: key does not meet minimum size")
-	ErrUnsupportedAlgorithm = errors.New("jwt: unsupported algorithm")
+	ErrWeakKey              = internalalg.ErrWeakKey
+	ErrUnsupportedAlgorithm = internalalg.ErrUnsupportedAlgorithm
 	ErrKeyNotFound          = errors.New("jwt: no key for kid")
-	ErrKeyTypeMismatch      = errors.New("jwt: key type does not match algorithm")
-	ErrMalformedKey         = errors.New("jwt: malformed key material")
+	ErrKeyTypeMismatch      = internalalg.ErrKeyTypeMismatch
+	ErrMalformedKey         = internalalg.ErrMalformedKey
 	ErrOctNotServable       = errors.New("jwt: oct keys must not be serialized into a JWKS document")
 )
 
