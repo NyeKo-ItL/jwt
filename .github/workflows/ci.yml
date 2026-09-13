@@ -54,9 +54,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         with:
+          slug: NyeKo-ItL/jwt
           files: coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          fail_ci_if_error: true
 
   test-gate:
     name: test (1.27)
