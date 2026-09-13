@@ -50,8 +50,10 @@ jobs:
           for example in examples/*; do
             go run "./$example"
           done
+      # Dependabot pull requests do not receive repository secrets. Upload only
+      # from trusted pushes; coverage is still enforced locally on every PR.
       - name: Upload coverage reports to Codecov
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         with:
           slug: NyeKo-ItL/jwt
