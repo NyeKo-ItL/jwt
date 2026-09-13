@@ -3,42 +3,17 @@ package jwt
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
-	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
 
 // maxTokenBytes bounds the input accepted by Parse / ParseInsecure so a
 // malformed or hostile token cannot force unbounded work (spec §4.11).
 const maxTokenBytes = 1 << 20 // 1 MiB
-
-// Sentinel errors. All are comparable with errors.Is (spec §6.3).
-var (
-	ErrInvalidSignature    = internalalg.ErrInvalidSignature
-	ErrExpired             = errors.New("jwt: token expired")
-	ErrNotYetValid         = errors.New("jwt: token not yet valid")
-	ErrIssuerMismatch      = errors.New("jwt: issuer mismatch")
-	ErrAudienceMismatch    = errors.New("jwt: audience mismatch")
-	ErrAlgorithmNotAllowed = errors.New("jwt: algorithm not in allowlist")
-	ErrNoAllowedAlgorithms = errors.New("jwt: WithAllowedAlgorithms is required")
-	ErrMissingClaim        = errors.New("jwt: required claim missing")
-	ErrMalformedToken      = errors.New("jwt: malformed token")
-	ErrTypeMismatch        = errors.New("jwt: unexpected \"typ\" header")
-
-	// Sentinels beyond the §5.1 list, needed by the constructors and the
-	// key-resolution path.
-	ErrWeakKey              = internalalg.ErrWeakKey
-	ErrUnsupportedAlgorithm = internalalg.ErrUnsupportedAlgorithm
-	ErrKeyNotFound          = errors.New("jwt: no key for kid")
-	ErrKeyTypeMismatch      = internalalg.ErrKeyTypeMismatch
-	ErrMalformedKey         = internalalg.ErrMalformedKey
-	ErrOctNotServable       = errors.New("jwt: oct keys must not be serialized into a JWKS document")
-)
 
 // DefaultType is the "typ" header value Sign stamps on a token unless
 // WithType overrides it: the RFC 7519 §5.1 recommended media type, also
