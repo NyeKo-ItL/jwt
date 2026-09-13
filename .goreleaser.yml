@@ -1,11 +1,15 @@
 version: 2
 
-# This repository is a library. GoReleaser publishes the GitHub release and
-# source archive without building command binaries.
+# This repository is a library. Publish a source archive and its checksum;
+# there are no command binaries to build.
 builds:
   - id: library
     skip: true
 
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+  format: tar.gz
 
 checksum:
   name_template: "checksums.txt"

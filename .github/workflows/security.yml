@@ -39,6 +39,9 @@ jobs:
 
   scorecard:
     name: OpenSSF Scorecard
+    # Scorecard needs repository-level context and is intentionally not run on
+    # untrusted pull request code. It still runs on pushes to main and weekly.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
