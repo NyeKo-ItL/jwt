@@ -1,8 +1,11 @@
 # jwt
 
-[![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/NyeKo-ItL/jwt.svg)](https://pkg.go.dev/github.com/NyeKo-ItL/jwt)
+[![CI](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/NyeKo-ItL/jwt/graph/badge.svg?token=9IQF77HVZA)](https://codecov.io/gh/NyeKo-ItL/jwt)
+[![CodeQL](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/github-code-scanning/codeql)
+[![Security scans](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/security.yml)
+[![Dependabot Updates](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/NyeKo-ItL/jwt/actions/workflows/dependabot/dependabot-updates)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A single-package JWT / JOSE library for Go: JWS signing and verification, JWE

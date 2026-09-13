@@ -145,11 +145,13 @@ func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes in
 	if err := requireHTTPS(uri); err != nil {
 		return nil, 0, err
 	}
+	//nolint:gosec // The fetch URL is explicit caller configuration; HTTPS is enforced above.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %w", ErrMalformedKey, err)
 	}
 	req.Header.Set("Accept", "application/jwk-set+json, application/json")
+	//nolint:gosec // The fetch URL is explicit caller configuration; HTTPS is enforced above.
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("jwt: fetching JWKS: %w", err)
