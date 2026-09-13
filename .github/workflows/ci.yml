@@ -29,10 +29,20 @@ jobs:
       - run: go build ./...
       - name: Test with race detector
         if: matrix.os != 'windows-latest'
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: |
+          go test -race -coverpkg=./... -covermode=atomic -coverprofile=coverage.out . ./internal/... ./jwttest
+          coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%", "", $NF); print $NF}')
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 85) { printf "coverage %.1f%% is below 85%%\\n", coverage; exit 1 } }'
       - name: Test on Windows
         if: matrix.os == 'windows-latest'
         run: go test ./...
+      - name: Coverage gate on Windows
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          go test -coverpkg=./... -covermode=count -coverprofile=coverage.out . ./internal/... ./jwttest
+          coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%", "", $NF); print $NF}')
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 85) { printf "coverage %.1f%% is below 85%%\\n", coverage; exit 1 } }'
       - name: Run examples
         shell: bash
         run: |
