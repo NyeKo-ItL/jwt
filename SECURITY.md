@@ -43,6 +43,6 @@ itself (spec §4). It is kept in sync with the code.
 
 ## Reporting a vulnerability
 
-Open a private security advisory on the repository, or contact the maintainer
-listed in `go.mod`. Please do not file public issues for suspected
+Open a [private security advisory](https://github.com/NyeKo-ItL/jwt/security/advisories/new)
+on the repository. Please do not file public issues for suspected
 vulnerabilities.

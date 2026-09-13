@@ -107,7 +107,7 @@ jobs:
         with:
           go-version: "1.27"
           cache-dependency-path: go.mod
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   apidiff:
     # Semver gate: dormant until a v1.0.0+ release tag exists; then compares
@@ -139,7 +139,7 @@ jobs:
           fi
           echo "Baseline release: $latest"
 
-          go install golang.org/x/exp/cmd/apidiff@latest
+          go install golang.org/x/exp/cmd/apidiff@v0.0.0-20260908205506-85c1c2202aba
           apidiff="$(go env GOPATH)/bin/apidiff"
           module=$(go list -m)
           base="$RUNNER_TEMP/base"
