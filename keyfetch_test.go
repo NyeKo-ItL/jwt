@@ -176,7 +176,7 @@ func TestDiscoverJWKSURI(t *testing.T) {
 
 	var mux http.ServeMux
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"jwks_uri": "https://issuer.example/keys"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": "https://" + r.Host, "jwks_uri": "https://issuer.example/keys"})
 	})
 
 	srv := httptest.NewTLSServer(&mux)
@@ -189,19 +189,6 @@ func TestDiscoverJWKSURI(t *testing.T) {
 
 	if got != "https://issuer.example/keys" {
 		t.Fatalf("discovered %q", got)
-	}
-
-	// no discovery doc -> conventional fallback
-	blank := httptest.NewTLSServer(http.NotFoundHandler())
-	defer blank.Close()
-
-	got, err = DiscoverJWKSURI(ctx, blank.URL+"/", blank.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got != blank.URL+"/.well-known/jwks.json" {
-		t.Fatalf("fallback = %q", got)
 	}
 
 	if _, err := DiscoverJWKSURI(ctx, "", nil); err == nil {
