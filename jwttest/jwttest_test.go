@@ -80,7 +80,7 @@ func TestFakeRevocationStore(t *testing.T) {
 
 func TestNewSigningPair(t *testing.T) {
 	signer, keys := jwttest.NewSigningPair(t, "")
-	if signer.Algorithm() != jwt.EdDSA {
+	if signer.Algorithm() != jwt.Ed25519 {
 		t.Fatalf("alg = %s", signer.Algorithm())
 	}
 
@@ -90,7 +90,7 @@ func TestNewSigningPair(t *testing.T) {
 	}
 
 	var got jwt.RegisteredClaims
-	if err := jwt.Parse(context.Background(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA)); err != nil {
+	if err := jwt.Parse(context.Background(), tok, &got, keys, jwt.WithAllowedAlgorithms(jwt.Ed25519)); err != nil {
 		t.Fatalf("round trip: %v", err)
 	}
 }

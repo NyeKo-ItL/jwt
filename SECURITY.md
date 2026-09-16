@@ -17,8 +17,9 @@ itself (spec §4). It is kept in sync with the code.
    allowlist check rejects it independently of any custom `Signer` / `Verifier`.
 3. **Curated signing, permissive verification.** Built-in signers cover only
    the best-practice algorithm per key family (HS256/384/512, PS256/384/512,
-   ES256/384/512, EdDSA). Verification additionally covers RS256/384/512
-   because major external IdPs issue those. Both sides are open to caller
+   ES256/384/512, Ed25519 per RFC 9864). Verification additionally covers
+   RS256/384/512 because major external IdPs issue those, and the deprecated
+   polymorphic `EdDSA` identifier when explicitly allowlisted. Both sides are open to caller
    extension via the `Signer` / `Verifier` interfaces.
 4. **Verified vs. unverified parsing are distinct functions.** `ParseInsecure`
    never checks the signature or expiry and MUST NOT drive an authorization

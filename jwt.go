@@ -122,7 +122,7 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 // explicit type argument:
 //
 //	var claims MyClaims
-//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.Ed25519))
 //
 // Registered-claim validation runs regardless of what dst models.
 // WithAllowedAlgorithms is mandatory (RFC 8725 §3.1); Parse returns

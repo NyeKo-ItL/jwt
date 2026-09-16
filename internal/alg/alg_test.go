@@ -14,12 +14,13 @@ import (
 
 func TestFamilyOf(t *testing.T) {
 	cases := map[string]Family{
-		"HS256":  FamilyHMAC,
-		"PS384":  FamilyRSAPSS,
-		"RS512":  FamilyRSAPKCS1,
-		"ES256":  FamilyECDSA,
-		"EdDSA":  FamilyEdDSA,
-		"custom": FamilyUnknown,
+		"HS256":   FamilyHMAC,
+		"PS384":   FamilyRSAPSS,
+		"RS512":   FamilyRSAPKCS1,
+		"ES256":   FamilyECDSA,
+		"Ed25519": FamilyEdDSA,
+		"EdDSA":   FamilyEdDSA, // deprecated polymorphic identifier (RFC 9864 §4.1.2)
+		"custom":  FamilyUnknown,
 	}
 	for name, want := range cases {
 		if got := FamilyOf(name); got != want {
@@ -286,7 +287,7 @@ func TestEd25519RejectsInvalidInputs(t *testing.T) {
 	}
 
 	v, _ := NewEd25519Verifier(pub, "e1")
-	if v.Algorithm() != EdDSA || v.KeyID() != "e1" {
+	if v.Algorithm() != Ed25519 || v.KeyID() != "e1" {
 		t.Fatal("Ed25519 metadata mismatch")
 	}
 
@@ -295,5 +296,25 @@ func TestEd25519RejectsInvalidInputs(t *testing.T) {
 	sig, _ := s.Sign([]byte("input"))
 	if err := v.Verify([]byte("input"), append(sig, 0)); !errors.Is(err, ErrInvalidSignature) {
 		t.Fatalf("invalid Ed25519 signature: %v", err)
+	}
+}
+
+func TestNewEd25519VerifierFor(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, a := range []Algorithm{Ed25519, EdDSA} {
+		v, err := NewEd25519VerifierFor(a, pub)
+		if err != nil || v.Algorithm() != a {
+			t.Fatalf("NewEd25519VerifierFor(%s): %v %v", a, v, err)
+		}
+	}
+
+	for _, a := range []Algorithm{"Ed448", "ES256", ""} {
+		if _, err := NewEd25519VerifierFor(a, pub); !errors.Is(err, ErrUnsupportedAlgorithm) {
+			t.Fatalf("NewEd25519VerifierFor(%q): %v", a, err)
+		}
 	}
 }
