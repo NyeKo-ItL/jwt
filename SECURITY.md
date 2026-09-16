@@ -8,8 +8,10 @@ itself (spec §4). It is kept in sync with the code.
 1. **Mandatory algorithm allowlist on every `Parse` / decrypt path.** There is
    no "accept whatever the header says" mode. `Parse` returns
    `ErrNoAllowedAlgorithms` when `WithAllowedAlgorithms` supplies no usable
-   algorithm. Each JWE `Decrypter` is pinned to the algorithms its constructor
-   named; a token header cannot select anything else.
+   algorithm; `DecryptClaims` does the same unless both
+   `WithAllowedKeyAlgorithms` ("alg") and `WithAllowedContentAlgorithms`
+   ("enc") are given. Both checks run on the header before any caller-supplied
+   `Verifier` / `Decrypter` is involved.
 2. **`alg: none` (and any `enc`-less JWE construction) is unrepresentable** in
    either direction. It has no constant and no built-in implementation, and the
    allowlist check rejects it independently of any custom `Signer` / `Verifier`.

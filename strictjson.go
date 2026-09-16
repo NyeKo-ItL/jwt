@@ -53,18 +53,25 @@ var registeredHeaderNames = map[string]bool{
 	"epk": true, "apu": true, "apv": true, "iv": true, "tag": true, "p2s": true, "p2c": true,
 }
 
-// checkCritical enforces RFC 7515 §4.1.11 (and RFC 7516 §4.1.13 for JWE).
-// This library implements no header extension, so the set of extensions it
-// "understands and processes" is empty: any "crit" member at all makes the
-// token invalid. The error still distinguishes the malformed cases the RFC
-// calls out (empty list, registered names, names absent from the header) to
-// ease debugging.
-func checkCritical(headerJSON []byte) error {
+// headerMembers decodes a JOSE header into its raw members, for presence
+// checks that a typed struct cannot express (a member set to null, or a
+// member the struct does not model).
+func headerMembers(headerJSON []byte) (map[string]jsontext.Value, error) {
 	var members map[string]jsontext.Value
 	if err := decodeObject(headerJSON, &members); err != nil {
-		return fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
+		return nil, fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
 	}
 
+	return members, nil
+}
+
+// checkCritical enforces RFC 7515 §4.1.11 (and RFC 7516 §4.1.13 for JWE) on
+// the header's raw members. This library implements no header extension, so
+// the set of extensions it "understands and processes" is empty: any "crit"
+// member at all makes the token invalid. The error still distinguishes the
+// malformed cases the RFC calls out (empty list, registered names, names
+// absent from the header) to ease debugging.
+func checkCritical(members map[string]jsontext.Value) error {
 	raw, present := members["crit"]
 	if !present {
 		return nil

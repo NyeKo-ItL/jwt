@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,6 +72,8 @@ type jweHeader struct {
 	Alg KeyAlgorithm     `json:"alg"`
 	Enc ContentAlgorithm `json:"enc"`
 	Kid string           `json:"kid,omitempty"`
+	Typ string           `json:"typ,omitempty"`
+	Cty string           `json:"cty,omitempty"`
 	EPK *Key             `json:"epk,omitempty"` // ECDH-ES ephemeral public key
 	APU string           `json:"apu,omitempty"`
 	APV string           `json:"apv,omitempty"`
@@ -156,18 +159,8 @@ type decrypter struct {
 func (d *decrypter) KeyID() string { return d.kid }
 
 func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
-	parts := strings.Split(compact, ".")
-	if len(parts) != 5 {
-		return nil, ErrDecryptionFailed
-	}
-
-	protectedJSON, err := b64.Decode(parts[0])
+	parts, hdr, err := parseJWEProtected(compact)
 	if err != nil {
-		return nil, ErrDecryptionFailed
-	}
-
-	var hdr jweHeader
-	if err := decodeObject(protectedJSON, &hdr); err != nil {
 		return nil, ErrDecryptionFailed
 	}
 
@@ -195,12 +188,54 @@ func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 		return nil, ErrDecryptionFailed
 	}
 
+	// RFC 7516 §5.2 step 14: the AAD is the ASCII of the encoded protected header.
 	plaintext, err := gcm.Open(nil, iv, append(ciphertext, tag...), []byte(parts[0]))
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
 
 	return plaintext, nil
+}
+
+// parseJWEProtected splits a compact JWE (RFC 7516 §7.1) and decodes and
+// vets its protected header: the input is size-capped, the header must be a
+// strictly decoded JSON object, "zip" is refused because compression is not
+// supported (RFC 7516 §4.1.3 — which also removes any decompression-bomb
+// surface), and "crit" is enforced (§4.1.13). Crit failures wrap
+// ErrUnsupportedCritical; every other failure wraps ErrDecryptionFailed.
+func parseJWEProtected(compact string) ([]string, jweHeader, error) {
+	var hdr jweHeader
+
+	if len(compact) > maxTokenBytes || strings.Count(compact, ".") != 4 {
+		return nil, hdr, ErrDecryptionFailed
+	}
+
+	parts := strings.Split(compact, ".")
+
+	protectedJSON, err := b64.Decode(parts[0])
+	if err != nil {
+		return nil, hdr, ErrDecryptionFailed
+	}
+
+	// "alg" and "enc" are both REQUIRED (RFC 7516 §4.1.1–4.1.2).
+	if err := decodeObject(protectedJSON, &hdr); err != nil || hdr.Alg == "" || hdr.Enc == "" {
+		return nil, hdr, ErrDecryptionFailed
+	}
+
+	members, err := headerMembers(protectedJSON)
+	if err != nil {
+		return nil, hdr, ErrDecryptionFailed
+	}
+
+	if _, zip := members["zip"]; zip {
+		return nil, hdr, ErrDecryptionFailed
+	}
+
+	if err := checkCritical(members); err != nil {
+		return nil, hdr, err
+	}
+
+	return parts, hdr, nil
 }
 
 func contentKeyLen(enc ContentAlgorithm) int {
@@ -242,12 +277,41 @@ func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
 
 // DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE, validate
 // its registered claims per opts, and unmarshal the plaintext into dst (its
-// type is inferred; no explicit type argument). The AEAD tag is verified
-// before any plaintext is exposed (spec §4.7). Header "typ" checking
-// (WithRequiredType) does not apply here.
+// type is inferred; no explicit type argument).
+//
+// Both JWE allowlists are mandatory (RFC 8725 §3.1, spec §4.1):
+// WithAllowedKeyAlgorithms for "alg" and WithAllowedContentAlgorithms for
+// "enc"; without them DecryptClaims returns ErrNoAllowedAlgorithms. They are
+// checked against the protected header before dec is called, so they hold
+// for caller-supplied Decrypters too. The AEAD tag is verified before any
+// plaintext is exposed (spec §4.7). WithRequiredType applies to the JWE
+// protected header's "typ".
 func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decrypter, opts ...ParseOption) error {
 	if dec == nil {
 		return fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
+	}
+
+	cfg := parseConfig{now: time.Now}
+	for _, o := range opts {
+		o.applyParse(&cfg)
+	}
+
+	allowedAlgs, allowedEncs := withoutNone(cfg.allowedKeyAlgs), withoutNone(cfg.allowedContentAlgs)
+	if len(allowedAlgs) == 0 || len(allowedEncs) == 0 {
+		return fmt.Errorf("%w: DecryptClaims needs WithAllowedKeyAlgorithms and WithAllowedContentAlgorithms", ErrNoAllowedAlgorithms)
+	}
+
+	_, hdr, err := parseJWEProtected(compact)
+	if err != nil {
+		return err
+	}
+
+	if !slices.Contains(allowedAlgs, hdr.Alg) {
+		return fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Alg)
+	}
+
+	if !slices.Contains(allowedEncs, hdr.Enc) {
+		return fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Enc)
 	}
 
 	payload, err := dec.Decrypt(ctx, compact)
@@ -260,12 +324,7 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
-	cfg := parseConfig{now: time.Now}
-	for _, o := range opts {
-		o.applyParse(&cfg)
-	}
-
-	if err := validateClaims(payload, &reg, Header{}, cfg); err != nil {
+	if err := validateClaims(payload, &reg, Header{Type: hdr.Typ}, cfg); err != nil {
 		return err
 	}
 

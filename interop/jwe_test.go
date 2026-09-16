@@ -150,7 +150,8 @@ func TestJWE_GoJoseDecryptedByOurs(t *testing.T) {
 				}
 				var got payload
 				if err := jwt.DecryptClaims(context.Background(), compact, &got,
-					oursDecrypter(t, k.our, c.our)); err != nil {
+					oursDecrypter(t, k.our, c.our),
+					jwt.WithAllowedKeyAlgorithms(k.our), jwt.WithAllowedContentAlgorithms(c.our)); err != nil {
 					t.Fatalf("jwt.DecryptClaims: %v", err)
 				}
 				if got.Subject != "interop" || got.Marker != marker {

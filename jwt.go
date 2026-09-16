@@ -176,7 +176,12 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
 	}
 
-	if err := checkCritical(headerJSON); err != nil {
+	members, err := headerMembers(headerJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := checkCritical(members); err != nil {
 		return nil, err
 	}
 
@@ -263,6 +268,9 @@ type parseConfig struct {
 	leeway         time.Duration
 	requiredClaims []string
 	skipAudience   bool
+
+	allowedKeyAlgs     []KeyAlgorithm     // JWE "alg" allowlist (DecryptClaims)
+	allowedContentAlgs []ContentAlgorithm // JWE "enc" allowlist (DecryptClaims)
 }
 
 // ParseOption configures Parse, DecryptClaims and Middleware. Both the
@@ -291,17 +299,26 @@ type ParseOptions struct {
 	// AllowedAlgorithms is the mandatory algorithm allowlist (RFC 8725 §3.1).
 	// It is merged with any WithAllowedAlgorithms in the same call.
 	AllowedAlgorithms []Algorithm
-	Issuer            string        // require "iss" to equal this
-	Audience          string        // require this to be present in "aud"
-	SkipAudienceCheck bool          // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
-	RequiredType      string        // require the JOSE "typ" header to match (RFC 8725 §3.11)
-	RequiredClaims    []string      // require each named claim to be present
-	Leeway            time.Duration // clock-skew allowance on "exp"/"nbf" (default 0)
-	Clock             func() time.Time
+	// AllowedKeyAlgorithms and AllowedContentAlgorithms are the mandatory JWE
+	// "alg" and "enc" allowlists for DecryptClaims; Parse and Middleware
+	// ignore them. They merge with WithAllowedKeyAlgorithms /
+	// WithAllowedContentAlgorithms in the same call.
+	AllowedKeyAlgorithms     []KeyAlgorithm
+	AllowedContentAlgorithms []ContentAlgorithm
+	Issuer                   string        // require "iss" to equal this
+	Audience                 string        // require this to be present in "aud"
+	SkipAudienceCheck        bool          // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
+	RequiredType             string        // require the JOSE "typ" header to match (RFC 8725 §3.11)
+	RequiredClaims           []string      // require each named claim to be present
+	Leeway                   time.Duration // clock-skew allowance on "exp"/"nbf" (default 0)
+	Clock                    func() time.Time
 }
 
 func (o ParseOptions) applyParse(c *parseConfig) {
 	c.allowedAlgs = append(c.allowedAlgs, o.AllowedAlgorithms...)
+	c.allowedKeyAlgs = append(c.allowedKeyAlgs, o.AllowedKeyAlgorithms...)
+
+	c.allowedContentAlgs = append(c.allowedContentAlgs, o.AllowedContentAlgorithms...)
 	if o.Issuer != "" {
 		c.issuer = o.Issuer
 	}
@@ -334,6 +351,20 @@ func WithAllowedAlgorithms(algs ...Algorithm) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.allowedAlgs = append(c.allowedAlgs, algs...) })
 }
 
+// WithAllowedKeyAlgorithms sets the JWE key-management ("alg") allowlist
+// that DecryptClaims requires (RFC 8725 §3.1). "none" and the empty string
+// are never accepted, even if listed. Parse and Middleware ignore it.
+func WithAllowedKeyAlgorithms(algs ...KeyAlgorithm) ParseOption {
+	return parseOptionFunc(func(c *parseConfig) { c.allowedKeyAlgs = append(c.allowedKeyAlgs, algs...) })
+}
+
+// WithAllowedContentAlgorithms sets the JWE content-encryption ("enc")
+// allowlist that DecryptClaims requires (RFC 8725 §3.1). "none" and the empty
+// string are never accepted, even if listed. Parse and Middleware ignore it.
+func WithAllowedContentAlgorithms(encs ...ContentAlgorithm) ParseOption {
+	return parseOptionFunc(func(c *parseConfig) { c.allowedContentAlgs = append(c.allowedContentAlgs, encs...) })
+}
+
 // WithIssuer requires the "iss" claim to equal iss.
 func WithIssuer(iss string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.issuer = iss })
@@ -361,8 +392,9 @@ func WithoutAudienceCheck() ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.skipAudience = true })
 }
 
-// WithRequiredType requires the JOSE "typ" header to match typ, ignoring an
-// optional "application/" prefix and case (RFC 8725 §3.11).
+// WithRequiredType requires the JOSE "typ" header — of the JWS for Parse, of
+// the JWE protected header for DecryptClaims — to match typ as a media type
+// (RFC 8725 §3.11, RFC 7515 §4.1.9).
 func WithRequiredType(typ string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.requiredType = typ })
 }
@@ -469,8 +501,8 @@ func split3(s string) (a, b, c string, ok bool) {
 }
 
 // withoutNone drops empty and "none" entries from an allowlist (spec §4.2).
-func withoutNone(algs []Algorithm) []Algorithm {
-	out := make([]Algorithm, 0, len(algs))
+func withoutNone[A ~string](algs []A) []A {
+	out := make([]A, 0, len(algs))
 	for _, a := range algs {
 		if a == "" || strings.EqualFold(string(a), "none") {
 			continue

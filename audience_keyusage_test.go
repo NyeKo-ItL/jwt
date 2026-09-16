@@ -75,11 +75,11 @@ func TestDecryptClaimsAudienceEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := decryptClaims[appClaims](ctx(), tok, dec); !errors.Is(err, ErrAudienceMismatch) {
+	if _, err := decryptClaims[appClaims](ctx(), tok, dec, jweAllow); !errors.Is(err, ErrAudienceMismatch) {
 		t.Fatalf("JWE with foreign aud and no audience: %v", err)
 	}
 
-	if _, err := decryptClaims[appClaims](ctx(), tok, dec, WithoutAudienceCheck()); err != nil {
+	if _, err := decryptClaims[appClaims](ctx(), tok, dec, jweAllow, WithoutAudienceCheck()); err != nil {
 		t.Fatalf("JWE with opt-out: %v", err)
 	}
 }
