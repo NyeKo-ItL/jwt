@@ -28,7 +28,9 @@ const DefaultType = "JWT"
 //
 //	base := jwt.SignOptions{Type: jwt.AccessTokenType}
 //	tok, _ := jwt.Sign(claims, signer, base, jwt.WithContentType("example"))
-type SignOption interface{ applySign(*signConfig) }
+type SignOption interface {
+	applySign(c *signConfig) // unexported: options come from this package only
+}
 
 type signConfig struct {
 	typ         string
@@ -43,8 +45,8 @@ func (f signOptionFunc) applySign(c *signConfig) { f(c) }
 // zero Type keeps DefaultType (use WithType("") to omit "typ" entirely); a
 // zero ContentType leaves "cty" unset.
 type SignOptions struct {
-	Type        string
-	ContentType string
+	Type        string // "typ" header (RFC 7515 §4.1.9); zero keeps DefaultType
+	ContentType string // "cty" header (RFC 7515 §4.1.10); zero omits it
 }
 
 func (o SignOptions) applySign(c *signConfig) {
@@ -146,8 +148,11 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 }
 
 // parseVerified runs everything Parse does except the final unmarshal into a
-// caller type: it returns the verified, claim-validated payload JSON.
+// caller type: it returns the verified, claim-validated payload JSON. The
+// order follows RFC 7519 §7.2 and RFC 7515 §5.2, with every check on
+// attacker-controlled input done before the KeyProvider is consulted.
 func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg parseConfig) ([]byte, error) {
+	// RFC 8725 §3.1: an allowlist is mandatory; "none" can never be allowed.
 	allowed := withoutNone(cfg.allowedAlgs)
 	if len(allowed) == 0 {
 		return nil, ErrNoAllowedAlgorithms
@@ -161,11 +166,15 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
 
+	// RFC 7519 §7.2 steps 1–2, RFC 7515 §7.1: exactly three segments. A
+	// five-segment JWE is not accepted here (RFC 7516 §9).
 	h, p, s, ok := split3(token)
 	if !ok {
 		return nil, fmt.Errorf("%w: expected three '.'-separated segments", ErrMalformedToken)
 	}
 
+	// RFC 7515 §5.2 steps 2–3: canonical base64url, then a UTF-8 JSON object
+	// with case-sensitive, unique member names.
 	headerJSON, err := b64.Decode(h)
 	if err != nil {
 		return nil, fmt.Errorf("%w: header is not base64url", ErrMalformedToken)
@@ -181,10 +190,13 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, err
 	}
 
+	// RFC 7515 §5.2 step 5: every header parameter must be understood.
 	if err := checkCritical(members); err != nil {
 		return nil, err
 	}
 
+	// RFC 7515 §4.1.1 ("alg" is REQUIRED), RFC 8725 §3.1–3.2: reject "none"
+	// and anything outside the caller's allowlist.
 	if header.Algorithm == "" || strings.EqualFold(string(header.Algorithm), "none") {
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
 	}
@@ -193,6 +205,8 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
 	}
 
+	// Key resolution by "kid" only; "jku", "jwk", "x5u" and "x5c" are never
+	// used to find or trust a key (RFC 8725 §3.10, spec §4.8).
 	key, found, err := keys.Lookup(ctx, header.KeyID)
 	if err != nil {
 		return nil, err
@@ -202,6 +216,8 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, header.KeyID)
 	}
 
+	// Spec §4.10 and RFC 8725 §3.1: the key's type and its own use/key_ops/alg
+	// must permit this algorithm, so an RSA key can never satisfy HS256.
 	verifier, err := key.verifierForAlg(header.Algorithm)
 	if err != nil {
 		return nil, err
@@ -212,6 +228,8 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: signature is not base64url", ErrMalformedToken)
 	}
 
+	// RFC 7515 §5.2 step 8: the signing input is the ASCII of the encoded
+	// header and payload exactly as received.
 	if err := verifier.Verify([]byte(h+"."+p), sig); err != nil {
 		return nil, ErrInvalidSignature
 	}
@@ -221,6 +239,8 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
 
+	// RFC 7519 §7.2 step 10: the claims set must be a JSON object. A nested
+	// JWT ("cty": "JWT", step 8) is not unwrapped, so it fails here.
 	var reg RegisteredClaims
 	if err := decodeObject(payloadJSON, &reg); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
@@ -287,7 +307,7 @@ type parseConfig struct {
 //	}
 //	err := jwt.Parse(ctx, tok, &claims, keys, base, jwt.WithAudience(clientID))
 type ParseOption interface {
-	applyParse(*parseConfig)
+	applyParse(c *parseConfig) // unexported: options come from this package only
 }
 
 type parseOptionFunc func(*parseConfig)
@@ -306,14 +326,14 @@ type ParseOptions struct {
 	// ignore them. They merge with WithAllowedKeyAlgorithms /
 	// WithAllowedContentAlgorithms in the same call.
 	AllowedKeyAlgorithms     []KeyAlgorithm
-	AllowedContentAlgorithms []ContentAlgorithm
-	Issuer                   string        // require "iss" to equal this
-	Audience                 string        // require this to be present in "aud"
-	SkipAudienceCheck        bool          // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
-	RequiredType             string        // require the JOSE "typ" header to match (RFC 8725 §3.11)
-	RequiredClaims           []string      // require each named claim to be present
-	Leeway                   time.Duration // clock-skew allowance on "exp"/"nbf" (default 0)
-	Clock                    func() time.Time
+	AllowedContentAlgorithms []ContentAlgorithm // see AllowedKeyAlgorithms
+	Issuer                   string             // require "iss" to equal this (RFC 7519 §4.1.1)
+	Audience                 string             // require this to be present in "aud" (RFC 7519 §4.1.3)
+	SkipAudienceCheck        bool               // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
+	RequiredType             string             // require the JOSE "typ" header to match (RFC 8725 §3.11)
+	RequiredClaims           []string           // require each named claim to be present
+	Leeway                   time.Duration      // clock-skew allowance on "exp"/"nbf" (default 0)
+	Clock                    func() time.Time   // time source for every time-based check (default time.Now)
 }
 
 func (o ParseOptions) applyParse(c *parseConfig) {
@@ -421,16 +441,22 @@ func WithRequiredClaims(names ...string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.requiredClaims = append(c.requiredClaims, names...) })
 }
 
+// validateClaims applies the registered-claim rules shared by Parse,
+// DecryptClaims and Middleware.
 func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseConfig) error {
 	now := cfg.now()
+
+	// RFC 7519 §4.1.4: the current time MUST be before "exp".
 	if rc.ExpiresAt != nil && !now.Add(-cfg.leeway).Before(rc.ExpiresAt.Time) {
 		return ErrExpired
 	}
 
+	// RFC 7519 §4.1.5: the current time MUST be after or equal to "nbf".
 	if rc.NotBefore != nil && now.Add(cfg.leeway).Before(rc.NotBefore.Time) {
 		return ErrNotYetValid
 	}
 
+	// RFC 7519 §4.1.1, RFC 8725 §3.8: exact, case-sensitive issuer match.
 	if cfg.issuer != "" && rc.Issuer != cfg.issuer {
 		return ErrIssuerMismatch
 	}

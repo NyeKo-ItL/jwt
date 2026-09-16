@@ -129,12 +129,23 @@ type Confirmation struct {
 //		Role  string `json:"role,omitempty"`
 //	}
 type RegisteredClaims struct {
-	Issuer       string        `json:"iss,omitempty"`
-	Subject      string        `json:"sub,omitempty"`
-	Audience     Audience      `json:"aud,omitempty"`
-	ExpiresAt    *NumericDate  `json:"exp,omitempty"`
-	NotBefore    *NumericDate  `json:"nbf,omitempty"`
-	IssuedAt     *NumericDate  `json:"iat,omitempty"`
-	ID           string        `json:"jti,omitempty"`
+	// Issuer is "iss" (RFC 7519 §4.1.1), checked by WithIssuer.
+	Issuer string `json:"iss,omitempty"`
+	// Subject is "sub" (RFC 7519 §4.1.2).
+	Subject string `json:"sub,omitempty"`
+	// Audience is "aud" (RFC 7519 §4.1.3). When present, Parse rejects the
+	// token unless WithAudience names one of its values.
+	Audience Audience `json:"aud,omitempty"`
+	// ExpiresAt is "exp" (RFC 7519 §4.1.4), always checked when present.
+	ExpiresAt *NumericDate `json:"exp,omitempty"`
+	// NotBefore is "nbf" (RFC 7519 §4.1.5), always checked when present.
+	NotBefore *NumericDate `json:"nbf,omitempty"`
+	// IssuedAt is "iat" (RFC 7519 §4.1.6). Informational; not validated.
+	IssuedAt *NumericDate `json:"iat,omitempty"`
+	// ID is "jti" (RFC 7519 §4.1.7), e.g. a key for RevocationStore.
+	ID string `json:"jti,omitempty"`
+	// Confirmation is "cnf" (RFC 7800 §3.1), a proof-of-possession key
+	// binding. Its presence is not enforced by Parse; checking the proof is
+	// the caller's responsibility.
 	Confirmation *Confirmation `json:"cnf,omitempty"`
 }

@@ -4,6 +4,7 @@ package errors
 
 import "errors"
 
+// Sentinel errors shared by internal packages and re-exported by jwt.
 var (
 	ErrInvalidSignature     = errors.New("jwt: invalid signature")
 	ErrWeakKey              = errors.New("jwt: key does not meet minimum size")

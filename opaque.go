@@ -13,8 +13,8 @@ import (
 // SHA-256 hash. Raw is handed to the client (e.g. in an HttpOnly cookie);
 // only Hash is ever persisted.
 type OpaqueToken struct {
-	Raw  string
-	Hash string
+	Raw  string // the credential given to the client; never store it
+	Hash string // hex SHA-256 of Raw; the only value to persist
 }
 
 // opaqueTokenBytes is the entropy of a freshly generated opaque token.

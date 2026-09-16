@@ -8,23 +8,26 @@ import (
 	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 )
 
-// Algorithm identifies a JWS signing algorithm (RFC 7518 §3, RFC 9864 §2.2). It is an open string
-// type, not a closed enum: callers may define custom algorithm values.
+// Algorithm identifies a JWS signing algorithm (RFC 7518 §3, RFC 9864 §2.2).
+// It is an open string type, not a closed enum: callers may define custom
+// algorithm values for their own Signer/Verifier implementations.
 type Algorithm = internalalg.Algorithm
 
+// Built-in JWS algorithms. Signing is offered for HS*, PS*, ES* and Ed25519;
+// RS* is verify-only (spec §0.2).
 const (
-	HS256 Algorithm = internalalg.HS256
-	HS384 Algorithm = internalalg.HS384
-	HS512 Algorithm = internalalg.HS512
-	RS256 Algorithm = internalalg.RS256
-	RS384 Algorithm = internalalg.RS384
-	RS512 Algorithm = internalalg.RS512
-	PS256 Algorithm = internalalg.PS256
-	PS384 Algorithm = internalalg.PS384
-	PS512 Algorithm = internalalg.PS512
-	ES256 Algorithm = internalalg.ES256
-	ES384 Algorithm = internalalg.ES384
-	ES512 Algorithm = internalalg.ES512
+	HS256 Algorithm = internalalg.HS256 // RFC 7518 §3.2: HMAC SHA-256, key >= 32 bytes
+	HS384 Algorithm = internalalg.HS384 // RFC 7518 §3.2: HMAC SHA-384, key >= 48 bytes
+	HS512 Algorithm = internalalg.HS512 // RFC 7518 §3.2: HMAC SHA-512, key >= 64 bytes
+	RS256 Algorithm = internalalg.RS256 // RFC 7518 §3.3: RSASSA-PKCS1-v1_5 SHA-256, verify-only, >= 2048 bits
+	RS384 Algorithm = internalalg.RS384 // RFC 7518 §3.3: RSASSA-PKCS1-v1_5 SHA-384, verify-only
+	RS512 Algorithm = internalalg.RS512 // RFC 7518 §3.3: RSASSA-PKCS1-v1_5 SHA-512, verify-only
+	PS256 Algorithm = internalalg.PS256 // RFC 7518 §3.5: RSASSA-PSS SHA-256, MGF1, salt = hash size
+	PS384 Algorithm = internalalg.PS384 // RFC 7518 §3.5: RSASSA-PSS SHA-384
+	PS512 Algorithm = internalalg.PS512 // RFC 7518 §3.5: RSASSA-PSS SHA-512
+	ES256 Algorithm = internalalg.ES256 // RFC 7518 §3.4: ECDSA P-256 SHA-256, 64-byte R||S
+	ES384 Algorithm = internalalg.ES384 // RFC 7518 §3.4: ECDSA P-384 SHA-384, 96-byte R||S
+	ES512 Algorithm = internalalg.ES512 // RFC 7518 §3.4: ECDSA P-521 SHA-512, 132-byte R||S
 	// Ed25519 is EdDSA using the Ed25519 parameter set (RFC 9864 §2.2,
 	// RFC 8032 §5.1) — the fully-specified identifier the built-in Ed25519
 	// signer emits.

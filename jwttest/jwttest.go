@@ -22,8 +22,8 @@ import (
 // independent of the built-in jwt.KeySet, for exercising Parse against a
 // caller-supplied implementation. Setting Err makes every Lookup fail.
 type FakeKeyProvider struct {
-	Keys map[string]jwt.Key
-	Err  error
+	Keys map[string]jwt.Key // keys by kid
+	Err  error              // when non-nil, returned by every Lookup
 }
 
 // NewFakeKeyProvider returns a FakeKeyProvider seeded with keys, indexed by
@@ -70,8 +70,8 @@ type fakeRevocationEntry struct {
 type FakeRevocationStore struct {
 	mu      sync.Mutex
 	entries map[string]fakeRevocationEntry
-	Now     func() time.Time
-	Err     error
+	Now     func() time.Time // clock used for expiry
+	Err     error            // when non-nil, returned by every call
 }
 
 // NewFakeRevocationStore returns an empty FakeRevocationStore using the wall

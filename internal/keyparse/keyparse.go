@@ -1,3 +1,6 @@
+// Package keyparse parses private and public key material from explicit,
+// caller-decoded encodings (PKCS#8, PKCS#1, SEC1, PKIX, raw Ed25519,
+// openssh-key-v1). It performs no file I/O and no format detection.
 package keyparse
 
 import (

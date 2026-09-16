@@ -222,3 +222,30 @@ func TestConfirmationJSON(t *testing.T) {
 		t.Fatalf("cnf round trip failed: %s", raw)
 	}
 }
+
+func TestConfirmationJWKRoundTrip(t *testing.T) {
+	// RFC 7800 §3.2: "cnf" carrying a public JWK, as in the RFC's example.
+	tk := newTestKeys(t)
+	key := FromEd25519PublicKey(tk.edPub, "pop")
+	jkt, _ := Thumbprint(key)
+
+	in := RegisteredClaims{Confirmation: &Confirmation{JWK: &key, JWKThumbprint: jkt}}
+
+	raw, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out RegisteredClaims
+	if err := decodeObject(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	if out.Confirmation == nil || out.Confirmation.JWK == nil || out.Confirmation.JWK.Kid != "pop" {
+		t.Fatalf("cnf.jwk lost: %s", raw)
+	}
+
+	if got, _ := Thumbprint(*out.Confirmation.JWK); got != jkt || out.Confirmation.JWKThumbprint != jkt {
+		t.Fatalf("cnf.jwk thumbprint %q != cnf.jkt %q", got, jkt)
+	}
+}

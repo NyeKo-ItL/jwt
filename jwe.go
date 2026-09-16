@@ -20,22 +20,24 @@ import (
 // the modern AEAD-friendly set (spec §3.1).
 type KeyAlgorithm string
 
+// Built-in JWE key-management algorithms.
 const (
-	ECDHES       KeyAlgorithm = "ECDH-ES"        // direct key agreement
-	ECDHESA256KW KeyAlgorithm = "ECDH-ES+A256KW" // key agreement + AES key wrap
-	RSAOAEP256   KeyAlgorithm = "RSA-OAEP-256"   // RSA-OAEP with SHA-256 only
-	A256KW       KeyAlgorithm = "A256KW"         // AES-256 Key Wrap
-	Direct       KeyAlgorithm = "dir"            // pre-shared symmetric CEK
+	ECDHES       KeyAlgorithm = "ECDH-ES"        // RFC 7518 §4.6: direct key agreement (P-256/384/521)
+	ECDHESA256KW KeyAlgorithm = "ECDH-ES+A256KW" // RFC 7518 §4.6: key agreement + AES-256 Key Wrap
+	RSAOAEP256   KeyAlgorithm = "RSA-OAEP-256"   // RFC 7518 §4.3: RSAES-OAEP, SHA-256 and MGF1-SHA-256
+	A256KW       KeyAlgorithm = "A256KW"         // RFC 7518 §4.4: AES-256 Key Wrap (RFC 3394)
+	Direct       KeyAlgorithm = "dir"            // RFC 7518 §4.5: pre-shared symmetric CEK
 )
 
 // ContentAlgorithm identifies a JWE content-encryption algorithm (RFC 7518
 // §5). Only the AES-GCM family is offered (spec §3.1).
 type ContentAlgorithm string
 
+// AES-GCM content encryption with a 96-bit IV and 128-bit tag (RFC 7518 §5.3).
 const (
-	A128GCM ContentAlgorithm = "A128GCM"
-	A192GCM ContentAlgorithm = "A192GCM"
-	A256GCM ContentAlgorithm = "A256GCM"
+	A128GCM ContentAlgorithm = "A128GCM" // AES-128-GCM, 16-byte CEK
+	A192GCM ContentAlgorithm = "A192GCM" // AES-192-GCM, 24-byte CEK
+	A256GCM ContentAlgorithm = "A256GCM" // AES-256-GCM, 32-byte CEK
 )
 
 // ErrDecryptionFailed is the single, generic error every decryption failure
