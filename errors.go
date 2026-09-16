@@ -28,6 +28,10 @@ var (
 	ErrMalformedKey         = internalalg.ErrMalformedKey
 	ErrOctNotServable       = errors.New("jwt: oct keys must not be serialized into a JWKS document")
 
+	// ErrKeyUsage reports a key whose own "use", "key_ops" or "alg" member
+	// (RFC 7517 §4.2–4.4) does not permit the requested operation.
+	ErrKeyUsage = errors.New("jwt: key is not permitted for this operation")
+
 	// ErrUnsupportedCritical reports a "crit" header (RFC 7515 §4.1.11,
 	// RFC 7516 §4.1.13) listing extensions this library does not implement,
 	// or a malformed "crit" value. Such a token is always invalid.

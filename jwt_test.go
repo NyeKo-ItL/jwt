@@ -611,14 +611,14 @@ func TestParseOptionsAllFieldsViaStruct(t *testing.T) {
 	}
 
 	// each constraint really bites
-	bad := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+	bad := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Audience: "aud-x", Clock: func() time.Time { return now }}
 
 	bad.RequiredType = "JWT"
 	if err := Parse(ctx(), typed, &c, prov, bad, WithLeeway(time.Minute)); !errors.Is(err, ErrTypeMismatch) {
 		t.Fatalf("RequiredType via struct: %v", err)
 	}
 
-	bad2 := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Clock: func() time.Time { return now }}
+	bad2 := ParseOptions{AllowedAlgorithms: []Algorithm{HS256}, Audience: "aud-x", Clock: func() time.Time { return now }}
 
 	bad2.RequiredClaims = []string{"missing"}
 	if err := Parse(ctx(), typed, &c, prov, bad2, WithLeeway(time.Minute)); !errors.Is(err, ErrMissingClaim) {

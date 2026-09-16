@@ -262,6 +262,7 @@ type parseConfig struct {
 	now            func() time.Time
 	leeway         time.Duration
 	requiredClaims []string
+	skipAudience   bool
 }
 
 // ParseOption configures Parse, DecryptClaims and Middleware. Both the
@@ -292,6 +293,7 @@ type ParseOptions struct {
 	AllowedAlgorithms []Algorithm
 	Issuer            string        // require "iss" to equal this
 	Audience          string        // require this to be present in "aud"
+	SkipAudienceCheck bool          // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
 	RequiredType      string        // require the JOSE "typ" header to match (RFC 8725 §3.11)
 	RequiredClaims    []string      // require each named claim to be present
 	Leeway            time.Duration // clock-skew allowance on "exp"/"nbf" (default 0)
@@ -313,6 +315,10 @@ func (o ParseOptions) applyParse(c *parseConfig) {
 	}
 
 	c.requiredClaims = append(c.requiredClaims, o.RequiredClaims...)
+	if o.SkipAudienceCheck {
+		c.skipAudience = true
+	}
+
 	if o.Leeway != 0 {
 		c.leeway = o.Leeway
 	}
@@ -333,9 +339,26 @@ func WithIssuer(iss string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.issuer = iss })
 }
 
-// WithAudience requires aud to be present in the "aud" claim.
+// WithAudience identifies the recipient: aud must be one of the values of
+// the "aud" claim (exact, case-sensitive string comparison), and a token
+// without "aud" is rejected.
+//
+// Without WithAudience, a token that carries an "aud" claim is rejected with
+// ErrAudienceMismatch, because RFC 7519 §4.1.3 requires a principal that
+// cannot identify itself with a value in "aud" to reject the JWT (see also
+// RFC 8725 §3.9). Use WithoutAudienceCheck to opt out explicitly.
 func WithAudience(aud string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.audience = aud })
+}
+
+// WithoutAudienceCheck accepts a token carrying an "aud" claim even though no
+// WithAudience is configured. It deliberately departs from RFC 7519 §4.1.3
+// and should be reserved for components that are not the token's recipient
+// (e.g. a gateway that only inspects a token before forwarding it). It has no
+// effect when WithAudience is also given: an explicit audience is always
+// enforced.
+func WithoutAudienceCheck() ParseOption {
+	return parseOptionFunc(func(c *parseConfig) { c.skipAudience = true })
 }
 
 // WithRequiredType requires the JOSE "typ" header to match typ, ignoring an
@@ -378,8 +401,15 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 		return ErrIssuerMismatch
 	}
 
-	if cfg.audience != "" && !rc.Audience.Has(cfg.audience) {
-		return ErrAudienceMismatch
+	switch {
+	case cfg.audience != "":
+		if !rc.Audience.Has(cfg.audience) {
+			return ErrAudienceMismatch
+		}
+	case rc.Audience != nil && !cfg.skipAudience:
+		// RFC 7519 §4.1.3: "aud" is present (even as "" or []) but this
+		// principal has not identified itself, so the JWT MUST be rejected.
+		return fmt.Errorf("%w: token has an \"aud\" claim but no audience is configured (use WithAudience)", ErrAudienceMismatch)
 	}
 
 	if cfg.requiredType != "" && !typeMatches(header.Type, cfg.requiredType) {

@@ -7,11 +7,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
+	"slices"
 
 	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 	"github.com/NyeKo-ItL/jwt/internal/b64"
-	internalbytes "github.com/NyeKo-ItL/jwt/internal/bytes"
 	internalkeyparse "github.com/NyeKo-ItL/jwt/internal/keyparse"
 	"github.com/NyeKo-ItL/jwt/internal/option"
 )
@@ -32,7 +33,15 @@ const (
 type Key struct {
 	Kty KeyType
 	Kid string
-	Use string // "sig" | "enc"
+	// Use is the RFC 7517 §4.2 public key use: "sig" or "enc". When set to
+	// anything other than "sig", the key cannot verify signatures.
+	Use string
+	// KeyOps is the RFC 7517 §4.3 list of permitted operations. When
+	// non-empty, it must contain "verify" for the key to verify signatures.
+	KeyOps []string
+	// Alg is the RFC 7517 §4.4 algorithm the key is intended for. When set,
+	// the key only verifies tokens whose header "alg" is identical
+	// (RFC 8725 §3.1: one key, one algorithm).
 	Alg string
 
 	// Parsed key material; access it via PublicKey() / Secret().
@@ -43,16 +52,17 @@ type Key struct {
 }
 
 type jwkJSON struct {
-	Kty KeyType `json:"kty"`
-	Kid string  `json:"kid,omitempty"`
-	Use string  `json:"use,omitempty"`
-	Alg string  `json:"alg,omitempty"`
-	N   string  `json:"n,omitempty"`
-	E   string  `json:"e,omitempty"`
-	Crv string  `json:"crv,omitempty"`
-	X   string  `json:"x,omitempty"`
-	Y   string  `json:"y,omitempty"`
-	K   string  `json:"k,omitempty"`
+	Kty    KeyType  `json:"kty"`
+	Kid    string   `json:"kid,omitempty"`
+	Use    string   `json:"use,omitempty"`
+	KeyOps []string `json:"key_ops,omitempty"`
+	Alg    string   `json:"alg,omitempty"`
+	N      string   `json:"n,omitempty"`
+	E      string   `json:"e,omitempty"`
+	Crv    string   `json:"crv,omitempty"`
+	X      string   `json:"x,omitempty"`
+	Y      string   `json:"y,omitempty"`
+	K      string   `json:"k,omitempty"`
 }
 
 // MarshalJSON renders the key as an RFC 7517 JWK object. It returns
@@ -63,7 +73,7 @@ func (k Key) MarshalJSON() ([]byte, error) {
 		return nil, ErrOctNotServable
 	}
 
-	j := jwkJSON{Kty: k.Kty, Kid: k.Kid, Use: k.Use, Alg: k.Alg, Crv: k.crv}
+	j := jwkJSON{Kty: k.Kty, Kid: k.Kid, Use: k.Use, KeyOps: k.KeyOps, Alg: k.Alg, Crv: k.crv}
 	if len(k.n) > 0 {
 		j.N = b64.Encode(k.n)
 	}
@@ -83,14 +93,21 @@ func (k Key) MarshalJSON() ([]byte, error) {
 	return json.Marshal(j)
 }
 
-// UnmarshalJSON parses an RFC 7517 JWK object.
+// UnmarshalJSON parses an RFC 7517 JWK object. Beyond JSON and base64url
+// validity it rejects, with an error wrapping ErrMalformedKey, the encodings
+// that would give one key several representations (and thus several RFC 7638
+// thumbprints): RSA "n"/"e" with leading zero octets (RFC 7518 §6.3.1.1), EC
+// coordinates that are not exactly the curve's coordinate size
+// (RFC 7518 §6.2.1.2), and Ed25519 "x" that is not 32 bytes (RFC 8037 §2).
+// It also rejects duplicate "key_ops" values and a "key_ops" inconsistent
+// with "use" (RFC 7517 §4.3).
 func (k *Key) UnmarshalJSON(b []byte) error {
 	var j jwkJSON
 	if err := decodeObject(b, &j); err != nil {
 		return err
 	}
 
-	k.Kty, k.Kid, k.Use, k.Alg, k.crv = j.Kty, j.Kid, j.Use, j.Alg, j.Crv
+	k.Kty, k.Kid, k.Use, k.KeyOps, k.Alg, k.crv = j.Kty, j.Kid, j.Use, j.KeyOps, j.Alg, j.Crv
 	dec := func(s string) ([]byte, error) {
 		if s == "" {
 			return nil, nil
@@ -118,6 +135,50 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 
 	if k.k, err = dec(j.K); err != nil {
 		return err
+	}
+
+	return k.checkCanonical()
+}
+
+// sigKeyOps and encKeyOps are the RFC 7517 §4.3 operations consistent with
+// "use":"sig" and "use":"enc" respectively.
+var (
+	sigKeyOps = map[string]bool{"sign": true, "verify": true}
+	encKeyOps = map[string]bool{"encrypt": true, "decrypt": true, "wrapKey": true, "unwrapKey": true, "deriveKey": true, "deriveBits": true}
+)
+
+// checkCanonical enforces the single-representation rules documented on
+// UnmarshalJSON.
+func (k *Key) checkCanonical() error {
+	seen := make(map[string]bool, len(k.KeyOps))
+	for _, op := range k.KeyOps {
+		if seen[op] {
+			return fmt.Errorf("%w: duplicate key_ops value %q", ErrMalformedKey, op)
+		}
+
+		seen[op] = true
+
+		if (k.Use == "sig" && !sigKeyOps[op]) || (k.Use == "enc" && !encKeyOps[op]) {
+			return fmt.Errorf("%w: key_ops %q is inconsistent with use %q", ErrMalformedKey, op, k.Use)
+		}
+	}
+
+	switch k.Kty {
+	case KeyTypeRSA:
+		if (len(k.n) > 0 && k.n[0] == 0) || (len(k.e) > 0 && k.e[0] == 0) {
+			return fmt.Errorf("%w: RSA n/e must not have leading zero octets", ErrMalformedKey)
+		}
+	case KeyTypeEC:
+		if c := curveByName(k.crv); c != nil {
+			size := (c.Params().BitSize + 7) / 8
+			if (len(k.x) > 0 && len(k.x) != size) || (len(k.y) > 0 && len(k.y) != size) {
+				return fmt.Errorf("%w: %s coordinates must be exactly %d bytes", ErrMalformedKey, k.crv, size)
+			}
+		}
+	case KeyTypeOKP:
+		if k.crv == "Ed25519" && len(k.x) > 0 && len(k.x) != ed25519.PublicKeySize {
+			return fmt.Errorf("%w: Ed25519 x must be %d bytes", ErrMalformedKey, ed25519.PublicKeySize)
+		}
 	}
 
 	return nil
@@ -190,7 +251,7 @@ func (k Key) PublicKey() (crypto.PublicKey, error) {
 
 		size := (c.Params().BitSize + 7) / 8
 
-		x, y := internalbytes.LeftPad(k.x, size), internalbytes.LeftPad(k.y, size)
+		x, y := k.x, k.y
 		if len(x) != size || len(y) != size {
 			return nil, ErrMalformedKey
 		}
@@ -235,9 +296,14 @@ func (k Key) Verifier() (Verifier, error) {
 	return k.verifierForAlg(Algorithm(k.Alg))
 }
 
-// verifierForAlg builds a Verifier for alg, enforcing the anti-confusion
-// rule that the key's type must match the algorithm family (spec §4.10).
+// verifierForAlg builds a Verifier for alg, enforcing the key's own usage
+// constraints (permitsVerify) and the anti-confusion rule that the key's type
+// must match the algorithm family (spec §4.10).
 func (k Key) verifierForAlg(alg Algorithm) (Verifier, error) {
+	if err := k.permitsVerify(alg); err != nil {
+		return nil, err
+	}
+
 	switch internalalg.FamilyOf(string(alg)) {
 	case internalalg.FamilyHMAC:
 		secret, err := k.Secret()
@@ -285,6 +351,26 @@ func (k Key) verifierForAlg(alg Algorithm) (Verifier, error) {
 	default:
 		return nil, ErrUnsupportedAlgorithm
 	}
+}
+
+// permitsVerify reports ErrKeyUsage unless the key may verify an alg
+// signature: "use", when present, must be "sig" (RFC 7517 §4.2); "key_ops",
+// when present, must include "verify" (§4.3); and "alg", when present, must
+// equal alg (§4.4, RFC 8725 §3.1).
+func (k Key) permitsVerify(alg Algorithm) error {
+	if k.Use != "" && k.Use != "sig" {
+		return fmt.Errorf("%w: key use is %q, not \"sig\"", ErrKeyUsage, k.Use)
+	}
+
+	if len(k.KeyOps) > 0 && !slices.Contains(k.KeyOps, "verify") {
+		return fmt.Errorf("%w: key_ops %q does not include \"verify\"", ErrKeyUsage, k.KeyOps)
+	}
+
+	if k.Alg != "" && Algorithm(k.Alg) != alg {
+		return fmt.Errorf("%w: key is for %q, token uses %q", ErrKeyUsage, k.Alg, alg)
+	}
+
+	return nil
 }
 
 func (k Key) rsaPublic() (*rsa.PublicKey, error) {

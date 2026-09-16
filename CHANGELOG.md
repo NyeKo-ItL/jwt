@@ -49,11 +49,28 @@ All notable changes to this project are documented here. The format follows
   `"NaN"`/`"Inf"` and huge values — whose integer conversion differed between
   CPU architectures — are rejected.
 
+- **Audience enforced per RFC 7519 §4.1.3.** A token with an `aud` claim was
+  accepted when no `WithAudience` was configured, allowing a token issued for
+  another service by the same issuer to be replayed. It is now rejected with
+  `ErrAudienceMismatch`; `WithoutAudienceCheck()` /
+  `ParseOptions.SkipAudienceCheck` opt out explicitly.
+- **JWK `use`, `key_ops` and `alg` are honored** when verifying (RFC 7517
+  §4.2–4.4, RFC 8725 §3.1): a key published for encryption, or for a different
+  algorithm, no longer verifies signatures (`ErrKeyUsage`).
+- **One encoding per key.** `ParseKey` / `ParseKeySet` / header `jwk` reject RSA
+  integers with leading zero octets, EC coordinates that are not exactly the
+  curve size and non-32-byte Ed25519 keys, which previously let a single key
+  have several RFC 7638 thumbprints (weakening `cnf.jkt` binding and
+  thumbprint-keyed revocation). Duplicate `key_ops` values and `key_ops`
+  inconsistent with `use` are rejected.
+
 ### Added
 
 - `ErrKeyFetch`, wrapped by every remote key-fetch or discovery failure.
 - `WithMaxCacheDuration` fetcher option.
 - `ErrUnsupportedCritical`.
+- `WithoutAudienceCheck`, `ParseOptions.SkipAudienceCheck`.
+- `ErrKeyUsage`; `Key.KeyOps` (parsed and serialized as `key_ops`).
 
 ### Changed (breaking)
 
@@ -65,6 +82,10 @@ All notable changes to this project are documented here. The format follows
   `ClaimsFromContext` are decoded with `encoding/json/v2`: `json` tag names
   must match the token's member names exactly (v1 matched case-insensitively).
 - `NumericDate` no longer decodes from a JSON string.
+- `Parse` / `DecryptClaims` / `Middleware` reject tokens carrying `aud` unless
+  `WithAudience` matches or `WithoutAudienceCheck` is given.
+- A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer
+  verifies; `Key.PublicKey` no longer left-pads short EC coordinates.
 
 ## [0.1.3] - 2026-09-13
 
