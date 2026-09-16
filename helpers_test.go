@@ -151,3 +151,9 @@ func claimsFromContext[T any](ctx context.Context) (*T, bool) {
 
 	return &dst, true
 }
+
+// keyProviderFunc adapts a function to KeyProvider for tests that need to
+// observe or script lookups.
+type keyProviderFunc func(kid string) (Key, bool, error)
+
+func (f keyProviderFunc) Lookup(_ context.Context, kid string) (Key, bool, error) { return f(kid) }

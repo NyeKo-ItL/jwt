@@ -86,7 +86,7 @@ func (k Key) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON parses an RFC 7517 JWK object.
 func (k *Key) UnmarshalJSON(b []byte) error {
 	var j jwkJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	if err := decodeObject(b, &j); err != nil {
 		return err
 	}
 

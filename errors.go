@@ -27,4 +27,9 @@ var (
 	ErrKeyTypeMismatch      = internalalg.ErrKeyTypeMismatch
 	ErrMalformedKey         = internalalg.ErrMalformedKey
 	ErrOctNotServable       = errors.New("jwt: oct keys must not be serialized into a JWKS document")
+
+	// ErrUnsupportedCritical reports a "crit" header (RFC 7515 §4.1.11,
+	// RFC 7516 §4.1.13) listing extensions this library does not implement,
+	// or a malformed "crit" value. Such a token is always invalid.
+	ErrUnsupportedCritical = errors.New("jwt: unsupported critical header parameter")
 )

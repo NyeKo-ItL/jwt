@@ -102,7 +102,7 @@ func TestNumericDateUnmarshal(t *testing.T) {
 		noChange bool
 	}{
 		{`1609459200`, 1609459200, false, false},
-		{`"1609459200"`, 1609459200, false, false},
+		{`"1609459200"`, 0, true, false}, // RFC 7519 §2: a JSON numeric value, not a string
 		{`1609459200.0`, 1609459200, false, false},
 		{`null`, 0, false, true},
 		{``, 0, false, true},

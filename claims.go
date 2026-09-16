@@ -3,6 +3,7 @@ package jwt
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"math"
 	"slices"
 	"strconv"
@@ -33,7 +34,7 @@ func (a *Audience) UnmarshalJSON(b []byte) error {
 
 	if b[0] == '[' {
 		var s []string
-		if err := json.Unmarshal(b, &s); err != nil {
+		if err := decodeStrict(b, &s); err != nil {
 			return err
 		}
 
@@ -43,7 +44,7 @@ func (a *Audience) UnmarshalJSON(b []byte) error {
 	}
 
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := decodeStrict(b, &s); err != nil {
 		return err
 	}
 
@@ -71,21 +72,34 @@ func (n NumericDate) MarshalJSON() ([]byte, error) {
 	return []byte(strconv.FormatInt(n.Unix(), 10)), nil
 }
 
-// UnmarshalJSON accepts a JSON number (integer or fractional seconds), the
-// same number quoted as a string, or null.
+// NumericDate bounds: 0001-01-01T00:00:00Z and 9999-12-31T23:59:59Z, the
+// range time.Time formats losslessly as RFC 3339.
+const (
+	minNumericDate = -62135596800
+	maxNumericDate = 253402300799
+)
+
+// errNumericDateRange reports a NumericDate outside [minNumericDate, maxNumericDate].
+var errNumericDateRange = errors.New("jwt: NumericDate out of range")
+
+// UnmarshalJSON accepts only what RFC 7519 §2 defines: a JSON numeric value
+// of seconds since the epoch, integer or fractional, or null (leaving the
+// value unchanged). Strings — including "NaN" and "Inf" — are rejected, as
+// are values outside years 1 to 9999, whose conversion to an integer would
+// otherwise be platform-dependent.
 func (n *NumericDate) UnmarshalJSON(b []byte) error {
 	b = bytes.TrimSpace(b)
 	if len(b) == 0 || string(b) == "null" {
 		return nil
 	}
 
-	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
-		b = b[1 : len(b)-1]
+	var f float64
+	if err := decodeStrict(b, &f); err != nil {
+		return err
 	}
 
-	f, err := strconv.ParseFloat(string(b), 64)
-	if err != nil {
-		return err
+	if math.IsNaN(f) || f < minNumericDate || f > maxNumericDate {
+		return errNumericDateRange
 	}
 
 	sec, frac := math.Modf(f)

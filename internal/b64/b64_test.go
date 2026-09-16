@@ -48,9 +48,8 @@ func TestDecodeRejectsPadding(t *testing.T) {
 }
 
 func TestDecodeRejectsNonAlphabet(t *testing.T) {
-	// Note: Go's base64 decoder silently ignores \r and \n, so those are not
-	// tested here; the standard-alphabet '+' and '/' are rejected by the
-	// URL-safe alphabet.
+	// The standard-alphabet '+' and '/' are rejected by the URL-safe
+	// alphabet; line breaks are covered by TestDecodeRejectsLineBreaks.
 	for _, s := range []string{"a b", "****", "Zm+8", "Zm/8"} {
 		if _, err := b64.Decode(s); err == nil {
 			t.Fatalf("Decode(%q) accepted invalid input", s)
@@ -61,5 +60,34 @@ func TestDecodeRejectsNonAlphabet(t *testing.T) {
 func TestEncodeEmpty(t *testing.T) {
 	if got := b64.Encode(nil); got != "" {
 		t.Fatalf("Encode(nil) = %q, want empty", got)
+	}
+}
+
+func TestDecodeIsCanonical(t *testing.T) {
+	// "AA" is the canonical encoding of 0x00; "AB".."AP" set the four unused
+	// trailing bits and must not decode to the same byte (RFC 4648 §3.5).
+	if _, err := b64.Decode("AA"); err != nil {
+		t.Fatalf("canonical input rejected: %v", err)
+	}
+
+	for _, s := range []string{"AB", "AP", "AAB", "AAD"} {
+		if _, err := b64.Decode(s); err == nil {
+			t.Fatalf("Decode(%q) accepted non-zero trailing bits", s)
+		}
+	}
+}
+
+func TestDecodeRejectsLineBreaks(t *testing.T) {
+	for _, s := range []string{"Zm9v\n", "\nZm9v", "Zm\r9v", "Zm9v\r\n"} {
+		if _, err := b64.Decode(s); err == nil {
+			t.Fatalf("Decode(%q) accepted a line break", s)
+		}
+	}
+}
+
+func TestDecodeRejectsImpossibleLength(t *testing.T) {
+	// A single trailing character can never encode a whole byte.
+	if _, err := b64.Decode("Zm9vY"); err == nil {
+		t.Fatal("Decode accepted a length-1-mod-4 input")
 	}
 }

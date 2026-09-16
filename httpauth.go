@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -48,7 +47,7 @@ func ClaimsFromContext[C any](ctx context.Context, dst *C) error {
 		return ErrNoClaimsInContext
 	}
 
-	if err := json.Unmarshal(payload, dst); err != nil {
+	if err := decodeObject(payload, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 

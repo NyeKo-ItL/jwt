@@ -3,6 +3,7 @@ package jwt
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -137,7 +138,7 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 		return err
 	}
 
-	if err := json.Unmarshal(payloadJSON, dst); err != nil {
+	if err := decodeObject(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -171,8 +172,12 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	}
 
 	var header Header
-	if err := json.Unmarshal(headerJSON, &header); err != nil {
+	if err := decodeObject(headerJSON, &header); err != nil {
 		return nil, fmt.Errorf("%w: header JSON: %w", ErrMalformedToken, err)
+	}
+
+	if err := checkCritical(headerJSON); err != nil {
+		return nil, err
 	}
 
 	if header.Algorithm == "" || strings.EqualFold(string(header.Algorithm), "none") {
@@ -212,7 +217,7 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 	}
 
 	var reg RegisteredClaims
-	if err := json.Unmarshal(payloadJSON, &reg); err != nil {
+	if err := decodeObject(payloadJSON, &reg); err != nil {
 		return nil, fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -242,7 +247,7 @@ func ParseInsecure[C any](token string, dst *C) error {
 		return fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
 
-	if err := json.Unmarshal(payloadJSON, dst); err != nil {
+	if err := decodeObject(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -382,8 +387,8 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 	}
 
 	if len(cfg.requiredClaims) > 0 {
-		present := map[string]json.RawMessage{}
-		if err := json.Unmarshal(raw, &present); err != nil {
+		present := map[string]jsontext.Value{}
+		if err := decodeObject(raw, &present); err != nil {
 			return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 		}
 
@@ -397,19 +402,20 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 	return nil
 }
 
-// typeMatches compares JOSE "typ" values, ignoring an optional
-// "application/" media-type prefix and ASCII case (RFC 8725 §3.11).
+// typeMatches compares two JOSE "typ" media-type values (RFC 8725 §3.11).
+// Per RFC 7515 §4.1.9 a value containing no "/" is treated as if
+// "application/" were prepended; any other top-level type is distinct. Media
+// types compare case-insensitively (RFC 2045 §5.1). No whitespace is trimmed.
 func typeMatches(got, want string) bool {
 	norm := func(s string) string {
-		s = strings.TrimSpace(s)
-		if i := strings.IndexByte(s, '/'); i >= 0 {
-			s = s[i+1:]
+		if !strings.Contains(s, "/") {
+			s = "application/" + s
 		}
 
 		return strings.ToLower(s)
 	}
 
-	return norm(got) == norm(want)
+	return got != "" && want != "" && norm(got) == norm(want)
 }
 
 // split3 splits s into exactly three '.'-separated segments.

@@ -114,7 +114,7 @@ func ParseKeySet(data []byte) (*KeySet, error) {
 	var doc struct {
 		Keys []json.RawMessage `json:"keys"`
 	}
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := decodeObject(data, &doc); err != nil {
 		return nil, fmt.Errorf("%w: JWKS document: %w", ErrMalformedKey, err)
 	}
 
