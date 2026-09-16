@@ -242,6 +242,14 @@ legacy algorithm can be implemented by a caller exactly like a custom
 14. **`crit` is enforced** (RFC 7515 §4.1.11, RFC 7516 §4.1.13). The library
     implements no header extension, so a token carrying `crit` is rejected
     with `ErrUnsupportedCritical` before any key lookup.
+15. **Key usage is honored and key encodings are canonical.** A JWK's
+    `use`, `key_ops` and `alg` restrict which tokens it may verify
+    (`ErrKeyUsage`). Non-minimal RSA integers and EC/Ed25519 coordinates of
+    the wrong length are rejected on parse, so each key has exactly one
+    RFC 7638 thumbprint.
+16. **Audience is enforced by default.** A token carrying `aud` is rejected
+    unless `WithAudience` names one of its values (RFC 7519 §4.1.3);
+    `WithoutAudienceCheck` is the explicit opt-out.
 
 ---
 
@@ -464,6 +472,7 @@ type ParseOptions struct {
 	AllowedAlgorithms []Algorithm
 	Issuer            string
 	Audience          string
+	SkipAudienceCheck bool
 	RequiredType      string
 	RequiredClaims    []string
 	Leeway            time.Duration
@@ -472,7 +481,8 @@ type ParseOptions struct {
 
 func WithAllowedAlgorithms(algs ...Algorithm) ParseOption // required; RFC 8725 §3.1
 func WithIssuer(iss string) ParseOption
-func WithAudience(aud string) ParseOption
+func WithAudience(aud string) ParseOption // a present "aud" is rejected unless this matches (RFC 7519 §4.1.3)
+func WithoutAudienceCheck() ParseOption   // explicit opt-out for non-recipients
 func WithRequiredType(typ string) ParseOption // RFC 8725 §3.11
 func WithClock(now func() time.Time) ParseOption
 func WithLeeway(d time.Duration) ParseOption // default 0; apps opt in
@@ -593,8 +603,9 @@ const (
 type Key struct {
 	Kty KeyType
 	Kid string
-	Use string // "sig" | "enc"
-	Alg string
+	Use    string   // "sig" | "enc"; must be "sig" (or empty) to verify (RFC 7517 §4.2)
+	KeyOps []string // must include "verify" when non-empty (RFC 7517 §4.3)
+	Alg    string   // when set, must equal the token "alg" (RFC 7517 §4.4, RFC 8725 §3.1)
 	// n/e (RSA), crv/x/y (EC), crv/x (OKP), k (oct) fields are internal;
 	// access parsed key material via PublicKey()/Secret().
 }
