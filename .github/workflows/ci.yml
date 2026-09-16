@@ -100,6 +100,21 @@ jobs:
           cache-dependency-path: interop/go.sum
       - run: cd interop && go test ./...
 
+  standards-watch-tool:
+    # Unit tests for the scheduled standards-watch tool (its own module,
+    # stdlib only, fixtures only: no network).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: .github/standards/go.mod
+      - working-directory: .github/standards
+        run: |
+          go vet ./...
+          go test -race ./...
+
   lint:
     runs-on: ubuntu-latest
     steps:

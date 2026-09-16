@@ -1,0 +1,67 @@
+name: Standards watch
+
+# Weekly check of the standards this library implements: RFC status (obsoleted
+# / updated by), RFC errata, the IANA JOSE and JWT registries, tracked IETF
+# drafts and the OpenID Connect specifications. Differences from the committed
+# baseline (.github/standards/baseline.json) are reported in a single issue
+# labelled "standards-watch" for a maintainer to triage; nothing is changed
+# automatically. See .github/standards/README.md.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: standards-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: .github/standards/go.mod
+
+      - name: Compare with baseline
+        id: watch
+        working-directory: .github/standards
+        run: |
+          go run . -report "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update the review issue
+        if: steps.watch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT: ${{ runner.temp }}/report.md
+        run: |
+          set -euo pipefail
+          gh label create standards-watch --color 5319e7 \
+            --description "Upstream standards changed; review against the library" --force
+          number="$(gh issue list --label standards-watch --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh issue create --label standards-watch \
+              --title "Standards changes to review ($(date -u +%F))" \
+              --body-file "$REPORT"
+            exit 0
+          fi
+          # Ignore the run-date line when deciding whether anything is new.
+          current="$(gh issue view "$number" --json body --jq .body | grep -v '^Weekly standards watch, run on' || true)"
+          fresh="$(grep -v '^Weekly standards watch, run on' "$REPORT" || true)"
+          if [ "$current" != "$fresh" ]; then
+            gh issue edit "$number" --body-file "$REPORT"
+            gh issue comment "$number" --body "The report was updated on $(date -u +%F): new upstream changes since the last run."
+          fi

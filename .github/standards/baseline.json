@@ -1,0 +1,2415 @@
+{
+  "rfcs": {
+    "RFC6750": {
+      "title": "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+      "status": "PROPOSED STANDARD",
+      "updated_by": [
+        "RFC8996",
+        "RFC9700"
+      ]
+    },
+    "RFC7515": {
+      "title": "JSON Web Signature (JWS)",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC7516": {
+      "title": "JSON Web Encryption (JWE)",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC7517": {
+      "title": "JSON Web Key (JWK)",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC7518": {
+      "title": "JSON Web Algorithms (JWA)",
+      "status": "PROPOSED STANDARD",
+      "updated_by": [
+        "RFC9864"
+      ]
+    },
+    "RFC7519": {
+      "title": "JSON Web Token (JWT)",
+      "status": "PROPOSED STANDARD",
+      "updated_by": [
+        "RFC7797",
+        "RFC8725"
+      ]
+    },
+    "RFC7638": {
+      "title": "JSON Web Key (JWK) Thumbprint",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC7800": {
+      "title": "Proof-of-Possession Key Semantics for JSON Web Tokens (JWTs)",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC8037": {
+      "title": "CFRG Elliptic Curve Diffie-Hellman (ECDH) and Signatures in JSON Object Signing and Encryption (JOSE)",
+      "status": "PROPOSED STANDARD",
+      "updated_by": [
+        "RFC9864"
+      ]
+    },
+    "RFC8725": {
+      "title": "JSON Web Token Best Current Practices",
+      "status": "BEST CURRENT PRACTICE"
+    },
+    "RFC9068": {
+      "title": "JSON Web Token (JWT) Profile for OAuth 2.0 Access Tokens",
+      "status": "PROPOSED STANDARD"
+    },
+    "RFC9864": {
+      "title": "Fully-Specified Algorithms for JSON Object Signing and Encryption (JOSE) and CBOR Object Signing and Encryption (COSE)",
+      "status": "PROPOSED STANDARD"
+    }
+  },
+  "errata": {
+    "RFC6750": {
+      "5335": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "2.1"
+      },
+      "6161": {
+        "status": "Reported",
+        "type": "Editorial",
+        "section": "4"
+      },
+      "9053": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "5.1"
+      },
+      "9054": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "5.1"
+      }
+    },
+    "RFC7515": {
+      "6118": {
+        "status": "Rejected",
+        "type": "Editorial",
+        "section": "2"
+      },
+      "7767": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "6"
+      },
+      "8430": {
+        "status": "Rejected",
+        "type": "Technical",
+        "section": "A.1.1"
+      },
+      "8508": {
+        "status": "Rejected",
+        "type": "Technical",
+        "section": "Sec 2, Appendix C"
+      }
+    },
+    "RFC7516": {
+      "6018": {
+        "status": "Reported",
+        "type": "Editorial",
+        "section": "GLOBAL"
+      },
+      "7719": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "6"
+      },
+      "8676": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "5.2"
+      }
+    },
+    "RFC7517": {
+      "6907": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "C.7"
+      }
+    },
+    "RFC7518": {
+      "6612": {
+        "status": "Verified",
+        "type": "Editorial",
+        "section": ".4"
+      },
+      "8526": {
+        "status": "Verified",
+        "type": "Technical",
+        "section": "3.4.5"
+      },
+      "8568": {
+        "status": "Verified",
+        "type": "Editorial",
+        "section": "3.2"
+      },
+      "8747": {
+        "status": "Verified",
+        "type": "Editorial",
+        "section": "7.1.1"
+      }
+    },
+    "RFC7519": {
+      "5648": {
+        "status": "Rejected",
+        "type": "Editorial",
+        "section": "1"
+      },
+      "5906": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "7.2"
+      },
+      "6622": {
+        "status": "Rejected",
+        "type": "Editorial",
+        "section": "11"
+      },
+      "7720": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "4.1.6"
+      },
+      "8060": {
+        "status": "Verified",
+        "type": "Technical",
+        "section": "7.2"
+      },
+      "8225": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "7.2"
+      },
+      "8388": {
+        "status": "Verified",
+        "type": "Editorial",
+        "section": "13.2"
+      }
+    },
+    "RFC7800": {
+      "6187": {
+        "status": "Verified",
+        "type": "Editorial",
+        "section": "7.1"
+      }
+    },
+    "RFC8037": {
+      "5329": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "4"
+      }
+    },
+    "RFC9068": {
+      "8802": {
+        "status": "Reported",
+        "type": "Technical",
+        "section": "2.2"
+      }
+    }
+  },
+  "registries": {
+    "jose/web-encryption-compression-algorithms": {
+      "DEF": {
+        "description": "DEFLATE",
+        "references": [
+          "rfc7516"
+        ]
+      }
+    },
+    "jose/web-key-elliptic-curve": {
+      "Ed25519": {
+        "description": "Ed25519 signature algorithm key pairs",
+        "requirements": "Optional",
+        "references": [
+          "rfc8037#3.1"
+        ]
+      },
+      "Ed448": {
+        "description": "Ed448 signature algorithm key pairs",
+        "requirements": "Optional",
+        "references": [
+          "rfc8037#3.1"
+        ]
+      },
+      "P-256": {
+        "description": "P-256 Curve",
+        "requirements": "Recommended+",
+        "references": [
+          "rfc7518#6.2.1.1"
+        ]
+      },
+      "P-384": {
+        "description": "P-384 Curve",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#6.2.1.1"
+        ]
+      },
+      "P-521": {
+        "description": "P-521 Curve",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#6.2.1.1"
+        ]
+      },
+      "X25519": {
+        "description": "X25519 function key pairs",
+        "requirements": "Optional",
+        "references": [
+          "rfc8037#3.2"
+        ]
+      },
+      "X448": {
+        "description": "X448 function key pairs",
+        "requirements": "Optional",
+        "references": [
+          "rfc8037#3.2"
+        ]
+      },
+      "secp256k1": {
+        "description": "SECG secp256k1 curve",
+        "requirements": "Optional",
+        "references": [
+          "rfc8812#3.1"
+        ]
+      }
+    },
+    "jose/web-key-operations": {
+      "decrypt": {
+        "description": "Decrypt content and validate decryption, if applicable",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "deriveBits": {
+        "description": "Derive bits not to be used as a key",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "deriveKey": {
+        "description": "Derive key",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "encrypt": {
+        "description": "Encrypt content",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "sign": {
+        "description": "Compute digital signature or MAC",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "unwrapKey": {
+        "description": "Decrypt key and validate decryption, if applicable",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "verify": {
+        "description": "Verify digital signature or MAC",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "wrapKey": {
+        "description": "Encrypt key",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      }
+    },
+    "jose/web-key-parameters": {
+      "alg": {
+        "description": "Algorithm",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.4"
+        ]
+      },
+      "crv|EC": {
+        "description": "Curve",
+        "usage": "EC",
+        "references": [
+          "rfc7518#6.2.1.1"
+        ]
+      },
+      "crv|OKP": {
+        "description": "The subtype of key pair",
+        "usage": "OKP",
+        "references": [
+          "rfc8037#2"
+        ]
+      },
+      "dp": {
+        "description": "First Factor CRT Exponent",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.4"
+        ]
+      },
+      "dq": {
+        "description": "Second Factor CRT Exponent",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.5"
+        ]
+      },
+      "d|EC": {
+        "description": "ECC Private Key",
+        "usage": "EC",
+        "references": [
+          "rfc7518#6.2.2.1"
+        ]
+      },
+      "d|OKP": {
+        "description": "The private key",
+        "usage": "OKP",
+        "references": [
+          "rfc8037#2"
+        ]
+      },
+      "d|RSA": {
+        "description": "Private Exponent",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.1"
+        ]
+      },
+      "e": {
+        "description": "Exponent",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.1.2"
+        ]
+      },
+      "exp": {
+        "description": "Expiration Time, as defined in",
+        "usage": "*",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#name-federation-historical-keys-res"
+        ]
+      },
+      "ext": {
+        "description": "Extractable",
+        "usage": "*",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "iat": {
+        "description": "Issued At, as defined in",
+        "usage": "*",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#name-federation-historical-keys-res"
+        ]
+      },
+      "k": {
+        "description": "Key Value",
+        "usage": "oct",
+        "references": [
+          "rfc7518#6.4.1"
+        ]
+      },
+      "key_ops": {
+        "description": "Key Operations",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.3"
+        ]
+      },
+      "kid": {
+        "description": "Key ID",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.5"
+        ]
+      },
+      "kty": {
+        "description": "Key Type",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.1"
+        ]
+      },
+      "n": {
+        "description": "Modulus",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.1.1"
+        ]
+      },
+      "nbf": {
+        "description": "Not Before, as defined in",
+        "usage": "*",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#name-federation-historical-keys-res"
+        ]
+      },
+      "oth": {
+        "description": "Other Primes Info",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.7"
+        ]
+      },
+      "p": {
+        "description": "First Prime Factor",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.2"
+        ]
+      },
+      "priv": {
+        "description": "Private key",
+        "usage": "AKP",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "pub": {
+        "description": "Public key",
+        "usage": "AKP",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "q": {
+        "description": "Second Prime Factor",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.3"
+        ]
+      },
+      "qi": {
+        "description": "First CRT Coefficient",
+        "usage": "RSA",
+        "references": [
+          "rfc7518#6.3.2.6"
+        ]
+      },
+      "revoked": {
+        "description": "Revoked Key Properties",
+        "usage": "*",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#name-federation-historical-keys-res"
+        ]
+      },
+      "use": {
+        "description": "Public Key Use",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.2"
+        ]
+      },
+      "x5c": {
+        "description": "X.509 Certificate Chain",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.7"
+        ]
+      },
+      "x5t": {
+        "description": "X.509 Certificate SHA-1 Thumbprint",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.8"
+        ]
+      },
+      "x5t#S256": {
+        "description": "X.509 Certificate SHA-256 Thumbprint",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.9"
+        ]
+      },
+      "x5u": {
+        "description": "X.509 URL",
+        "usage": "*",
+        "references": [
+          "rfc7517#4.6"
+        ]
+      },
+      "x|EC": {
+        "description": "X Coordinate",
+        "usage": "EC",
+        "references": [
+          "rfc7518#6.2.1.2"
+        ]
+      },
+      "x|OKP": {
+        "description": "The public key",
+        "usage": "OKP",
+        "references": [
+          "rfc8037#2"
+        ]
+      },
+      "y": {
+        "description": "Y Coordinate",
+        "usage": "EC",
+        "references": [
+          "rfc7518#6.2.1.3"
+        ]
+      }
+    },
+    "jose/web-key-set-parameters": {
+      "keys": {
+        "description": "Array of JWK Values",
+        "references": [
+          "rfc7517#5.1"
+        ]
+      }
+    },
+    "jose/web-key-types": {
+      "AKP": {
+        "description": "Algorithm Key Pair",
+        "requirements": "Optional",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "EC": {
+        "description": "Elliptic Curve",
+        "requirements": "Recommended+",
+        "references": [
+          "rfc7518#6.2"
+        ]
+      },
+      "OKP": {
+        "description": "Octet string key pairs",
+        "requirements": "Optional",
+        "references": [
+          "rfc8037#2"
+        ]
+      },
+      "RSA": {
+        "description": "RSA",
+        "requirements": "Required",
+        "references": [
+          "rfc7518#6.3"
+        ]
+      },
+      "oct": {
+        "description": "Octet sequence",
+        "requirements": "Required",
+        "references": [
+          "rfc7518#6.4"
+        ]
+      }
+    },
+    "jose/web-key-use": {
+      "enc": {
+        "description": "Encryption",
+        "references": [
+          "rfc7517#4.2"
+        ]
+      },
+      "sig": {
+        "description": "Digital Signature or MAC",
+        "references": [
+          "rfc7517#4.2"
+        ]
+      }
+    },
+    "jose/web-signature-encryption-algorithms": {
+      "A128CBC": {
+        "description": "AES CBC using 128 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A128CBC-HS256": {
+        "description": "AES_128_CBC_HMAC_SHA_256 authenticated encryption algorithm",
+        "usage": "enc",
+        "requirements": "Required",
+        "references": [
+          "rfc7518#5.2.3"
+        ]
+      },
+      "A128CTR": {
+        "description": "AES CTR using 128 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A128GCM": {
+        "description": "AES GCM using 128-bit key",
+        "usage": "enc",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#5.3"
+        ]
+      },
+      "A128GCMKW": {
+        "description": "Key wrapping with AES GCM using 128-bit key",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.7"
+        ]
+      },
+      "A128KW": {
+        "description": "AES Key Wrap using 128-bit key",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#4.4"
+        ]
+      },
+      "A192CBC": {
+        "description": "AES CBC using 192 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A192CBC-HS384": {
+        "description": "AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm",
+        "usage": "enc",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#5.2.4"
+        ]
+      },
+      "A192CTR": {
+        "description": "AES CTR using 192 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A192GCM": {
+        "description": "AES GCM using 192-bit key",
+        "usage": "enc",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#5.3"
+        ]
+      },
+      "A192GCMKW": {
+        "description": "Key wrapping with AES GCM using 192-bit key",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.7"
+        ]
+      },
+      "A192KW": {
+        "description": "AES Key Wrap using 192-bit key",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.4"
+        ]
+      },
+      "A256CBC": {
+        "description": "AES CBC using 256 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A256CBC-HS512": {
+        "description": "AES_256_CBC_HMAC_SHA_512 authenticated encryption algorithm",
+        "usage": "enc",
+        "requirements": "Required",
+        "references": [
+          "rfc7518#5.2.5"
+        ]
+      },
+      "A256CTR": {
+        "description": "AES CTR using 256 bit key",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "A256GCM": {
+        "description": "AES GCM using 256-bit key",
+        "usage": "enc",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#5.3"
+        ]
+      },
+      "A256GCMKW": {
+        "description": "Key wrapping with AES GCM using 256-bit key",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.7"
+        ]
+      },
+      "A256KW": {
+        "description": "AES Key Wrap using 256-bit key",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#4.4"
+        ]
+      },
+      "ECDH-ES": {
+        "description": "ECDH-ES using Concat KDF",
+        "usage": "alg",
+        "requirements": "Recommended+",
+        "references": [
+          "rfc7518#4.6"
+        ]
+      },
+      "ECDH-ES+A128KW": {
+        "description": "ECDH-ES using Concat KDF and \"A128KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#4.6"
+        ]
+      },
+      "ECDH-ES+A192KW": {
+        "description": "ECDH-ES using Concat KDF and \"A192KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.6"
+        ]
+      },
+      "ECDH-ES+A256KW": {
+        "description": "ECDH-ES using Concat KDF and \"A256KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#4.6"
+        ]
+      },
+      "ES256": {
+        "description": "ECDSA using P-256 and SHA-256",
+        "usage": "alg",
+        "requirements": "Recommended+",
+        "references": [
+          "rfc7518#3.4"
+        ]
+      },
+      "ES256K": {
+        "description": "ECDSA using secp256k1 curve and SHA-256",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc8812#3.2"
+        ]
+      },
+      "ES384": {
+        "description": "ECDSA using P-384 and SHA-384",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.4"
+        ]
+      },
+      "ES512": {
+        "description": "ECDSA using P-521 and SHA-512",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.4"
+        ]
+      },
+      "Ed25519": {
+        "description": "EdDSA using the Ed25519 parameter set in Section 5.1 of",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc9864#2.2"
+        ]
+      },
+      "Ed448": {
+        "description": "EdDSA using the Ed448 parameter set in Section 5.2 of",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc9864#2.2"
+        ]
+      },
+      "EdDSA": {
+        "description": "EdDSA signature algorithms",
+        "usage": "alg",
+        "requirements": "Deprecated",
+        "references": [
+          "rfc9864#2.2"
+        ]
+      },
+      "HS1": {
+        "description": "HMAC using SHA-1",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "HS256": {
+        "description": "HMAC using SHA-256",
+        "usage": "alg",
+        "requirements": "Required",
+        "references": [
+          "rfc7518#3.2"
+        ]
+      },
+      "HS384": {
+        "description": "HMAC using SHA-384",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.2"
+        ]
+      },
+      "HS512": {
+        "description": "HMAC using SHA-512",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.2"
+        ]
+      },
+      "ML-DSA-44": {
+        "description": "ML-DSA-44 as described in US NIST FIPS 204",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "ML-DSA-65": {
+        "description": "ML-DSA-65 as described in US NIST FIPS 204",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "ML-DSA-87": {
+        "description": "ML-DSA-87 as described in US NIST FIPS 204",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc9964"
+        ]
+      },
+      "PBES2-HS256+A128KW": {
+        "description": "PBES2 with HMAC SHA-256 and \"A128KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.8"
+        ]
+      },
+      "PBES2-HS384+A192KW": {
+        "description": "PBES2 with HMAC SHA-384 and \"A192KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.8"
+        ]
+      },
+      "PBES2-HS512+A256KW": {
+        "description": "PBES2 with HMAC SHA-512 and \"A256KW\" wrapping",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.8"
+        ]
+      },
+      "PS256": {
+        "description": "RSASSA-PSS using SHA-256 and MGF1 with SHA-256",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.5"
+        ]
+      },
+      "PS384": {
+        "description": "RSASSA-PSS using SHA-384 and MGF1 with SHA-384",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.5"
+        ]
+      },
+      "PS512": {
+        "description": "RSASSA-PSS using SHA-512 and MGF1 with SHA-512",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.5"
+        ]
+      },
+      "RS1": {
+        "description": "RSASSA-PKCS1-v1_5 with SHA-1",
+        "usage": "JWK",
+        "requirements": "Prohibited",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "RS256": {
+        "description": "RSASSA-PKCS1-v1_5 using SHA-256",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#3.3"
+        ]
+      },
+      "RS384": {
+        "description": "RSASSA-PKCS1-v1_5 using SHA-384",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.3"
+        ]
+      },
+      "RS512": {
+        "description": "RSASSA-PKCS1-v1_5 using SHA-512",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.3"
+        ]
+      },
+      "RSA-OAEP": {
+        "description": "RSAES OAEP using default parameters",
+        "usage": "alg",
+        "requirements": "Recommended+",
+        "references": [
+          "rfc7518#4.3"
+        ]
+      },
+      "RSA-OAEP-256": {
+        "description": "RSAES OAEP using SHA-256 and MGF1 with SHA-256",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#4.3"
+        ]
+      },
+      "RSA-OAEP-384": {
+        "description": "RSA-OAEP using SHA-384 and MGF1 with SHA-384",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "RSA-OAEP-512": {
+        "description": "RSA-OAEP using SHA-512 and MGF1 with SHA-512",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "https://www.w3.org/TR/WebCryptoAPI"
+        ]
+      },
+      "RSA1_5": {
+        "description": "RSAES-PKCS1-v1_5",
+        "usage": "alg",
+        "requirements": "Recommended-",
+        "references": [
+          "rfc7518#4.2"
+        ]
+      },
+      "dir": {
+        "description": "Direct use of a shared symmetric key",
+        "usage": "alg",
+        "requirements": "Recommended",
+        "references": [
+          "rfc7518#4.5"
+        ]
+      },
+      "none": {
+        "description": "No digital signature or MAC performed",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "rfc7518#3.6"
+        ]
+      }
+    },
+    "jose/web-signature-encryption-header-parameters": {
+      "alg|JWE": {
+        "description": "Algorithm",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.1"
+        ]
+      },
+      "alg|JWS": {
+        "description": "Algorithm",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.1"
+        ]
+      },
+      "apu": {
+        "description": "Agreement PartyUInfo",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.6.1.2"
+        ]
+      },
+      "apv": {
+        "description": "Agreement PartyVInfo",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.6.1.3"
+        ]
+      },
+      "aud": {
+        "description": "Audience",
+        "usage": "JWE",
+        "references": [
+          "rfc7519#4.1.3"
+        ]
+      },
+      "b64": {
+        "description": "Base64url-Encode Payload",
+        "usage": "JWS",
+        "references": [
+          "rfc7797#3"
+        ]
+      },
+      "client_id": {
+        "description": "This header contains a Client Identifier. A Client Identifier is used in OAuth to identify a certain client. It is defined in , section 2.2.",
+        "usage": "JWS",
+        "references": [
+          "rfc6749"
+        ]
+      },
+      "crit|JWE": {
+        "description": "Critical",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.13"
+        ]
+      },
+      "crit|JWS": {
+        "description": "Critical",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.11"
+        ]
+      },
+      "cty|JWE": {
+        "description": "Content Type",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.12"
+        ]
+      },
+      "cty|JWS": {
+        "description": "Content Type",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.10"
+        ]
+      },
+      "enc": {
+        "description": "Encryption Algorithm",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.2"
+        ]
+      },
+      "epk": {
+        "description": "Ephemeral Public Key",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.6.1.1"
+        ]
+      },
+      "iheSSId": {
+        "description": "The iheSSId header parameter's value shall specify the SubmissionSet.uniqueId as per .",
+        "usage": "JWS",
+        "references": [
+          "https://profiles.ihe.net/ITI/DSGj/Volume3/ch-5.10.html#5.10"
+        ]
+      },
+      "iss": {
+        "description": "Issuer",
+        "usage": "JWE",
+        "references": [
+          "rfc7519#4.1.1"
+        ]
+      },
+      "iv": {
+        "description": "Initialization Vector",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.7.1.1"
+        ]
+      },
+      "jku|JWE": {
+        "description": "JWK Set URL",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.4"
+        ]
+      },
+      "jku|JWS": {
+        "description": "JWK Set URL",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.2"
+        ]
+      },
+      "jwk|JWE": {
+        "description": "JSON Web Key",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.5"
+        ]
+      },
+      "jwk|JWS": {
+        "description": "JSON Web Key",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.3"
+        ]
+      },
+      "jwt": {
+        "description": "This header contains a JWT. Processing rules MAY depend on the typ header value of the respective JWT.",
+        "usage": "JWS",
+        "references": [
+          "https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#verifier_attestation_jwt"
+        ]
+      },
+      "kid|JWE": {
+        "description": "Key ID",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.6"
+        ]
+      },
+      "kid|JWS": {
+        "description": "Key ID",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.4"
+        ]
+      },
+      "nonce": {
+        "description": "Nonce",
+        "usage": "JWE, JWS",
+        "references": [
+          "rfc8555#6.5.2"
+        ]
+      },
+      "p2c": {
+        "description": "PBES2 Count",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.8.1.2"
+        ]
+      },
+      "p2s": {
+        "description": "PBES2 Salt Input",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.8.1.1"
+        ]
+      },
+      "peer_trust_chain": {
+        "description": "OpenID Federation Peer Trust Chain",
+        "usage": "JWS",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#peer_trust_chain_head_param"
+        ]
+      },
+      "ppt": {
+        "description": "PASSporT extension identifier",
+        "usage": "JWS",
+        "references": [
+          "rfc8225#8.1"
+        ]
+      },
+      "sub": {
+        "description": "Subject",
+        "usage": "JWE",
+        "references": [
+          "rfc7519#4.1.2"
+        ]
+      },
+      "svt": {
+        "description": "Signature Validation Token",
+        "usage": "JWS",
+        "references": [
+          "rfc9321"
+        ]
+      },
+      "tag": {
+        "description": "Authentication Tag",
+        "usage": "JWE",
+        "references": [
+          "rfc7518#4.7.1.2"
+        ]
+      },
+      "trust_chain": {
+        "description": "OpenID Federation Trust Chain",
+        "usage": "JWS",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#trust_chain_head_param"
+        ]
+      },
+      "typ|JWE": {
+        "description": "Type",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.11"
+        ]
+      },
+      "typ|JWS": {
+        "description": "Type",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.9"
+        ]
+      },
+      "url": {
+        "description": "URL",
+        "usage": "JWE, JWS",
+        "references": [
+          "rfc8555#6.4.1"
+        ]
+      },
+      "x5c|JWE": {
+        "description": "X.509 Certificate Chain",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.8"
+        ]
+      },
+      "x5c|JWS": {
+        "description": "X.509 Certificate Chain",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.6"
+        ]
+      },
+      "x5t#S256|JWE": {
+        "description": "X.509 Certificate SHA-256 Thumbprint",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.10"
+        ]
+      },
+      "x5t#S256|JWS": {
+        "description": "X.509 Certificate SHA-256 Thumbprint",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.8"
+        ]
+      },
+      "x5t|JWE": {
+        "description": "X.509 Certificate SHA-1 Thumbprint",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.9"
+        ]
+      },
+      "x5t|JWS": {
+        "description": "X.509 Certificate SHA-1 Thumbprint",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.7"
+        ]
+      },
+      "x5u|JWE": {
+        "description": "X.509 URL",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.7"
+        ]
+      },
+      "x5u|JWS": {
+        "description": "X.509 URL",
+        "usage": "JWS",
+        "references": [
+          "rfc7515#4.1.5"
+        ]
+      },
+      "zip": {
+        "description": "Compression Algorithm",
+        "usage": "JWE",
+        "references": [
+          "rfc7516#4.1.3"
+        ]
+      }
+    },
+    "jwt/claims": {
+      "...": {
+        "description": "Digest of the Disclosure for an array element",
+        "references": [
+          "rfc9901#4.2.4.2"
+        ]
+      },
+      "_claim_names": {
+        "description": "JSON object whose member names are the Claim Names for the Aggregated and Distributed Claims",
+        "references": [
+          "https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims"
+        ]
+      },
+      "_claim_sources": {
+        "description": "JSON object whose member names are referenced by the member values of the _claim_names member",
+        "references": [
+          "https://openid.net/specs/openid-connect-core-1_0.html#AggregatedDistributedClaims"
+        ]
+      },
+      "_sd": {
+        "description": "Digests of Disclosures for object properties",
+        "references": [
+          "rfc9901#4.2.4.1"
+        ]
+      },
+      "_sd_alg": {
+        "description": "Hash algorithm used to generate Disclosure digests and digest over presentation",
+        "references": [
+          "rfc9901#4.1.1"
+        ]
+      },
+      "ace_profile": {
+        "description": "The ACE profile a token is supposed to be used with.",
+        "references": [
+          "rfc9200#5.10"
+        ]
+      },
+      "acr": {
+        "description": "Authentication Context Class Reference",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "act": {
+        "description": "Actor",
+        "references": [
+          "rfc8693#4.1"
+        ]
+      },
+      "address": {
+        "description": "Preferred postal address",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "also_known_as": {
+        "description": "Stage name, religious name or any other type of alias/pseudonym with which a person is known in a specific context besides its legal name.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "amr": {
+        "description": "Authentication Methods References",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "analyticsIdList": {
+        "description": "Analytics IDs",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "at_hash": {
+        "description": "Access Token hash value",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "at_use_nbr": {
+        "description": "Number of API requests for which the access token can be used",
+        "references": [
+          "https://www.etsi.org/deliver/etsi_gs/NFV-SEC/001_099/022/02.07.01_60/gs_NFV-SEC022v020701p.pdf"
+        ]
+      },
+      "atc": {
+        "description": "Authority Token Challenge",
+        "references": [
+          "rfc9447"
+        ]
+      },
+      "ath": {
+        "description": "The base64url-encoded SHA-256 hash of the ASCII encoding of the associated access token's value",
+        "references": [
+          "rfc9449#4.2"
+        ]
+      },
+      "attest": {
+        "description": "Attestation level as defined in SHAKEN framework",
+        "references": [
+          "rfc8588"
+        ]
+      },
+      "aud": {
+        "description": "Audience",
+        "references": [
+          "rfc7519#4.1.3"
+        ]
+      },
+      "auth_time": {
+        "description": "Time when the authentication occurred",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "authority_hints": {
+        "description": "Authority Hints",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ec-specific"
+        ]
+      },
+      "authorization_details": {
+        "description": "The claim authorization_details contains a JSON array of JSON objects representing the rights of the access token. Each JSON object contains the data to specify the authorization requirements for a certain type of resource.",
+        "references": [
+          "rfc9396#9.1"
+        ]
+      },
+      "azp": {
+        "description": "Authorized party - the party to which the ID Token was issued",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "birth_family_name": {
+        "description": "Family name(s) someone has when they were born, or at least from the time they were a child. This term can be used by a person who changes the family name(s) later in life for any reason. Note that in some cultures, people can have multiple family names or no family name; all can be present, with the names being separated by space characters.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "birth_given_name": {
+        "description": "Given name(s) someone has when they were born, or at least from the time they were a child. This term can be used by a person who changes the given name later in life for any reason. Note that in some cultures, people can have multiple given names; all can be present, with the names being separated by space characters.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "birth_middle_name": {
+        "description": "Middle name(s) someone has when they were born, or at least from the time they were a child. This term can be used by a person who changes the middle name later in life for any reason. Note that in some cultures, people can have multiple middle names; all can be present, with the names being separated by space characters. Also note that in some cultures, middle names are not used.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "birthdate": {
+        "description": "Birthday",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "bootcount": {
+        "description": "The number of times the entity or submodule has been booted",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "bootseed": {
+        "description": "Identifies a boot cycle",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "c_hash": {
+        "description": "Code hash value",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "cdnicrit": {
+        "description": "CDNI Critical Claims Set",
+        "references": [
+          "rfc9246#2.1.9"
+        ]
+      },
+      "cdniets": {
+        "description": "CDNI Expiration Time Setting for Signed Token Renewal",
+        "references": [
+          "rfc9246#2.1.12"
+        ]
+      },
+      "cdniip": {
+        "description": "CDNI IP Address",
+        "references": [
+          "rfc9246#2.1.10"
+        ]
+      },
+      "cdnistd": {
+        "description": "CDNI Signed Token Depth",
+        "references": [
+          "rfc9246#2.1.14"
+        ]
+      },
+      "cdnistt": {
+        "description": "CDNI Signed Token Transport Method for Signed Token Renewal",
+        "references": [
+          "rfc9246#2.1.13"
+        ]
+      },
+      "cdniuc": {
+        "description": "CDNI URI Container",
+        "references": [
+          "rfc9246#2.1.11"
+        ]
+      },
+      "cdniv": {
+        "description": "CDNI Claim Set Version",
+        "references": [
+          "rfc9246#2.1.8"
+        ]
+      },
+      "client_id": {
+        "description": "Client Identifier",
+        "references": [
+          "rfc8693#4.3"
+        ]
+      },
+      "cmw": {
+        "description": "RATS Conceptual Message Wrapper",
+        "references": [
+          "rfc9999"
+        ]
+      },
+      "cnf": {
+        "description": "Confirmation",
+        "references": [
+          "rfc7800#3.1"
+        ]
+      },
+      "cnonce": {
+        "description": "\"client-nonce\". A nonce previously provided to the AS by the RS via the client. Used to verify token freshness when the RS cannot synchronize its clock with the AS.",
+        "references": [
+          "rfc9200#5.10"
+        ]
+      },
+      "constraints": {
+        "description": "Constraints object",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#constraintsClaim"
+        ]
+      },
+      "consumerPlmnId": {
+        "description": "PLMN ID of the NF service consumer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "consumerSnpnId": {
+        "description": "SNPN ID of the NF service consumer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "crit": {
+        "description": "List of Claims in this JWT defined by extensions to this kind of JWT that MUST be understood and processed",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#critClaim"
+        ]
+      },
+      "crn": {
+        "description": "Call Reason",
+        "references": [
+          "rfc9795"
+        ]
+      },
+      "dbgstat": {
+        "description": "The status of debug facilities",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "delegation": {
+        "description": "Delegation",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#delegationClaim"
+        ]
+      },
+      "dest": {
+        "description": "Destination Identity String",
+        "references": [
+          "rfc8225#5.2.1"
+        ]
+      },
+      "div": {
+        "description": "Diverted Target of a Call",
+        "references": [
+          "rfc8946"
+        ]
+      },
+      "dloas": {
+        "description": "Certifications received as Digital Letters of Approval",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "eat_nonce": {
+        "description": "Nonce",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "eat_profile": {
+        "description": "The EAT profile followed",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "email": {
+        "description": "Preferred e-mail address",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "email_verified": {
+        "description": "True if the e-mail address has been verified; otherwise false",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "entitlements": {
+        "description": "Entitlements",
+        "references": [
+          "rfc7643#4.1.2",
+          "rfc9068#2.2.3.1"
+        ]
+      },
+      "events": {
+        "description": "Security Events",
+        "references": [
+          "rfc8417#2.2"
+        ]
+      },
+      "exi": {
+        "description": "\"Expires in\". Lifetime of the token in seconds from the time the RS first sees it. Used to implement a weaker from of token expiration for devices that cannot synchronize their internal clocks.",
+        "references": [
+          "rfc9200#5.10.3"
+        ]
+      },
+      "exp": {
+        "description": "Expiration Time",
+        "references": [
+          "rfc7519#4.1.4"
+        ]
+      },
+      "family_name": {
+        "description": "Surname(s) or last name(s)",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "gender": {
+        "description": "Gender",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "geohash": {
+        "description": "Geohash String or Array",
+        "references": [
+          "https://shop.cta.tech/collections/standards/products/fast-and-readable-geographical-hashing-cta-5009"
+        ]
+      },
+      "given_name": {
+        "description": "Given name(s) or first name(s)",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "groups": {
+        "description": "Groups",
+        "references": [
+          "rfc7643#4.1.2",
+          "rfc9068#2.2.3.1"
+        ]
+      },
+      "htm": {
+        "description": "The HTTP method of the request",
+        "references": [
+          "rfc9449#4.2"
+        ]
+      },
+      "htu": {
+        "description": "The HTTP URI of the request (without query and fragment parts)",
+        "references": [
+          "rfc9449#4.2"
+        ]
+      },
+      "hwmodel": {
+        "description": "Model identifier for hardware",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "hwversion": {
+        "description": "Hardware Version Identifier",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "iat": {
+        "description": "Issued At",
+        "references": [
+          "rfc7519#4.1.6"
+        ]
+      },
+      "intuse": {
+        "description": "The intended use of the EAT",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "iss": {
+        "description": "Issuer",
+        "references": [
+          "rfc7519#4.1.1"
+        ]
+      },
+      "jcard": {
+        "description": "jCard data",
+        "references": [
+          "rfc7095",
+          "rfc8688"
+        ]
+      },
+      "jti": {
+        "description": "JWT ID",
+        "references": [
+          "rfc7519#4.1.7"
+        ]
+      },
+      "jwks": {
+        "description": "JSON Web Key Set",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#jwksClaim"
+        ]
+      },
+      "keys": {
+        "description": "Array of JWK values in a JWK Set",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#jwks_metadata"
+        ]
+      },
+      "locale": {
+        "description": "Locale",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "location": {
+        "description": "The geographic location",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "logo_uri": {
+        "description": "URI referencing a logo",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#logo_uriClaim"
+        ]
+      },
+      "manifests": {
+        "description": "Manifests describing the software installed on the entity",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "may_act": {
+        "description": "Authorized Actor - the party that is authorized to become the actor",
+        "references": [
+          "rfc8693#4.4"
+        ]
+      },
+      "measres": {
+        "description": "The results of comparing software measurements to reference values",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "measurements": {
+        "description": "Measurements of the software, memory configuration, and such on the entity",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "metadata": {
+        "description": "Metadata object",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#metadataClaim"
+        ]
+      },
+      "metadata_policy": {
+        "description": "Metadata Policy object",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ss-specific"
+        ]
+      },
+      "metadata_policy_crit": {
+        "description": "Critical Metadata Policy Operators",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ss-specific"
+        ]
+      },
+      "middle_name": {
+        "description": "Middle name(s)",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "mky": {
+        "description": "Media Key Fingerprint String",
+        "references": [
+          "rfc8225#5.2.2"
+        ]
+      },
+      "msgi": {
+        "description": "Message Integrity Information",
+        "references": [
+          "rfc9475"
+        ]
+      },
+      "msisdn": {
+        "description": "End-user's mobile phone number formatted according to ITU-T recommendation",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "name": {
+        "description": "Full name",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "nationalities": {
+        "description": "String array representing the end-user's nationalities.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "nbf": {
+        "description": "Not Before",
+        "references": [
+          "rfc7519#4.1.5"
+        ]
+      },
+      "nickname": {
+        "description": "Casual name",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "nonce": {
+        "description": "Value used to associate a Client session with an ID Token (MAY also be used for nonce values in other applications of JWTs)",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html",
+          "rfc9449"
+        ]
+      },
+      "oemboot": {
+        "description": "Indicates whether the software booted was OEM authorized",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "oemid": {
+        "description": "Hardware OEM ID",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "opt": {
+        "description": "Original PASSporT (in Full Form)",
+        "references": [
+          "rfc8946"
+        ]
+      },
+      "orig": {
+        "description": "Originating Identity String",
+        "references": [
+          "rfc8225#5.2.1"
+        ]
+      },
+      "origid": {
+        "description": "Originating Identifier as defined in SHAKEN framework",
+        "references": [
+          "rfc8588"
+        ]
+      },
+      "phone_number": {
+        "description": "Preferred telephone number",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "phone_number_verified": {
+        "description": "True if the phone number has been verified; otherwise false",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "picture": {
+        "description": "Profile picture URL",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "place_of_birth": {
+        "description": "A structured claim representing the end-user's place of birth.",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "preferred_username": {
+        "description": "Shorthand name by which the End-User wishes to be referred to",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "producerNfServiceSetId": {
+        "description": "NF Service Set ID of the NF Service Producer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "producerNfSetId": {
+        "description": "NF Set ID of the NF service producer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "producerNsiList": {
+        "description": "List of NSIs of the NF service producer which are authorized for the NF service consumer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "producerPlmnId": {
+        "description": "PLMN ID of the NF service producer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "producerSnpnId": {
+        "description": "SNPN ID of the NF service producer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "producerSnssaiList": {
+        "description": "list of S-NSSAIs of the NF service producer which are authorized for the NF service consumer",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "profile": {
+        "description": "Profile page URL",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "rcd": {
+        "description": "Rich Call Data Information",
+        "references": [
+          "rfc9795"
+        ]
+      },
+      "rcdi": {
+        "description": "Rich Call Data Integrity Information",
+        "references": [
+          "rfc9795"
+        ]
+      },
+      "rdap_allowed_purposes": {
+        "description": "This claim describes the set of RDAP query purposes that are available to an identity that is presented for access to a protected RDAP resource.",
+        "references": [
+          "rfc9560#3.1.5.1"
+        ]
+      },
+      "rdap_dnt_allowed": {
+        "description": "This claim contains a JSON boolean literal that describes a \"do not track\" request for server-side tracking, logging, or recording of an identity that is presented for access to a protected RDAP resource.",
+        "references": [
+          "rfc9560#3.1.5.2"
+        ]
+      },
+      "ref": {
+        "description": "Reference",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#refClaim"
+        ]
+      },
+      "resOwnerId": {
+        "description": "Contains the identifier of the resource owner, e.g., GPSI as specified in clause 5.3.2 of .",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.222/29222-j10.zip"
+        ]
+      },
+      "roles": {
+        "description": "Roles",
+        "references": [
+          "rfc7643#4.1.2",
+          "rfc9068#2.2.3.1"
+        ]
+      },
+      "rph": {
+        "description": "Resource Priority Header Authorization",
+        "references": [
+          "rfc8443#3"
+        ]
+      },
+      "salutation": {
+        "description": "End-user's salutation, e.g., \"Mr\"",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "scope": {
+        "description": "Scope Values",
+        "references": [
+          "rfc8693#4.2"
+        ]
+      },
+      "sd_hash": {
+        "description": "Digest of the SD-JWT to which the KB-JWT is tied",
+        "references": [
+          "rfc9901#4.3"
+        ]
+      },
+      "sid": {
+        "description": "Session ID",
+        "references": [
+          "http://openid.net/specs/openid-connect-frontchannel-1_0.html"
+        ]
+      },
+      "sig_val_claims": {
+        "description": "Signature Validation Token",
+        "references": [
+          "rfc9321#3.2.3"
+        ]
+      },
+      "sip_callid": {
+        "description": "SIP Call-Id header field value",
+        "references": [
+          "rfc3261",
+          "rfc8055"
+        ]
+      },
+      "sip_cseq_num": {
+        "description": "SIP CSeq numeric header field parameter value",
+        "references": [
+          "rfc3261",
+          "rfc8055"
+        ]
+      },
+      "sip_date": {
+        "description": "SIP Date header field value",
+        "references": [
+          "rfc3261",
+          "rfc8055"
+        ]
+      },
+      "sip_from_tag": {
+        "description": "SIP From tag header field parameter value",
+        "references": [
+          "rfc3261",
+          "rfc8055"
+        ]
+      },
+      "sip_via_branch": {
+        "description": "SIP Via branch header field parameter value",
+        "references": [
+          "rfc3261",
+          "rfc8055"
+        ]
+      },
+      "sourceNfInstanceId": {
+        "description": "NF Instance ID of the source NF",
+        "references": [
+          "https://www.3gpp.org/ftp/Specs/archive/29_series/29.510/29510-j00.zip"
+        ]
+      },
+      "source_endpoint": {
+        "description": "Source Endpoint URL",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ss-specific"
+        ]
+      },
+      "sph": {
+        "description": "SIP Priority header field",
+        "references": [
+          "rfc9027"
+        ]
+      },
+      "status": {
+        "description": "A JSON object containing a reference to a status mechanism from the JWT Status Mechanisms Registry.",
+        "references": [
+          "RFC-ietf-oauth-status-list-21#6.1"
+        ]
+      },
+      "status_list": {
+        "description": "A JSON object containing up-to-date status information on multiple tokens using the Token Status List mechanism.",
+        "references": [
+          "RFC-ietf-oauth-status-list-21#5.1"
+        ]
+      },
+      "stpl": {
+        "description": "OCSP Staple",
+        "references": [
+          "RFC-ietf-stir-certificates-ocsp-14"
+        ]
+      },
+      "sub": {
+        "description": "Subject",
+        "references": [
+          "rfc7519#4.1.2"
+        ]
+      },
+      "sub_id": {
+        "description": "Subject Identifier",
+        "references": [
+          "rfc9493#4.1"
+        ]
+      },
+      "sub_jwk": {
+        "description": "Public key used to check the signature of an ID Token",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "submods": {
+        "description": "The section containing submodules",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "sueids": {
+        "description": "Semipermanent UEIDs",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "swname": {
+        "description": "The name of the software running in the entity",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "swversion": {
+        "description": "The version of software running in the entity",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "title": {
+        "description": "End-user's title, e.g., \"Dr\"",
+        "references": [
+          "https://openid.net/specs/openid-connect-4-ida-claims-1_0.html#claims"
+        ]
+      },
+      "toe": {
+        "description": "Time of Event",
+        "references": [
+          "rfc8417#2.2"
+        ]
+      },
+      "token_introspection": {
+        "description": "Token introspection response",
+        "references": [
+          "rfc9701#5"
+        ]
+      },
+      "trust_anchor": {
+        "description": "Trust Anchor ID",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#trust_anchor-claim"
+        ]
+      },
+      "trust_anchor_hints": {
+        "description": "Trust Anchor Hints",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ec-specific"
+        ]
+      },
+      "trust_chain": {
+        "description": "Trust Chain",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#resolve-response"
+        ]
+      },
+      "trust_mark_issuers": {
+        "description": "Trust Mark Issuers",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ec-specific"
+        ]
+      },
+      "trust_mark_owners": {
+        "description": "Trust Mark Owners",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ec-specific"
+        ]
+      },
+      "trust_mark_type": {
+        "description": "Trust Mark Type Identifier",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#trust_mark_claims"
+        ]
+      },
+      "trust_marks": {
+        "description": "Trust Marks",
+        "references": [
+          "https://openid.net/specs/openid-federation-1_0.html#ec-specific"
+        ]
+      },
+      "ttl": {
+        "description": "Time to Live",
+        "references": [
+          "RFC-ietf-oauth-status-list-21#5.1"
+        ]
+      },
+      "txn": {
+        "description": "Transaction Identifier",
+        "references": [
+          "rfc8417#2.2"
+        ]
+      },
+      "ueid": {
+        "description": "Universal Entity ID",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "updated_at": {
+        "description": "Time the information was last updated",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "uptime": {
+        "description": "Uptime",
+        "references": [
+          "rfc9711"
+        ]
+      },
+      "vc": {
+        "description": "Verifiable Credential as specified in the W3C Recommendation",
+        "references": [
+          "https://www.w3.org/TR/2019/REC-vc-data-model-20191119"
+        ]
+      },
+      "verified_claims": {
+        "description": "A structured claim containing end-user claims and the details of how those end-user claims were assured.",
+        "references": [
+          "https://openid.net/specs/openid-ida-verified-claims-1_0.html#verified_claims"
+        ]
+      },
+      "vot": {
+        "description": "Vector of Trust value",
+        "references": [
+          "rfc8485"
+        ]
+      },
+      "vp": {
+        "description": "Verifiable Presentation as specified in the W3C Recommendation",
+        "references": [
+          "https://www.w3.org/TR/2019/REC-vc-data-model-20191119"
+        ]
+      },
+      "vtm": {
+        "description": "Vector of Trust trustmark URL",
+        "references": [
+          "rfc8485"
+        ]
+      },
+      "website": {
+        "description": "Web page or blog URL",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      },
+      "zoneinfo": {
+        "description": "Time zone",
+        "references": [
+          "http://openid.net/specs/openid-connect-core-1_0.html"
+        ]
+      }
+    },
+    "jwt/confirmation-methods": {
+      "jkt": {
+        "description": "JWK SHA-256 Thumbprint",
+        "references": [
+          "rfc9449#6"
+        ]
+      },
+      "jku": {
+        "description": "JWK Set URL",
+        "references": [
+          "rfc7800#3.5"
+        ]
+      },
+      "jwe": {
+        "description": "Encrypted JSON Web Key",
+        "references": [
+          "rfc7800#3.3"
+        ]
+      },
+      "jwk": {
+        "description": "JSON Web Key Representing Public Key",
+        "references": [
+          "rfc7800#3.2"
+        ]
+      },
+      "kid": {
+        "description": "Key Identifier",
+        "references": [
+          "rfc7800#3.4"
+        ]
+      },
+      "osc": {
+        "description": "OSCORE_Input_Material carrying the parameters for using OSCORE per-message security with implicit key confirmation",
+        "references": [
+          "rfc9203#3.2.1"
+        ]
+      },
+      "x5t#S256": {
+        "description": "X.509 Certificate SHA-256 Thumbprint",
+        "references": [
+          "rfc8705#3.1"
+        ]
+      }
+    }
+  },
+  "drafts": {
+    "draft-ietf-jose-deprecate-none-rsa15": {
+      "title": "JOSE: Deprecate 'none' and 'RSA1_5'",
+      "rev": "05",
+      "state": "Active",
+      "iesg_state": "Publication Requested"
+    },
+    "draft-ietf-oauth-rfc8725bis": {
+      "title": "JSON Web Token Best Current Practices",
+      "rev": "10",
+      "state": "Active",
+      "iesg_state": "RFC Ed Queue",
+      "rfceditor_state": "Blocked"
+    }
+  },
+  "pages": {
+    "OpenID Connect Core 1.0": "0e39e4e01c8b0a30380cd70727bb68a06cd859ed713a4ddd12b47319630204f1",
+    "OpenID Connect Discovery 1.0": "872cc5864cdcfcd5ed2e57693d7e3d68e32c3fc9c27172eccaae99679dfdbf11"
+  }
+}

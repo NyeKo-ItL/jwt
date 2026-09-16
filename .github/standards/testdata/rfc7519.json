@@ -1,0 +1,11 @@
+{
+ "doc_id": "RFC7519",
+ "title": "JSON Web Token (JWT)",
+ "status": "PROPOSED STANDARD",
+ "obsoleted_by": [],
+ "updated_by": [
+  "RFC7797",
+  "RFC8725"
+ ],
+ "errata_url": "https://www.rfc-editor.org/errata/rfc7519"
+}

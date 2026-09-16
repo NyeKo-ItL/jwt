@@ -1,0 +1,10 @@
+{
+ "name": "draft-ietf-oauth-rfc8725bis",
+ "rev": "10",
+ "state": "Active",
+ "iesg_state": "RFC Ed Queue",
+ "rfceditor_state": "EDIT",
+ "std_level": null,
+ "intended_std_level": "Best Current Practice",
+ "title": "JSON Web Token Best Current Practices"
+}

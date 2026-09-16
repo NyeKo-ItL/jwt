@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<registry xmlns="http://www.iana.org/assignments" id="jwt">
+  <title>JSON Web Token (JWT)</title>
+  <registry id="claims">
+    <record><value>iss</value><description>Issuer</description><xref type="rfc" data="rfc7519" section="4.1.1"/></record>
+  </registry>
+  <registry id="status-mechanisms">
+    <record><value>status_list</value><description>A status list</description><reference>some draft</reference></record>
+  </registry>
+</registry>
