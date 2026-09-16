@@ -1,5 +1,10 @@
 package jwt
 
+import (
+	"bytes"
+	"fmt"
+)
+
 // StandardClaims are the OpenID Connect Core 1.0 §5.1 standard claims,
 // common across virtually every OIDC provider. Embed it (alongside
 // RegisteredClaims and a provider claim set) in your own ID-token struct.
@@ -14,16 +19,38 @@ type StandardClaims struct {
 	Picture             string       `json:"picture,omitempty"`
 	Website             string       `json:"website,omitempty"`
 	Email               string       `json:"email,omitempty"`
-	EmailVerified       *bool        `json:"email_verified,omitempty"`
+	EmailVerified       *Bool        `json:"email_verified,omitempty"`
 	Gender              string       `json:"gender,omitempty"`
 	Birthdate           string       `json:"birthdate,omitempty"`
 	ZoneInfo            string       `json:"zoneinfo,omitempty"`
 	Locale              string       `json:"locale,omitempty"`
 	PhoneNumber         string       `json:"phone_number,omitempty"`
-	PhoneNumberVerified *bool        `json:"phone_number_verified,omitempty"`
+	PhoneNumberVerified *Bool        `json:"phone_number_verified,omitempty"`
 	Address             *Address     `json:"address,omitempty"`
 	UpdatedAt           *NumericDate `json:"updated_at,omitempty"`
 	Nonce               string       `json:"nonce,omitempty"` // OIDC Core §2, replay protection
+}
+
+// Bool is an OIDC boolean claim such as "email_verified". OpenID Connect
+// Core 1.0 §5.1 defines these as JSON booleans, but some providers emit the
+// strings "true" / "false" instead (Google's documented example, Amazon
+// Cognito). Bool accepts exactly those four forms and always marshals as a
+// JSON boolean. Its underlying type is bool, so it can be used directly in
+// conditions: if claims.EmailVerified != nil && *claims.EmailVerified { ... }.
+type Bool bool
+
+// UnmarshalJSON accepts true, false, "true" or "false".
+func (b *Bool) UnmarshalJSON(data []byte) error {
+	switch string(bytes.TrimSpace(data)) {
+	case `true`, `"true"`:
+		*b = true
+	case `false`, `"false"`:
+		*b = false
+	default:
+		return fmt.Errorf("jwt: %s is not an OIDC boolean", data)
+	}
+
+	return nil
 }
 
 // Address is the OIDC Core 1.0 §5.1.1 address claim.
@@ -47,7 +74,7 @@ type GoogleClaims struct {
 // OktaClaims adds Okta-specific ID token claims.
 // https://developer.okta.com/docs/reference/api/oidc/#id-token
 type OktaClaims struct {
-	Version  string       `json:"ver,omitempty"`
+	Version  int          `json:"ver,omitempty"` // a JSON number (e.g. 1) in Okta ID tokens
 	AuthTime *NumericDate `json:"auth_time,omitempty"`
 	AMR      []string     `json:"amr,omitempty"`
 	IDP      string       `json:"idp,omitempty"`
@@ -65,6 +92,10 @@ type EntraClaims struct {
 	AppID      string   `json:"appid,omitempty"`
 	Version    string   `json:"ver,omitempty"`
 	UniqueName string   `json:"unique_name,omitempty"`
+
+	IdentityProvider string `json:"idp,omitempty"` // authenticating IdP when it differs from iss (e.g. guests)
+	SessionID        string `json:"sid,omitempty"`
+	TokenID          string `json:"uti,omitempty"` // Entra's per-token identifier, equivalent to jti
 }
 
 // GoogleIDToken is a ready-made ID-token claims struct for Google:
