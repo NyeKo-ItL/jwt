@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -410,7 +409,7 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (s
 		Issuer  string `json:"issuer"`
 		JWKSURI string `json:"jwks_uri"`
 	}
-	if err := json.Unmarshal(body, &doc); err != nil {
+	if err := decodeObject(body, &doc); err != nil {
 		return "", fmt.Errorf("%w: discovery document: %w", ErrKeyFetch, err)
 	}
 

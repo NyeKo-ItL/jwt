@@ -29,10 +29,31 @@ All notable changes to this project are documented here. The format follows
   `<issuer>/.well-known/jwks.json` on errors, and a nil client now gets a
   30-second timeout instead of `http.DefaultClient`.
 
+- **`crit` header enforced** (RFC 7515 §4.1.11). It was parsed but ignored, so
+  tokens relying on extensions the library does not implement (e.g. RFC 7797
+  `b64`) were accepted. Any `crit` now yields `ErrUnsupportedCritical`, before
+  the key lookup.
+- **Strict JSON decoding of untrusted input** via `encoding/json/v2`: header
+  and claim names are case-sensitive (`"ALG"` / `"EXP"` no longer act as
+  `alg` / `exp`), duplicate member names and invalid UTF-8 are rejected, and
+  headers and claim sets must be JSON objects. Applies to `Parse`,
+  `ParseInsecure`, `DecryptClaims`, `ClaimsFromContext`, `ParseKey`,
+  `ParseKeySet` and discovery documents.
+- **Canonical base64url.** Non-zero trailing bits, CR and LF are rejected, so a
+  valid token can no longer be re-encoded into a different string that still
+  verifies (which defeated deny-lists and replay caches keyed on the token).
+- **`typ` comparison follows RFC 7515 §4.1.9**: only an `application/` prefix
+  may be omitted, so `typ: "evil/at+jwt"` no longer satisfies
+  `WithRequiredType("at+jwt")`.
+- **`NumericDate` accepts only JSON numbers in years 1–9999.** Quoted strings,
+  `"NaN"`/`"Inf"` and huge values — whose integer conversion differed between
+  CPU architectures — are rejected.
+
 ### Added
 
 - `ErrKeyFetch`, wrapped by every remote key-fetch or discovery failure.
 - `WithMaxCacheDuration` fetcher option.
+- `ErrUnsupportedCritical`.
 
 ### Changed (breaking)
 
@@ -40,6 +61,10 @@ All notable changes to this project are documented here. The format follows
   `/.well-known/jwks.json` URL.
 - `KeyFetcher` errors now wrap `ErrKeyFetch` (malformed JWKS documents wrap
   both `ErrKeyFetch` and `ErrMalformedKey`).
+- Claim structs passed to `Parse` / `ParseInsecure` / `DecryptClaims` /
+  `ClaimsFromContext` are decoded with `encoding/json/v2`: `json` tag names
+  must match the token's member names exactly (v1 matched case-insensitively).
+- `NumericDate` no longer decodes from a JSON string.
 
 ## [0.1.3] - 2026-09-13
 

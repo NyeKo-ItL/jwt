@@ -232,6 +232,16 @@ legacy algorithm can be implemented by a caller exactly like a custom
     function returns `error`; malformed/truncated/oversized tokens must not
     panic or allocate unbounded memory.
 12. **Clock is injectable** (`WithClock`) for every time-based check.
+13. **Strict, unambiguous decoding of untrusted input.** Base64url segments
+    are canonical (no padding, line breaks or non-zero trailing bits), so a
+    token has exactly one accepted string form. JOSE headers, claim sets and
+    JWKs are decoded with `encoding/json/v2` defaults: member names are
+    case-sensitive, duplicate names and invalid UTF-8 are rejected, and
+    headers/claim sets must be JSON objects. `NumericDate` accepts only JSON
+    numbers within years 1–9999.
+14. **`crit` is enforced** (RFC 7515 §4.1.11, RFC 7516 §4.1.13). The library
+    implements no header extension, so a token carrying `crit` is rejected
+    with `ErrUnsupportedCritical` before any key lookup.
 
 ---
 
@@ -338,7 +348,9 @@ func (a Audience) MarshalJSON() ([]byte, error)
 func (a *Audience) UnmarshalJSON(b []byte) error
 func (a Audience) Has(v string) bool
 
-// NumericDate is RFC 7519 §2's NumericDate, exposed as a time.Time.
+// NumericDate is RFC 7519 §2's NumericDate, exposed as a time.Time. It
+// decodes only from a JSON number (integer or fractional seconds) between
+// years 1 and 9999; strings are rejected.
 type NumericDate struct{ time.Time }
 
 func NewNumericDate(t time.Time) *NumericDate

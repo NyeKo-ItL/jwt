@@ -167,7 +167,7 @@ func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 	}
 
 	var hdr jweHeader
-	if err := json.Unmarshal(protectedJSON, &hdr); err != nil {
+	if err := decodeObject(protectedJSON, &hdr); err != nil {
 		return nil, ErrDecryptionFailed
 	}
 
@@ -256,7 +256,7 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 	}
 
 	var reg RegisteredClaims
-	if err := json.Unmarshal(payload, &reg); err != nil {
+	if err := decodeObject(payload, &reg); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -269,7 +269,7 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 		return err
 	}
 
-	if err := json.Unmarshal(payload, dst); err != nil {
+	if err := decodeObject(payload, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
