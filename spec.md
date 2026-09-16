@@ -854,23 +854,35 @@ func NewMemoryRevocationStore() RevocationStore
 
 ```go
 // BearerToken extracts the token from an Authorization: Bearer header
-// (RFC 6750 §2.1). Case-insensitive scheme match, single space separator.
+// (RFC 6750 §2.1): case-insensitive scheme, 1*SP, b64token syntax enforced;
+// several Authorization headers are rejected as ambiguous.
 func BearerToken(r *http.Request) (string, bool)
 
+// MiddlewareOptions (a ParseOption, ignored by Parse) sets the challenge
+// realm and an OnError hook that receives full error detail for logging.
+type MiddlewareOptions struct {
+	Realm   string
+	OnError func(r *http.Request, err error)
+}
+
 // Middleware verifies the request's bearer token with keys and opts, then
-// stores the verified payload on the request context. On failure it writes
-// an RFC 6750 §3-compliant 401 with a WWW-Authenticate header via
-// WriteChallenge, then does not call next. It is not generic.
+// stores the verified payload on the request context. On failure it reports
+// to OnError and answers via WriteChallenge, then does not call next.
 func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler
 
 // ClaimsFromContext unmarshals the payload Middleware stored into dst (type
 // inferred). Returns ErrNoClaimsInContext if the request skipped Middleware.
 func ClaimsFromContext[C any](ctx context.Context, dst *C) error
 
-// WriteChallenge writes a WWW-Authenticate: Bearer header per RFC 6750 §3,
-// mapping err to the realm/error/error_description parameters (e.g.
-// ErrExpired -> error="invalid_token").
+// WriteChallenge answers a failed authentication with fixed text only (err's
+// message never reaches the client): nil -> 401 bare challenge;
+// ErrMalformedToken -> 400 invalid_request; token failures -> 401
+// invalid_token; ErrKeyFetch / context errors -> 503; anything else -> 500.
 func WriteChallenge(w http.ResponseWriter, realm string, err error)
+
+// WriteInsufficientScope writes the RFC 6750 §3.1 403 insufficient_scope
+// challenge with a "scope" attribute.
+func WriteInsufficientScope(w http.ResponseWriter, realm string, scopes ...string)
 ```
 
 ### 5.8 Access-token claims profile (RFC 9068)

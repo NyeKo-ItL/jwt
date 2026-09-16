@@ -271,6 +271,8 @@ type parseConfig struct {
 
 	allowedKeyAlgs     []KeyAlgorithm     // JWE "alg" allowlist (DecryptClaims)
 	allowedContentAlgs []ContentAlgorithm // JWE "enc" allowlist (DecryptClaims)
+
+	middleware MiddlewareOptions // Middleware only
 }
 
 // ParseOption configures Parse, DecryptClaims and Middleware. Both the

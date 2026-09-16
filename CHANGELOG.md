@@ -71,6 +71,17 @@ All notable changes to this project are documented here. The format follows
 - **JWE `zip` is refused and `crit` enforced** (RFC 7516 §4.1.3, §4.1.13);
   `alg` and `enc` must both be present.
 
+- **HTTP error responses no longer leak internals.** `WriteChallenge` /
+  `Middleware` put `err.Error()` into `error_description`, exposing internal
+  hostnames, IPs and backend errors (e.g. a failing JWKS URL). Responses now
+  carry fixed text only; full detail goes to the new
+  `MiddlewareOptions.OnError` hook.
+- **Infrastructure failures are no longer reported as bad tokens.** JWKS/
+  context failures answer 503 and misconfiguration or backend errors 500,
+  without a `WWW-Authenticate` challenge, instead of 401 `invalid_token`.
+- **`BearerToken` enforces RFC 6750 §2.1** `b64token` syntax, accepts `1*SP`
+  after the scheme, and rejects requests with several `Authorization` headers.
+
 ### Added
 
 - `ErrKeyFetch`, wrapped by every remote key-fetch or discovery failure.
@@ -80,6 +91,8 @@ All notable changes to this project are documented here. The format follows
 - `ErrKeyUsage`; `Key.KeyOps` (parsed and serialized as `key_ops`).
 - `WithAllowedKeyAlgorithms`, `WithAllowedContentAlgorithms`,
   `ParseOptions.AllowedKeyAlgorithms`, `ParseOptions.AllowedContentAlgorithms`.
+- `MiddlewareOptions` (`Realm`, `OnError`) and `WriteInsufficientScope`
+  (RFC 6750 §3.1 `insufficient_scope`).
 - `WithRequiredType` now also applies to the JWE protected header in
   `DecryptClaims`.
 
@@ -105,6 +118,8 @@ All notable changes to this project are documented here. The format follows
 - `DecryptClaims` returns `ErrNoAllowedAlgorithms` unless both
   `WithAllowedKeyAlgorithms` and `WithAllowedContentAlgorithms` are given, and
   `ErrAlgorithmNotAllowed` for a header outside them.
+- `WriteChallenge` status codes and `error_description` texts changed (see
+  its documentation); 5xx responses carry no challenge.
 - A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer
   verifies; `Key.PublicKey` no longer left-pads short EC coordinates.
 
