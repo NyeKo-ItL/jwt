@@ -8,7 +8,7 @@ import (
 )
 
 func TestGoogleIDTokenRoundTrip(t *testing.T) {
-	verified := true
+	verified := Bool(true)
 	in := GoogleIDToken{
 		RegisteredClaims: RegisteredClaims{
 			Issuer:   "https://accounts.google.com",
@@ -46,7 +46,7 @@ func TestGoogleIDTokenRoundTrip(t *testing.T) {
 
 func TestOktaIDTokenParse(t *testing.T) {
 	// Unmodeled members (custom_flag) are simply ignored — no Extra map.
-	doc := `{"iss":"https://issuer","sub":"abc","email":"x@y.z","ver":"1.0",
+	doc := `{"iss":"https://issuer","sub":"abc","email":"x@y.z","ver":1,
 		"amr":["pwd","mfa"],"custom_flag":true}`
 
 	var tok OktaIDToken
@@ -54,7 +54,7 @@ func TestOktaIDTokenParse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if tok.Subject != "abc" || tok.Email != "x@y.z" || tok.Version != "1.0" || len(tok.AMR) != 2 {
+	if tok.Subject != "abc" || tok.Email != "x@y.z" || tok.Version != 1 || len(tok.AMR) != 2 {
 		t.Fatalf("okta claims not parsed: %+v", tok)
 	}
 }

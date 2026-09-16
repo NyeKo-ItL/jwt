@@ -699,13 +699,13 @@ type StandardClaims struct {
 	Picture             string       `json:"picture,omitempty"`
 	Website              string      `json:"website,omitempty"`
 	Email               string       `json:"email,omitempty"`
-	EmailVerified       *bool        `json:"email_verified,omitempty"`
+	EmailVerified       *Bool        `json:"email_verified,omitempty"`
 	Gender              string       `json:"gender,omitempty"`
 	Birthdate           string       `json:"birthdate,omitempty"`
 	ZoneInfo            string       `json:"zoneinfo,omitempty"`
 	Locale              string       `json:"locale,omitempty"`
 	PhoneNumber         string       `json:"phone_number,omitempty"`
-	PhoneNumberVerified *bool        `json:"phone_number_verified,omitempty"`
+	PhoneNumberVerified *Bool        `json:"phone_number_verified,omitempty"`
 	Address             *Address     `json:"address,omitempty"`
 	UpdatedAt           *NumericDate `json:"updated_at,omitempty"`
 	Nonce               string       `json:"nonce,omitempty"` // OIDC Core §2, replay protection
@@ -731,7 +731,7 @@ type GoogleClaims struct {
 // OktaClaims adds Okta-specific ID token claims.
 // https://developer.okta.com/docs/reference/api/oidc/#id-token
 type OktaClaims struct {
-	Version  string       `json:"ver,omitempty"`
+	Version  int          `json:"ver,omitempty"` // JSON number in Okta ID tokens
 	AuthTime *NumericDate `json:"auth_time,omitempty"`
 	AMR      []string     `json:"amr,omitempty"`
 	IDP      string       `json:"idp,omitempty"`
@@ -749,6 +749,9 @@ type EntraClaims struct {
 	AppID      string   `json:"appid,omitempty"`
 	Version    string   `json:"ver,omitempty"`
 	UniqueName string   `json:"unique_name,omitempty"`
+	IdentityProvider string `json:"idp,omitempty"`
+	SessionID        string `json:"sid,omitempty"`
+	TokenID          string `json:"uti,omitempty"`
 }
 
 // Ready-made ID-token structs: RegisteredClaims + StandardClaims + a

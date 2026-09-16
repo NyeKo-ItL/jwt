@@ -92,6 +92,8 @@ All notable changes to this project are documented here. The format follows
 - `WithAllowedKeyAlgorithms`, `WithAllowedContentAlgorithms`,
   `ParseOptions.AllowedKeyAlgorithms`, `ParseOptions.AllowedContentAlgorithms`.
 - `Ed25519` algorithm identifier (RFC 9864 §2.2).
+- `Bool` OIDC boolean claim type; `EntraClaims.IdentityProvider` (`idp`),
+  `SessionID` (`sid`), `TokenID` (`uti`).
 - `MiddlewareOptions` (`Realm`, `OnError`) and `WriteInsufficientScope`
   (RFC 6750 §3.1 `insufficient_scope`).
 - `WithRequiredType` now also applies to the JWE protected header in
@@ -105,12 +107,32 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Okta's documented ID token failed to decode**: `OktaClaims.Version` was a
+  `string` but Okta emits `"ver": 1` (a number). It is now an `int`.
+- **Providers sending `"email_verified": "true"`** (Google's documented
+  example, Amazon Cognito) failed to decode into `*bool`. `EmailVerified` and
+  `PhoneNumberVerified` are now `*Bool`, which accepts `true`/`false` and
+  `"true"`/`"false"` and marshals as a JSON boolean.
+
 - **ECDH-ES `apu` / `apv` are honored** as PartyUInfo / PartyVInfo in the Concat
   KDF (RFC 7518 §4.6.1.2–3). They were ignored, so tokens from producers that
   set them — including the RFC 7518 Appendix C example, now a test vector —
   failed to decrypt.
 
-### Changed (breaking)
+### Testing
+
+- **Known-answer vectors** (spec §7.2.1) in `testdata/vectors/jose.json`,
+  transcribed from the RFCs: RFC 7515 Appendix A.1–A.4 (HS256, RS256, ES256,
+  ES512, verified and — for HMAC — re-signed byte-for-byte, JWT vectors also
+  through `Parse`), A.5 (`alg: none` rejected), RFC 7520 §4.1–4.4 (RS256,
+  PS384, ES512 with a zero-padded P-521 coordinate, HS256) and §5.6
+  (`dir` + A128GCM). Inline: RFC 3394 §4.3/§4.6 AES Key Wrap, RFC 8037 A.3/A.4,
+  RFC 7518 Appendix C, RFC 7638 §3.1.
+- **Provider fixtures** (spec §7.2.8) in `testdata/idtoken_fixtures/`: the
+  documented Google and Okta ID-token payloads verbatim, and an Entra v2.0
+  payload built from its claims reference, each signed and run through `Parse`
+  with OIDC Core §2 required claims, plus a member-name round trip.
+
 
 - `DiscoverJWKSURI` returns an error where it used to return a guessed
   `/.well-known/jwks.json` URL.
@@ -131,6 +153,8 @@ All notable changes to this project are documented here. The format follows
   Verifiers that predate RFC 9864 (e.g. golang-jwt v5, go-jose v4) need to
   register the identifier — see the interop tests. A JWK `alg` of either value
   serves both identifiers (RFC 9864 §5).
+- `StandardClaims.EmailVerified` / `PhoneNumberVerified` are `*Bool` (was
+  `*bool`); `OktaClaims.Version` is `int` (was `string`).
 - `WriteChallenge` status codes and `error_description` texts changed (see
   its documentation); 5xx responses carry no challenge.
 - A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer

@@ -31,7 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	verified := true
+	verified := jwt.Bool(true)
 
 	idToken, err := jwt.Sign(jwt.GoogleIDToken{
 		RegisteredClaims: jwt.RegisteredClaims{
