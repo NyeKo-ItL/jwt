@@ -8,27 +8,35 @@ import (
 // StandardClaims are the OpenID Connect Core 1.0 §5.1 standard claims,
 // common across virtually every OIDC provider. Embed it (alongside
 // RegisteredClaims and a provider claim set) in your own ID-token struct.
+//
+// None of these claims is validated by Parse. In particular, "sub" (not
+// "email" or "preferred_username") is the stable identifier (OIDC Core §5.7),
+// and "nonce" must be compared with the value sent in the authentication
+// request by the relying party (OIDC Core §3.1.3.7 step 11).
 type StandardClaims struct {
-	Name                string       `json:"name,omitempty"`
-	GivenName           string       `json:"given_name,omitempty"`
-	FamilyName          string       `json:"family_name,omitempty"`
-	MiddleName          string       `json:"middle_name,omitempty"`
-	Nickname            string       `json:"nickname,omitempty"`
-	PreferredUsername   string       `json:"preferred_username,omitempty"`
-	Profile             string       `json:"profile,omitempty"`
-	Picture             string       `json:"picture,omitempty"`
-	Website             string       `json:"website,omitempty"`
-	Email               string       `json:"email,omitempty"`
-	EmailVerified       *Bool        `json:"email_verified,omitempty"`
-	Gender              string       `json:"gender,omitempty"`
-	Birthdate           string       `json:"birthdate,omitempty"`
-	ZoneInfo            string       `json:"zoneinfo,omitempty"`
-	Locale              string       `json:"locale,omitempty"`
-	PhoneNumber         string       `json:"phone_number,omitempty"`
+	Name              string `json:"name,omitempty"`               // full name
+	GivenName         string `json:"given_name,omitempty"`         // first name(s)
+	FamilyName        string `json:"family_name,omitempty"`        // surname(s)
+	MiddleName        string `json:"middle_name,omitempty"`        // middle name(s)
+	Nickname          string `json:"nickname,omitempty"`           // casual name
+	PreferredUsername string `json:"preferred_username,omitempty"` // mutable; not an identifier (§5.7)
+	Profile           string `json:"profile,omitempty"`            // profile page URL
+	Picture           string `json:"picture,omitempty"`            // profile picture URL
+	Website           string `json:"website,omitempty"`            // web page or blog URL
+	Email             string `json:"email,omitempty"`              // mutable; not an identifier (§5.7)
+	// EmailVerified is "email_verified"; string forms are accepted (see Bool).
+	EmailVerified *Bool  `json:"email_verified,omitempty"`
+	Gender        string `json:"gender,omitempty"`       // "female", "male" or other values
+	Birthdate     string `json:"birthdate,omitempty"`    // ISO 8601 YYYY-MM-DD, or YYYY / 0000-MM-DD
+	ZoneInfo      string `json:"zoneinfo,omitempty"`     // IANA time zone, e.g. "Europe/Paris"
+	Locale        string `json:"locale,omitempty"`       // BCP 47 language tag, e.g. "fr-FR"
+	PhoneNumber   string `json:"phone_number,omitempty"` // E.164 recommended, e.g. "+1 (425) 555-1212"
+	// PhoneNumberVerified is "phone_number_verified"; string forms are
+	// accepted (see Bool).
 	PhoneNumberVerified *Bool        `json:"phone_number_verified,omitempty"`
-	Address             *Address     `json:"address,omitempty"`
-	UpdatedAt           *NumericDate `json:"updated_at,omitempty"`
-	Nonce               string       `json:"nonce,omitempty"` // OIDC Core §2, replay protection
+	Address             *Address     `json:"address,omitempty"`    // §5.1.1 structured address
+	UpdatedAt           *NumericDate `json:"updated_at,omitempty"` // last profile update
+	Nonce               string       `json:"nonce,omitempty"`      // OIDC Core §2, replay protection
 }
 
 // Bool is an OIDC boolean claim such as "email_verified". OpenID Connect
@@ -55,46 +63,46 @@ func (b *Bool) UnmarshalJSON(data []byte) error {
 
 // Address is the OIDC Core 1.0 §5.1.1 address claim.
 type Address struct {
-	Formatted     string `json:"formatted,omitempty"`
-	StreetAddress string `json:"street_address,omitempty"`
-	Locality      string `json:"locality,omitempty"`
-	Region        string `json:"region,omitempty"`
-	PostalCode    string `json:"postal_code,omitempty"`
-	Country       string `json:"country,omitempty"`
+	Formatted     string `json:"formatted,omitempty"`      // full mailing address, may contain newlines
+	StreetAddress string `json:"street_address,omitempty"` // street, house number, apartment, ...
+	Locality      string `json:"locality,omitempty"`       // city
+	Region        string `json:"region,omitempty"`         // state, province, prefecture or region
+	PostalCode    string `json:"postal_code,omitempty"`    // zip or postal code
+	Country       string `json:"country,omitempty"`        // country name
 }
 
 // GoogleClaims adds Google-specific ID token claims.
 // https://developers.google.com/identity/openid-connect/openid-connect#an-id-tokens-payload
 type GoogleClaims struct {
-	HostedDomain    string `json:"hd,omitempty"`
-	AuthorizedParty string `json:"azp,omitempty"`
-	AccessTokenHash string `json:"at_hash,omitempty"`
+	HostedDomain    string `json:"hd,omitempty"`      // Google Workspace domain of the user
+	AuthorizedParty string `json:"azp,omitempty"`     // OIDC Core §2: client the token was issued to
+	AccessTokenHash string `json:"at_hash,omitempty"` // OIDC Core §3.2.2.9; not verified by Parse
 }
 
 // OktaClaims adds Okta-specific ID token claims.
 // https://developer.okta.com/docs/reference/api/oidc/#id-token
 type OktaClaims struct {
-	Version  int          `json:"ver,omitempty"` // a JSON number (e.g. 1) in Okta ID tokens
-	AuthTime *NumericDate `json:"auth_time,omitempty"`
-	AMR      []string     `json:"amr,omitempty"`
-	IDP      string       `json:"idp,omitempty"`
-	Groups   []string     `json:"groups,omitempty"`
+	Version  int          `json:"ver,omitempty"`       // a JSON number (e.g. 1) in Okta ID tokens
+	AuthTime *NumericDate `json:"auth_time,omitempty"` // OIDC Core §2: time of the end-user authentication
+	AMR      []string     `json:"amr,omitempty"`       // authentication methods, RFC 8176 values
+	IDP      string       `json:"idp,omitempty"`       // Okta org or external IdP that authenticated the user
+	Groups   []string     `json:"groups,omitempty"`    // present when a groups claim is configured
 }
 
 // EntraClaims adds Microsoft Entra ID (Azure AD) specific claims.
 // https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference
 type EntraClaims struct {
-	TenantID   string   `json:"tid,omitempty"`
-	ObjectID   string   `json:"oid,omitempty"`
-	UPN        string   `json:"upn,omitempty"`
-	Roles      []string `json:"roles,omitempty"`
-	Groups     []string `json:"groups,omitempty"`
-	AppID      string   `json:"appid,omitempty"`
-	Version    string   `json:"ver,omitempty"`
-	UniqueName string   `json:"unique_name,omitempty"`
+	TenantID   string   `json:"tid,omitempty"`         // tenant GUID; restrict accepted tenants with it
+	ObjectID   string   `json:"oid,omitempty"`         // immutable user object GUID within the tenant
+	UPN        string   `json:"upn,omitempty"`         // user principal name; mutable, not an identifier
+	Roles      []string `json:"roles,omitempty"`       // app roles assigned to the user
+	Groups     []string `json:"groups,omitempty"`      // group object IDs, when the groups claim is configured
+	AppID      string   `json:"appid,omitempty"`       // v1.0 tokens: application ID of the client
+	Version    string   `json:"ver,omitempty"`         // "1.0" or "2.0"
+	UniqueName string   `json:"unique_name,omitempty"` // v1.0 tokens: display-only name
 
 	IdentityProvider string `json:"idp,omitempty"` // authenticating IdP when it differs from iss (e.g. guests)
-	SessionID        string `json:"sid,omitempty"`
+	SessionID        string `json:"sid,omitempty"` // session GUID
 	TokenID          string `json:"uti,omitempty"` // Entra's per-token identifier, equivalent to jti
 }
 

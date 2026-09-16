@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"math/big"
 
-	_ "crypto/sha256"
-	_ "crypto/sha512"
+	_ "crypto/sha256" // registers SHA-256 for crypto.Hash.New
+	_ "crypto/sha512" // registers SHA-384 and SHA-512 for crypto.Hash.New
 
 	internalerr "github.com/NyeKo-ItL/jwt/internal/errors"
 )
@@ -23,6 +23,8 @@ import (
 // Algorithm identifies a JWA signing algorithm.
 type Algorithm string
 
+// JWS algorithm identifiers (RFC 7518 §3.1, RFC 9864 §2.2); the public jwt
+// package documents each one.
 const (
 	HS256 Algorithm = "HS256"
 	HS384 Algorithm = "HS384"
@@ -58,6 +60,7 @@ type Verifier interface {
 	Verify([]byte, []byte) error
 }
 
+// Sentinel errors, re-exported by the jwt package.
 var (
 	ErrInvalidSignature     = internalerr.ErrInvalidSignature
 	ErrWeakKey              = internalerr.ErrWeakKey
@@ -77,6 +80,7 @@ func optKID(kid []string) string {
 // Family identifies the key family used by a JWS algorithm.
 type Family uint8
 
+// Algorithm families; a key can only serve algorithms of its own family.
 const (
 	FamilyUnknown Family = iota
 	FamilyHMAC
@@ -86,6 +90,7 @@ const (
 	FamilyEdDSA
 )
 
+// FamilyOf returns the key family an algorithm name belongs to.
 func FamilyOf(name string) Family {
 	switch name {
 	case "HS256", "HS384", "HS512":
@@ -103,6 +108,7 @@ func FamilyOf(name string) Family {
 	}
 }
 
+// Hash returns the hash used by an HS*, RS* or PS* algorithm.
 func Hash(name string) (crypto.Hash, bool) {
 	switch name {
 	case "HS256", "RS256", "PS256":
@@ -116,9 +122,14 @@ func Hash(name string) (crypto.Hash, bool) {
 	}
 }
 
-func IsPSS(name string) bool   { return name == "PS256" || name == "PS384" || name == "PS512" }
+// IsPSS reports whether name is a PS* (RSASSA-PSS) algorithm.
+func IsPSS(name string) bool { return name == "PS256" || name == "PS384" || name == "PS512" }
+
+// IsPKCS1 reports whether name is an RS* (RSASSA-PKCS1-v1_5) algorithm.
 func IsPKCS1(name string) bool { return name == "RS256" || name == "RS384" || name == "RS512" }
 
+// ECDSAParams returns the curve, hash and per-integer signature size (in
+// bytes) of an ES* algorithm (RFC 7518 §3.4).
 func ECDSAParams(name string) (elliptic.Curve, crypto.Hash, int, bool) {
 	switch name {
 	case "ES256":
@@ -132,6 +143,7 @@ func ECDSAParams(name string) (elliptic.Curve, crypto.Hash, int, bool) {
 	}
 }
 
+// HashSum returns h(in).
 func HashSum(h crypto.Hash, in []byte) []byte {
 	hh := h.New()
 	hh.Write(in)
@@ -146,6 +158,8 @@ type hmacSigner struct {
 	hash crypto.Hash
 }
 
+// NewHMACSigner returns an HS* Signer. Keys shorter than the hash output are
+// rejected with ErrWeakKey (RFC 7518 §3.2).
 func NewHMACSigner(a Algorithm, key []byte, kid ...string) (Signer, error) {
 	h, ok := Hash(string(a))
 	if !ok || FamilyOf(string(a)) != FamilyHMAC {
@@ -169,6 +183,8 @@ func (s *hmacSigner) Sign(in []byte) ([]byte, error) {
 
 type hmacVerifier struct{ hmacSigner }
 
+// NewHMACVerifier returns an HS* Verifier that compares MACs in constant
+// time.
 func NewHMACVerifier(a Algorithm, key []byte, kid ...string) (Verifier, error) {
 	s, err := NewHMACSigner(a, key, kid...)
 	if err != nil {
@@ -194,6 +210,8 @@ type ecdsaSigner struct {
 	size int
 }
 
+// NewECDSASigner returns an ES* Signer producing the fixed-length R||S
+// encoding (RFC 7518 §3.4), not ASN.1 DER.
 func NewECDSASigner(a Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, error) {
 	curve, h, size, ok := ECDSAParams(string(a))
 	if !ok {
@@ -233,6 +251,8 @@ type ecdsaVerifier struct {
 	size int
 }
 
+// NewECDSAVerifier returns an ES* Verifier; the key curve must match the
+// algorithm.
 func NewECDSAVerifier(a Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifier, error) {
 	curve, h, size, ok := ECDSAParams(string(a))
 	if !ok {
@@ -282,6 +302,8 @@ type rsaVerifier struct {
 
 const minRSABits = 2048
 
+// NewRSAPSSSigner returns a PS* Signer (salt length = hash size, RFC 7518
+// §3.5). Keys below 2048 bits are rejected.
 func NewRSAPSSSigner(a Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, error) {
 	h, ok := Hash(string(a))
 	if !ok || !IsPSS(string(a)) {
@@ -314,6 +336,9 @@ func newRSAVerifier(a Algorithm, key *rsa.PublicKey, kid string, h crypto.Hash, 
 
 	return &rsaVerifier{a, key, kid, h, pss}, nil
 }
+
+// NewRSAPSSVerifier returns a PS* Verifier. Keys below 2048 bits are
+// rejected.
 func NewRSAPSSVerifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
 	h, ok := Hash(string(a))
 	if !ok || !IsPSS(string(a)) {
@@ -322,6 +347,9 @@ func NewRSAPSSVerifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier
 
 	return newRSAVerifier(a, key, optKID(kid), h, true)
 }
+
+// NewRSAPKCS1Verifier returns an RS* Verifier (verification only). Keys
+// below 2048 bits are rejected.
 func NewRSAPKCS1Verifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifier, error) {
 	h, ok := Hash(string(a))
 	if !ok || !IsPKCS1(string(a)) {
@@ -354,6 +382,7 @@ type ed25519Signer struct {
 	kid string
 }
 
+// NewEd25519Signer returns a Signer for "Ed25519" (RFC 9864 §2.2).
 func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
 	if len(key) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 private key must be %d bytes, got %d", ErrMalformedKey, ed25519.PrivateKeySize, len(key))

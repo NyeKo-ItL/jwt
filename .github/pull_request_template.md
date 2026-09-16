@@ -10,5 +10,7 @@
 - [ ] `cd interop && go test ./...` passes (if JWS/JWE behaviour changed)
 - [ ] `gofmt -l .` and `golangci-lint run ./...` are clean
 - [ ] No new entry in the root `go.mod` `require` block
-- [ ] `spec.md` / `README.md` / `CHANGELOG.md` updated for API or behaviour changes
+- [ ] `README.md` / `CHANGELOG.md` / `spec.md` updated for API or behaviour changes
+- [ ] `COMPLIANCE.md` updated if a standards requirement is affected
+- [ ] Tests written first (fixes: the failing case and its neighbours; features: cases from the RFC text)
 - [ ] New algorithms cite the RFC and add interop coverage

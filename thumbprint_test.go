@@ -2,8 +2,12 @@ package jwt
 
 import (
 	"crypto"
+	"crypto/sha512"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
 
 // rfc7638Example is the RSA JWK from RFC 7638 §3.1.
@@ -127,5 +131,30 @@ func TestParseKey(t *testing.T) {
 
 	if k.Kty != KeyTypeRSA || k.Kid != "2011-04-29" || k.Alg != "RS256" {
 		t.Fatalf("parsed key = %+v", k)
+	}
+}
+
+func TestThumbprintOtherHash(t *testing.T) {
+	// RFC 7638 §3.4: any hash may be used; the input is the same canonical
+	// JSON (§3.1 shows it for this key), only the digest changes.
+	k, err := ParseKey([]byte(rfc7638Example))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	canonical, err := k.thumbprintInput()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.HasPrefix(canonical, `{"e":"AQAB","kty":"RSA","n":"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4`) {
+		t.Fatalf("canonical form = %.60s...", canonical)
+	}
+
+	want := sha512.Sum512([]byte(canonical))
+
+	got, err := Thumbprint(k, crypto.SHA512)
+	if err != nil || got != b64.Encode(want[:]) {
+		t.Fatalf("SHA-512 thumbprint = %q (%v)", got, err)
 	}
 }

@@ -40,7 +40,10 @@ against any new `KeyProvider` / `RevocationStore` implementation.
 
 ## Style
 
-- `gofmt`; every exported identifier has a doc comment starting with its name.
+- `gofmt`; every exported identifier has a doc comment starting with its name
+  (enforced by `revive` and `godoclint`).
+- Code that enforces a standard cites it at the check, e.g.
+  `// RFC 7519 §4.1.3: ...`.
 - Sentinel errors (`Err*`), checked with `errors.Is`; never substring matches.
 - Table-driven tests for algorithm / claim matrices.
 - No `panic` in non-test code; every fallible function returns `error`.
@@ -51,7 +54,11 @@ against any new `KeyProvider` / `RevocationStore` implementation.
 1. Branch from `main`; keep the history linear (squash on merge).
 2. `go test -race ./...`, `cd interop && go test ./...`, `golangci-lint run`
    and `gofmt -l .` all clean.
-3. Update `spec.md`, `README.md` and `CHANGELOG.md` (`[Unreleased]`) when the
-   public API or behaviour changes.
-4. Once tagged `v1.0.0`, the CI `apidiff` job blocks incompatible API changes
+3. Update `README.md`, `CHANGELOG.md` (`[Unreleased]`) and `spec.md` when the
+   public API or behaviour changes, and `COMPLIANCE.md` when a standards
+   requirement is added, changed or deliberately not implemented.
+4. Tests come first: a fix starts with tests reproducing the problem and its
+   neighbouring cases; a new feature starts with tests derived from the RFC
+   text, and published RFC test vectors go into `testdata/` (see its README).
+5. Once tagged `v1.0.0`, the CI `apidiff` job blocks incompatible API changes
    without a major version bump.

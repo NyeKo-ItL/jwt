@@ -33,7 +33,7 @@ itself (spec §4). It is kept in sync with the code.
    plaintext is returned; every failure collapses to the single generic
    `ErrDecryptionFailed`.
 8. **`jku`, `x5u`, `jwk`, `x5c` are never dereferenced** or trusted to select a
-   verification key. They are parsed for inspection only (RFC 8725 §3.9–3.10).
+   verification key. They are parsed for inspection only (RFC 8725 §3.10).
 9. **`KeyProvider` and `RevocationStore` take a `context.Context`** so
    network-backed implementations can bound their own work.
 10. **Anti-confusion at resolution time.** When `Parse` resolves a key, the
@@ -43,6 +43,34 @@ itself (spec §4). It is kept in sync with the code.
     function returns `error`; fuzz targets cover `Parse`, `DecryptClaims` and
     `ParseKeySet`.
 12. **The clock is injectable** (`WithClock`) for every time-based check.
+13. **Strict, unambiguous decoding.** Base64url must be canonical (no padding,
+    line breaks or non-zero trailing bits), so a token has one valid string
+    form. Headers, claim sets and JWKs are decoded with `encoding/json/v2`
+    defaults: exact member names, duplicates and invalid UTF-8 rejected.
+    `NumericDate` accepts only JSON numbers. Tokens are capped at 1 MiB.
+14. **`crit` is enforced** (RFC 7515 §4.1.11, RFC 7516 §4.1.13): no header
+    extension is implemented, so any `crit` is rejected before key lookup.
+    JWE `zip` is refused.
+15. **Audience is enforced by default** (RFC 7519 §4.1.3): a token carrying
+    `aud` is rejected unless `WithAudience` names one of its values;
+    `WithoutAudienceCheck` is an explicit opt-out.
+16. **Key usage and canonical keys.** A JWK's `use`, `key_ops` and `alg`
+    restrict what it verifies; non-canonical RSA/EC/OKP encodings are rejected
+    so each key has exactly one RFC 7638 thumbprint.
+17. **Hardened remote key retrieval.** `KeyFetcher` and `DiscoverJWKSURI` are
+    HTTPS-only on every redirect hop, size-capped, single-flight and
+    rate-limited (including failures); `max-age` is capped; discovery requires
+    the returned `issuer` to match exactly.
+18. **No internal detail in HTTP responses.** `WriteChallenge` / `Middleware`
+    send fixed texts; infrastructure failures are 5xx, not `invalid_token`.
+
+Known-answer RFC vectors, interoperability tests and the requirement-level
+status of every standard are documented in [COMPLIANCE.md](COMPLIANCE.md).
+
+## Supported versions
+
+The project is pre-1.0: security fixes land on the latest minor release only.
+Upgrade to the newest `v0.x` to receive them.
 
 ## Reporting a vulnerability
 

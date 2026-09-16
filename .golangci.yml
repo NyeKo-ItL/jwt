@@ -12,11 +12,22 @@ linters:
     - gosec
     - ineffassign
     - misspell
+    # Documentation: every exported identifier, package and blank import is
+    # documented, and doc comments start with the symbol name.
+    - revive
+    - godoclint
     - staticcheck
     - unconvert
     - unused
     # Local readability rule; CI disables it in the blocking lint job.
     - wsl_v5
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: blank-imports
 
 formatters:
   enable:

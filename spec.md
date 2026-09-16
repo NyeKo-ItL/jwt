@@ -150,6 +150,10 @@ can import instead of rebuilding these primitives from scratch.
 
 ## 3. RFC compliance
 
+> The living, requirement-by-requirement status of every standard below —
+> with code and test references and the deliberate deviations — is kept in
+> [`COMPLIANCE.md`](COMPLIANCE.md). This section records the original scope.
+
 All of the following are mandatory for v1.0 — there is no "optional tier."
 
 | RFC                                                | Title                                   | Requirement                                                                                                                                                                                                                                    |

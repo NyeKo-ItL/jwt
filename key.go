@@ -20,18 +20,21 @@ import (
 // KeyType is the RFC 7517 §4.1 "kty" value.
 type KeyType string
 
+// Key types (RFC 7518 §6.1, RFC 8037 §2).
 const (
-	KeyTypeRSA KeyType = "RSA"
-	KeyTypeEC  KeyType = "EC"
-	KeyTypeOKP KeyType = "OKP" // Ed25519 (RFC 8037)
-	KeyTypeOct KeyType = "oct" // symmetric; internal use only
+	KeyTypeRSA KeyType = "RSA" // RFC 7518 §6.3: "n", "e"
+	KeyTypeEC  KeyType = "EC"  // RFC 7518 §6.2: "crv" (P-256/384/521), "x", "y"
+	KeyTypeOKP KeyType = "OKP" // RFC 8037 §2: "crv" Ed25519, "x"
+	KeyTypeOct KeyType = "oct" // RFC 7518 §6.4: "k"; never serialized into a JWKS
 )
 
 // Key is a single JSON Web Key (RFC 7517 §4). A Key with Kty == KeyTypeOct
 // MUST NOT be serialized into a JWKS document served over HTTP, so
 // MarshalJSON returns ErrOctNotServable for it (spec §5.3).
 type Key struct {
+	// Kty is "kty" (RFC 7517 §4.1); it must match the algorithm family.
 	Kty KeyType
+	// Kid is "kid" (RFC 7517 §4.5), matched against the token header "kid".
 	Kid string
 	// Use is the RFC 7517 §4.2 public key use: "sig" or "enc". When set to
 	// anything other than "sig", the key cannot verify signatures.

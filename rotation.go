@@ -11,7 +11,9 @@ import (
 // as reuse and the whole family revoked — a common refresh-token-rotation
 // pattern. The library defines the shape; storage is the caller's (see
 // RevocationStore, §5.6).
-type TokenFamily struct{ ID string }
+type TokenFamily struct {
+	ID string // random, URL-safe; the RevocationStore identifier for the family
+}
 
 // familyIDBytes is the entropy of a generated family identifier.
 const familyIDBytes = 16
@@ -32,6 +34,6 @@ func NewTokenFamily() TokenFamily {
 // RotationResult is what a storage-backed rotation implementation should
 // return; ReuseDetected signals the caller MUST revoke the entire family.
 type RotationResult struct {
-	Next          OpaqueToken
-	ReuseDetected bool
+	Next          OpaqueToken // the replacement token, when rotation succeeded
+	ReuseDetected bool        // a superseded token was presented: revoke the whole family
 }

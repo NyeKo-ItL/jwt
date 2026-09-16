@@ -9,11 +9,12 @@ import (
 // RevocationReason records why an identifier was revoked.
 type RevocationReason string
 
+// Revocation reasons recorded with RevocationStore.Revoke.
 const (
-	ReasonLogout         RevocationReason = "logout"
+	ReasonLogout         RevocationReason = "logout"          // identifier is usually a "jti" or session ID
 	ReasonKeyCompromised RevocationReason = "key_compromised" // identifier is a ThumbprintBytes-derived kid
 	ReasonReuseDetected  RevocationReason = "reuse_detected"  // identifier is a TokenFamily.ID
-	ReasonAdmin          RevocationReason = "admin_revoked"
+	ReasonAdmin          RevocationReason = "admin_revoked"   // any identifier, revoked by an operator
 )
 
 // RevocationStore abstracts revocation-state storage, generalized over the

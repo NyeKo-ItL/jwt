@@ -119,6 +119,24 @@ All notable changes to this project are documented here. The format follows
   set them — including the RFC 7518 Appendix C example, now a test vector —
   failed to decrypt.
 
+### Documentation
+
+- **`COMPLIANCE.md`**: requirement-by-requirement traceability for RFC 7515,
+  7516, 7517, 7518, 7519, 7638, 7800, 8037, 8725, 9864, 6750, 9068 and OpenID
+  Connect Core / Discovery, with code and test references, plus the
+  deliberate deviations (no `none`, no CBC-HMAC JWE, whole-set rejection of a
+  malformed JWKS member) and their reasons.
+- **README rewritten**: usage guide for every feature, option and error
+  reference, supported-algorithm table, security model (including the checks
+  that remain the caller's), standards summary and project documents.
+  Snippets are backed by compiled, output-checked `Example` functions.
+- **Doc comments** on every exported identifier, with RFC section references
+  at each enforcement point; `revive` (`exported`, `package-comments`,
+  `blank-imports`) and `godoclint` now run in CI.
+- `SECURITY.md` lists the new invariants and the supported-versions policy;
+  `CONTRIBUTING.md` and the PR template require tests first and
+  `COMPLIANCE.md` updates.
+
 ### Testing
 
 - **Known-answer vectors** (spec §7.2.1) in `testdata/vectors/jose.json`,
