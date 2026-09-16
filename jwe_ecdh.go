@@ -8,17 +8,19 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/NyeKo-ItL/jwt/internal/b64"
 	"github.com/NyeKo-ItL/jwt/internal/option"
 )
 
 // concatKDF is the NIST SP 800-56A Concatenation KDF as profiled by RFC 7518
-// §4.6, specialised to a single SHA-256 round (sufficient for <=256-bit
-// outputs). apu/apv are always empty here.
-func concatKDF(z []byte, algID string, keyBits int) []byte {
+// §4.6.2, specialised to a single SHA-256 round (sufficient for <=256-bit
+// outputs). apu and apv are the decoded "apu"/"apv" header values
+// (PartyUInfo/PartyVInfo, §4.6.1.2–3); empty when absent.
+func concatKDF(z []byte, algID string, apu, apv []byte, keyBits int) []byte {
 	var other bytes.Buffer
 	writeLenPrefixed(&other, []byte(algID)) // AlgorithmID
-	writeLenPrefixed(&other, nil)           // PartyUInfo (apu)
-	writeLenPrefixed(&other, nil)           // PartyVInfo (apv)
+	writeLenPrefixed(&other, apu)           // PartyUInfo
+	writeLenPrefixed(&other, apv)           // PartyVInfo
 	//nolint:gosec // RFC 7518 encodes SuppPubInfo as an unsigned 32-bit value; keyBits is a validated algorithm constant.
 	_ = binary.Write(&other, binary.BigEndian, uint32(keyBits)) // SuppPubInfo
 	// SuppPrivInfo: empty
@@ -81,11 +83,11 @@ func (w ecdhWrapper) wrap(hdr *jweHeader, cekLen int) (cek, encryptedKey []byte,
 	switch w.alg {
 	case ECDHES:
 		// direct: the agreed key IS the CEK, keyed to the content algorithm.
-		return concatKDF(z, string(hdr.Enc), cekLen*8), nil, nil
+		return concatKDF(z, string(hdr.Enc), nil, nil, cekLen*8), nil, nil
 	case ECDHESA256KW:
 		// Key Agreement with Key Wrapping: the Concat KDF AlgorithmID is the
 		// "alg" value, not the wrap algorithm (RFC 7518 §4.6.2).
-		kek := concatKDF(z, string(w.alg), 256)
+		kek := concatKDF(z, string(w.alg), nil, nil, 256)
 
 		cek = make([]byte, cekLen)
 		if _, err = rand.Read(cek); err != nil {
@@ -126,15 +128,21 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 		return nil, ErrDecryptionFailed
 	}
 
+	apu, apv, err := decodePartyInfo(hdr)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
 	switch hdr.Alg {
 	case ECDHES:
+		// Direct Key Agreement: AlgorithmID is "enc", keydatalen the CEK size.
 		if len(encryptedKey) != 0 {
 			return nil, ErrDecryptionFailed
 		}
 
-		return concatKDF(z, string(hdr.Enc), cekLen*8), nil
+		return concatKDF(z, string(hdr.Enc), apu, apv, cekLen*8), nil
 	case ECDHESA256KW:
-		kek := concatKDF(z, string(hdr.Alg), 256) // AlgorithmID = "alg" (RFC 7518 §4.6.2)
+		kek := concatKDF(z, string(hdr.Alg), apu, apv, 256) // AlgorithmID = "alg" (RFC 7518 §4.6.2)
 
 		cek, err := aesKWUnwrap(kek, encryptedKey)
 		if err != nil || len(cek) != cekLen {
@@ -145,6 +153,24 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 	default:
 		return nil, ErrDecryptionFailed
 	}
+}
+
+// decodePartyInfo base64url-decodes the optional "apu" and "apv" header
+// parameters (RFC 7518 §4.6.1.2–3).
+func decodePartyInfo(hdr *jweHeader) (apu, apv []byte, err error) {
+	if hdr.APU != "" {
+		if apu, err = b64.Decode(hdr.APU); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if hdr.APV != "" {
+		if apv, err = b64.Decode(hdr.APV); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return apu, apv, nil
 }
 
 // NewECDHESEncrypter derives (ECDH-ES) or derives-and-wraps

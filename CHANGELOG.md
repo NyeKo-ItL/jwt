@@ -64,6 +64,13 @@ All notable changes to this project are documented here. The format follows
   thumbprint-keyed revocation). Duplicate `key_ops` values and `key_ops`
   inconsistent with `use` are rejected.
 
+- **`DecryptClaims` enforces a mandatory `alg`/`enc` allowlist** (spec §4.1,
+  RFC 8725 §3.1), checked on the protected header before the `Decrypter` runs.
+  Previously it consulted no allowlist at all, contrary to `SECURITY.md`.
+- **JWE input is size-capped** at 1 MiB, like `Parse` (spec §4.11).
+- **JWE `zip` is refused and `crit` enforced** (RFC 7516 §4.1.3, §4.1.13);
+  `alg` and `enc` must both be present.
+
 ### Added
 
 - `ErrKeyFetch`, wrapped by every remote key-fetch or discovery failure.
@@ -71,6 +78,17 @@ All notable changes to this project are documented here. The format follows
 - `ErrUnsupportedCritical`.
 - `WithoutAudienceCheck`, `ParseOptions.SkipAudienceCheck`.
 - `ErrKeyUsage`; `Key.KeyOps` (parsed and serialized as `key_ops`).
+- `WithAllowedKeyAlgorithms`, `WithAllowedContentAlgorithms`,
+  `ParseOptions.AllowedKeyAlgorithms`, `ParseOptions.AllowedContentAlgorithms`.
+- `WithRequiredType` now also applies to the JWE protected header in
+  `DecryptClaims`.
+
+### Fixed
+
+- **ECDH-ES `apu` / `apv` are honored** as PartyUInfo / PartyVInfo in the Concat
+  KDF (RFC 7518 §4.6.1.2–3). They were ignored, so tokens from producers that
+  set them — including the RFC 7518 Appendix C example, now a test vector —
+  failed to decrypt.
 
 ### Changed (breaking)
 
@@ -84,6 +102,9 @@ All notable changes to this project are documented here. The format follows
 - `NumericDate` no longer decodes from a JSON string.
 - `Parse` / `DecryptClaims` / `Middleware` reject tokens carrying `aud` unless
   `WithAudience` matches or `WithoutAudienceCheck` is given.
+- `DecryptClaims` returns `ErrNoAllowedAlgorithms` unless both
+  `WithAllowedKeyAlgorithms` and `WithAllowedContentAlgorithms` are given, and
+  `ErrAlgorithmNotAllowed` for a header outside them.
 - A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer
   verifies; `Key.PublicKey` no longer left-pads short EC coordinates.
 

@@ -570,7 +570,7 @@ func TestParseOptionsAcceptedByDecryptAndMiddleware(t *testing.T) {
 	compact, _ := EncryptClaims(appClaims{RegisteredClaims: RegisteredClaims{Issuer: "e"}}, enc)
 
 	var got appClaims
-	if err := DecryptClaims(ctx(), compact, &got, dec, ParseOptions{Issuer: "e"}); err != nil {
+	if err := DecryptClaims(ctx(), compact, &got, dec, jweAllow, ParseOptions{Issuer: "e"}); err != nil {
 		t.Fatalf("DecryptClaims with ParseOptions: %v", err)
 	}
 	// Middleware

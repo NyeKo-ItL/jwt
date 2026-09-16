@@ -575,9 +575,17 @@ func EncryptClaims[C any](claims C, enc Encrypter) (string, error)
 
 // DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE,
 // validate the registered claims, and unmarshal the plaintext into dst (type
-// inferred). The AEAD tag is verified before any plaintext is returned
-// (§4.7) — a failure yields one generic error.
+// inferred). Both allowlists are mandatory (§4.1) and are checked against the
+// protected header before the Decrypter runs, so they bind custom Decrypters
+// too. The AEAD tag is verified before any plaintext is returned (§4.7) — a
+// failure yields one generic error. Input is capped at 1 MiB; "zip" is
+// refused (no compression support); "crit" is enforced; "apu"/"apv" feed the
+// ECDH-ES Concat KDF (RFC 7518 §4.6.1.2–3); WithRequiredType checks the
+// protected header "typ".
 func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decrypter, opts ...ParseOption) error
+
+func WithAllowedKeyAlgorithms(algs ...KeyAlgorithm) ParseOption         // required by DecryptClaims
+func WithAllowedContentAlgorithms(encs ...ContentAlgorithm) ParseOption // required by DecryptClaims
 
 var ErrDecryptionFailed = errors.New("jwt: decryption failed")
 ```

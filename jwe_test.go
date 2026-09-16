@@ -285,7 +285,7 @@ func TestEncryptDecryptClaims(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := decryptClaims[appClaims](jweCtx(), compact, dec,
+	out, err := decryptClaims[appClaims](jweCtx(), compact, dec, jweAllow,
 		WithIssuer("enc-issuer"), WithAudience("aud9"))
 	if err != nil {
 		t.Fatal(err)
@@ -300,12 +300,12 @@ func TestEncryptDecryptClaims(t *testing.T) {
 	expired.ExpiresAt = NewNumericDate(time.Now().Add(-time.Hour))
 
 	badCompact, _ := EncryptClaims(expired, enc)
-	if _, err := decryptClaims[appClaims](jweCtx(), badCompact, dec); !errors.Is(err, ErrExpired) {
+	if _, err := decryptClaims[appClaims](jweCtx(), badCompact, dec, jweAllow, WithAudience("aud9")); !errors.Is(err, ErrExpired) {
 		t.Fatalf("expired enc claims err = %v", err)
 	}
 
 	// wrong issuer
-	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec, WithIssuer("nope")); !errors.Is(err, ErrIssuerMismatch) {
+	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec, jweAllow, WithAudience("aud9"), WithIssuer("nope")); !errors.Is(err, ErrIssuerMismatch) {
 		t.Fatalf("issuer err = %v", err)
 	}
 }
@@ -322,7 +322,7 @@ func TestEncryptDecryptClaimsNilAndGarbage(t *testing.T) {
 		t.Fatalf("nil decrypter err = %v", err)
 	}
 
-	if _, err := decryptClaims[appClaims](jweCtx(), "garbage", dec); !errors.Is(err, ErrDecryptionFailed) {
+	if _, err := decryptClaims[appClaims](jweCtx(), "garbage", dec, jweAllow); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("garbage err = %v", err)
 	}
 
@@ -330,7 +330,7 @@ func TestEncryptDecryptClaimsNilAndGarbage(t *testing.T) {
 	enc, _ := NewA256KWEncrypter(tk.hmac[:32], A256GCM, "")
 
 	compact, _ := enc.Encrypt([]byte("not-json"))
-	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec); !errors.Is(err, ErrMalformedToken) {
+	if _, err := decryptClaims[appClaims](jweCtx(), compact, dec, jweAllow); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("non-json plaintext err = %v", err)
 	}
 }

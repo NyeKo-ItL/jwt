@@ -37,7 +37,7 @@ func FuzzDecryptClaims(f *testing.F) {
 	dec, _ := NewA256KWDecrypter(tk.hmac[:32], "k1")
 
 	f.Fuzz(func(t *testing.T, compact string) {
-		_, _ = decryptClaims[appClaims](context.Background(), compact, dec)
+		_, _ = decryptClaims[appClaims](context.Background(), compact, dec, jweAllow)
 	})
 }
 

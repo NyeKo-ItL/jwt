@@ -53,6 +53,8 @@ func main() {
 	var claims payload
 
 	err = jwt.DecryptClaims(context.Background(), compact, &claims, dec,
+		jwt.WithAllowedKeyAlgorithms(jwt.ECDHESA256KW), // mandatory "alg" allowlist
+		jwt.WithAllowedContentAlgorithms(jwt.A256GCM),  // mandatory "enc" allowlist
 		jwt.WithIssuer("https://issuer.example"),
 	)
 	if err != nil {
