@@ -624,21 +624,27 @@ func ParseKeySet(data []byte) (*KeySet, error)
 // KeyFetcher retrieves and caches a remote JWKS document; it satisfies
 // KeyProvider directly, so it plugs in wherever a KeySet would — avoiding
 // the common hand-rolled-JWKS pitfalls of silently skipping non-RSA keys or
-// falling back to "first key" when kid is absent. HTTPS-only by default,
-// size-capped, honors HTTP caching headers when present.
+// falling back to "first key" when kid is absent. HTTPS-only (every redirect
+// hop included), size-capped, single-flight with a rate limit that also
+// applies to failed attempts, honors Cache-Control max-age up to a cap, and
+// keeps serving keys from the last good document during an upstream outage.
+// Fetch failures wrap ErrKeyFetch.
 type KeyFetcher struct{ /* unexported */ }
 
 func NewKeyFetcher(uri string, opts ...FetcherOption) *KeyFetcher
 func WithHTTPClient(c *http.Client) FetcherOption
 func WithMinRefreshInterval(d time.Duration) FetcherOption
 func WithMaxResponseBytes(n int64) FetcherOption
+func WithMaxCacheDuration(d time.Duration) FetcherOption // default 24h
 
 func (f *KeyFetcher) Lookup(ctx context.Context, kid string) (Key, bool, error) // satisfies KeyProvider
 func (f *KeyFetcher) Refresh(ctx context.Context) error
 
-// DiscoverJWKSURI resolves a JWKS URI from an OIDC/OAuth discovery document
-// ("<issuer>/.well-known/openid-configuration", falling back to
-// "<issuer>/.well-known/jwks.json").
+// DiscoverJWKSURI resolves a JWKS URI from an OpenID Connect Discovery 1.0
+// document ("<issuer>/.well-known/openid-configuration"). The issuer must be
+// https; the document's "issuer" must equal it exactly (Discovery §4.3); the
+// "jwks_uri" must be https. No fallback URL is guessed: every failure wraps
+// ErrKeyFetch.
 func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (string, error)
 ```
 

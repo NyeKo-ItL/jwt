@@ -61,24 +61,30 @@ func (s *KeySet) Remove(kid string) {
 // key that itself has no kid); it is ambiguous when the set holds several
 // keys, and Lookup then reports not-found rather than guessing.
 func (s *KeySet) Lookup(_ context.Context, kid string) (Key, bool, error) {
+	k, ok := s.lookup(kid)
+
+	return k, ok, nil
+}
+
+func (s *KeySet) lookup(kid string) (Key, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	if kid == "" {
 		if len(s.keys) == 1 {
-			return s.keys[0], true, nil
+			return s.keys[0], true
 		}
 
-		return Key{}, false, nil
+		return Key{}, false
 	}
 
 	for _, k := range s.keys {
 		if k.Kid == kid {
-			return k, true, nil
+			return k, true
 		}
 	}
 
-	return Key{}, false, nil
+	return Key{}, false
 }
 
 // Keys returns a snapshot copy of the set, for serving as a JWKS document.

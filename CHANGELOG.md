@@ -7,6 +7,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [UNRELEASED]
 
+### Security
+
+- **`KeyFetcher` never leaves HTTPS.** Redirects to any non-`https` URL are
+  refused (previously the configured URL was checked but redirects were
+  followed to `http://`, letting a JWKS be loaded over plaintext). A client
+  passed to `WithHTTPClient` is copied, never mutated, and its own
+  `CheckRedirect` still applies after the HTTPS check.
+- **`KeyFetcher` no longer amplifies traffic.** Concurrent lookups share one
+  in-flight request, and network attempts — including failed ones — are
+  rate-limited to one per `WithMinRefreshInterval`. Previously every request
+  carrying an unknown `kid` during an outage caused its own upstream fetch.
+- **`KeyFetcher` serves the last good keys during an outage** instead of
+  failing every token.
+- **`Cache-Control: max-age` is capped** at 24 hours by default
+  (`WithMaxCacheDuration`), so a removed key cannot stay trusted for long.
+- **`DiscoverJWKSURI` validates the discovery document** per OpenID Connect
+  Discovery 1.0: the issuer must be `https` with no query or fragment, the
+  returned `issuer` must equal the requested one exactly (§4.3), and
+  `jwks_uri` must be `https`. It no longer silently falls back to
+  `<issuer>/.well-known/jwks.json` on errors, and a nil client now gets a
+  30-second timeout instead of `http.DefaultClient`.
+
+### Added
+
+- `ErrKeyFetch`, wrapped by every remote key-fetch or discovery failure.
+- `WithMaxCacheDuration` fetcher option.
+
+### Changed (breaking)
+
+- `DiscoverJWKSURI` returns an error where it used to return a guessed
+  `/.well-known/jwks.json` URL.
+- `KeyFetcher` errors now wrap `ErrKeyFetch` (malformed JWKS documents wrap
+  both `ErrKeyFetch` and `ErrMalformedKey`).
+
 ## [0.1.3] - 2026-09-13
 
 This release keeps the exported API unchanged while reducing the public package's
