@@ -60,5 +60,7 @@ against any new `KeyProvider` / `RevocationStore` implementation.
 4. Tests come first: a fix starts with tests reproducing the problem and its
    neighbouring cases; a new feature starts with tests derived from the RFC
    text, and published RFC test vectors go into `testdata/` (see its README).
-5. Once tagged `v1.0.0`, the CI `apidiff` job blocks incompatible API changes
+5. Changes to `.github/standards/` (the standards-watch tool) run
+   `cd .github/standards && go test ./...`.
+6. Once tagged `v1.0.0`, the CI `apidiff` job blocks incompatible API changes
    without a major version bump.

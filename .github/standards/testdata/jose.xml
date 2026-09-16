@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<registry xmlns="http://www.iana.org/assignments" id="jose">
+  <title>JSON Object Signing and Encryption (JOSE)</title>
+  <updated>2026-05-22</updated>
+  <registry id="web-signature-encryption-algorithms">
+    <title>JSON Web Signature and Encryption Algorithms</title>
+    <record date="2015-01-23">
+      <value>ES256</value>
+      <description>ECDSA using P-256 and SHA-256</description>
+      <usage>alg</usage>
+      <requirements>Recommended+</requirements>
+      <controller><xref type="person" data="IESG"/></controller>
+      <xref type="rfc" data="rfc7518" section="3.4"/>
+    </record>
+    <record date="2015-01-23">
+      <value>EdDSA</value>
+      <description>EdDSA signature algorithms</description>
+      <usage>alg</usage>
+      <requirements>Deprecated</requirements>
+      <xref type="rfc" data="rfc8037" section="3.1"/>
+      <xref type="rfc" data="rfc9864" section="4.1.2"/>
+    </record>
+  </registry>
+  <registry id="web-signature-encryption-header-parameters">
+    <title>JSON Web Signature and Encryption Header Parameters</title>
+    <record><value>alg</value><description>Algorithm</description><usage>JWS</usage><xref type="rfc" data="rfc7515" section="4.1.1"/></record>
+    <record><value>alg</value><description>Algorithm</description><usage>JWE</usage><xref type="rfc" data="rfc7516" section="4.1.1"/></record>
+  </registry>
+</registry>

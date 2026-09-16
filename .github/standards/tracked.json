@@ -1,0 +1,43 @@
+{
+  "rfcs": [6750, 7515, 7516, 7517, 7518, 7519, 7638, 7800, 8037, 8725, 9068, 9864],
+  "drafts": [
+    "draft-ietf-oauth-rfc8725bis",
+    "draft-ietf-jose-deprecate-none-rsa15"
+  ],
+  "iana": {
+    "jose": [],
+    "jwt": ["claims", "confirmation-methods"]
+  },
+  "pages": {
+    "OpenID Connect Core 1.0": "https://openid.net/specs/openid-connect-core-1_0.html",
+    "OpenID Connect Discovery 1.0": "https://openid.net/specs/openid-connect-discovery-1_0.html"
+  },
+  "impact": {
+    "RFC6750": "httpauth.go",
+    "RFC7515": "jwt.go, header.go, strictjson.go, internal/b64",
+    "RFC7516": "jwe.go, jwe_*.go",
+    "RFC7517": "key.go, keyset.go, keyfetch.go",
+    "RFC7518": "internal/alg, jwe_*.go, key.go",
+    "RFC7519": "jwt.go, claims.go",
+    "RFC7638": "thumbprint.go",
+    "RFC7800": "claims.go (Confirmation)",
+    "RFC8037": "internal/alg (Ed25519), key.go",
+    "RFC8725": "jwt.go, jwe.go, key.go, SECURITY.md",
+    "RFC9068": "atclaims.go",
+    "RFC9864": "alg.go, internal/alg, key.go",
+    "jose/web-signature-encryption-algorithms": "alg.go, internal/alg, jwe.go",
+    "jose/web-signature-encryption-header-parameters": "header.go, jwe.go, strictjson.go (registeredHeaderNames)",
+    "jose/web-encryption-compression-algorithms": "jwe.go (zip is refused)",
+    "jose/web-key-types": "key.go",
+    "jose/web-key-elliptic-curve": "key.go, jwe_ecdh.go",
+    "jose/web-key-parameters": "key.go, thumbprint.go",
+    "jose/web-key-use": "key.go (permitsVerify)",
+    "jose/web-key-operations": "key.go (permitsVerify, checkCanonical)",
+    "jose/web-key-set-parameters": "keyset.go",
+    "jwt/claims": "claims.go, idtoken.go, atclaims.go",
+    "jwt/confirmation-methods": "claims.go (Confirmation)",
+    "draft-ietf-oauth-rfc8725bis": "SECURITY.md, COMPLIANCE.md (RFC 8725 section)",
+    "draft-ietf-jose-deprecate-none-rsa15": "COMPLIANCE.md (none, RSA1_5 are already unsupported)",
+    "OpenID Connect": "idtoken.go, keyfetch.go (DiscoverJWKSURI)"
+  }
+}

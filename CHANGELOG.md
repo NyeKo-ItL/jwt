@@ -137,6 +137,16 @@ All notable changes to this project are documented here. The format follows
   `CONTRIBUTING.md` and the PR template require tests first and
   `COMPLIANCE.md` updates.
 
+### CI
+
+- **Weekly standards watch** (`.github/workflows/standards-watch.yml`,
+  tool in `.github/standards/`): compares RFC status and errata, the IANA JOSE
+  and JWT registries, tracked IETF drafts and the OpenID Connect
+  specifications with a committed baseline, and opens or refreshes a single
+  `standards-watch` issue listing the changes with source links and likely
+  affected files. Deterministic, stdlib-only, `contents: read` +
+  `issues: write`; its offline tests run in CI.
+
 ### Testing
 
 - **Known-answer vectors** (spec §7.2.1) in `testdata/vectors/jose.json`,
