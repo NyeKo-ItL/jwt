@@ -40,7 +40,7 @@ func TestSignParseRoundTripAllFamilies(t *testing.T) {
 		{"HS256", HS256, hmacS, FromHMACSecret(tk.hmac, "h1")},
 		{"PS256", PS256, psS, FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1")},
 		{"ES384", ES384, esS, FromECDSAPublicKey(&tk.p384.PublicKey, "e1")},
-		{"EdDSA", EdDSA, edS, FromEd25519PublicKey(tk.edPub, "o1")},
+		{"Ed25519", Ed25519, edS, FromEd25519PublicKey(tk.edPub, "o1")},
 		{"RS256-custom-signer", RS256, rsS, FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1")},
 	}
 	for _, c := range cases {

@@ -8,7 +8,7 @@ import (
 	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
 )
 
-// Algorithm identifies a JWA/EdDSA signing algorithm. It is an open string
+// Algorithm identifies a JWS signing algorithm (RFC 7518 §3, RFC 9864 §2.2). It is an open string
 // type, not a closed enum: callers may define custom algorithm values.
 type Algorithm = internalalg.Algorithm
 
@@ -25,6 +25,17 @@ const (
 	ES256 Algorithm = internalalg.ES256
 	ES384 Algorithm = internalalg.ES384
 	ES512 Algorithm = internalalg.ES512
+	// Ed25519 is EdDSA using the Ed25519 parameter set (RFC 9864 §2.2,
+	// RFC 8032 §5.1) — the fully-specified identifier the built-in Ed25519
+	// signer emits.
+	Ed25519 Algorithm = internalalg.Ed25519
+
+	// EdDSA is the polymorphic identifier of RFC 8037 §3.1.
+	//
+	// Deprecated: RFC 9864 §4.1.2 deprecates "EdDSA" in favor of Ed25519.
+	// It is still verified — over Ed25519 keys only — when explicitly listed
+	// in WithAllowedAlgorithms, for tokens from issuers that have not
+	// migrated; nothing in this library emits it.
 	EdDSA Algorithm = internalalg.EdDSA
 )
 
@@ -69,12 +80,14 @@ func NewRSAPKCS1Verifier(alg Algorithm, key *rsa.PublicKey, kid ...string) (Veri
 	return internalalg.NewRSAPKCS1Verifier(alg, key, kid...)
 }
 
-// NewEd25519Signer returns an EdDSA (Ed25519) Signer.
+// NewEd25519Signer returns a Signer for the RFC 9864 "Ed25519" algorithm.
 func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
 	return internalalg.NewEd25519Signer(key, kid...)
 }
 
-// NewEd25519Verifier returns an EdDSA (Ed25519) Verifier.
+// NewEd25519Verifier returns a Verifier for the RFC 9864 "Ed25519"
+// algorithm. Parse also verifies deprecated "EdDSA" tokens with an Ed25519
+// key when EdDSA is allowlisted.
 func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error) {
 	return internalalg.NewEd25519Verifier(key, kid...)
 }

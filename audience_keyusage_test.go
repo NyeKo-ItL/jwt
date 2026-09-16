@@ -128,20 +128,20 @@ func TestParseHonorsJWKUsageConstraints(t *testing.T) {
 		{"use sig", map[string]any{"use": "sig"}, true},
 		{"use enc", map[string]any{"use": "enc"}, false},
 		{"use unknown value", map[string]any{"use": "wrap"}, false},
-		{"alg matches header", map[string]any{"alg": "EdDSA"}, true},
+		{"alg matches header", map[string]any{"alg": "Ed25519"}, true},
 		{"alg for another algorithm", map[string]any{"alg": "ES256"}, false},
 		{"alg for key management", map[string]any{"alg": "ECDH-ES"}, false},
 		{"key_ops verify", map[string]any{"key_ops": []string{"verify"}}, true},
 		{"key_ops sign+verify", map[string]any{"key_ops": []string{"sign", "verify"}}, true},
 		{"key_ops sign only", map[string]any{"key_ops": []string{"sign"}}, false},
 		{"key_ops encrypt", map[string]any{"key_ops": []string{"encrypt", "wrapKey"}}, false},
-		{"all consistent", map[string]any{"use": "sig", "alg": "EdDSA", "key_ops": []string{"verify"}}, true},
+		{"all consistent", map[string]any{"use": "sig", "alg": "Ed25519", "key_ops": []string{"verify"}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			k := jwkWith(t, base, tc.extra)
 
-			_, err := parse[appClaims](ctx(), tok, StaticKeyProvider(k), WithAllowedAlgorithms(EdDSA))
+			_, err := parse[appClaims](ctx(), tok, StaticKeyProvider(k), WithAllowedAlgorithms(Ed25519))
 			if tc.ok && err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -169,7 +169,7 @@ func TestHMACKeyUsageConstraints(t *testing.T) {
 func TestKeyVerifierRespectsUsage(t *testing.T) {
 	tk := newTestKeys(t)
 	k := FromEd25519PublicKey(tk.edPub)
-	k.Alg, k.Use = string(EdDSA), "enc"
+	k.Alg, k.Use = string(Ed25519), "enc"
 
 	if _, err := k.Verifier(); !errors.Is(err, ErrKeyUsage) {
 		t.Fatalf("Key.Verifier on a use=enc key: %v", err)

@@ -91,10 +91,17 @@ All notable changes to this project are documented here. The format follows
 - `ErrKeyUsage`; `Key.KeyOps` (parsed and serialized as `key_ops`).
 - `WithAllowedKeyAlgorithms`, `WithAllowedContentAlgorithms`,
   `ParseOptions.AllowedKeyAlgorithms`, `ParseOptions.AllowedContentAlgorithms`.
+- `Ed25519` algorithm identifier (RFC 9864 §2.2).
 - `MiddlewareOptions` (`Realm`, `OnError`) and `WriteInsufficientScope`
   (RFC 6750 §3.1 `insufficient_scope`).
 - `WithRequiredType` now also applies to the JWE protected header in
   `DecryptClaims`.
+
+### Deprecated
+
+- `EdDSA`, deprecated by RFC 9864 §4.1.2 (IANA JOSE registry: "Deprecated").
+  It is still verified over Ed25519 keys when explicitly allowlisted; nothing
+  emits it any more.
 
 ### Fixed
 
@@ -118,6 +125,12 @@ All notable changes to this project are documented here. The format follows
 - `DecryptClaims` returns `ErrNoAllowedAlgorithms` unless both
   `WithAllowedKeyAlgorithms` and `WithAllowedContentAlgorithms` are given, and
   `ErrAlgorithmNotAllowed` for a header outside them.
+- **`NewEd25519Signer` emits `alg: "Ed25519"`** instead of `"EdDSA"`
+  (RFC 9864), and the Ed25519 verifiers report `Ed25519`. Allowlists must name
+  `Ed25519`; `EdDSA` no longer matches tokens produced by this library.
+  Verifiers that predate RFC 9864 (e.g. golang-jwt v5, go-jose v4) need to
+  register the identifier — see the interop tests. A JWK `alg` of either value
+  serves both identifiers (RFC 9864 §5).
 - `WriteChallenge` status codes and `error_description` texts changed (see
   its documentation); 5xx responses carry no challenge.
 - A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer

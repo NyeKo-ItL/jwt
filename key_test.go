@@ -168,7 +168,7 @@ func TestVerifierForAlgAntiConfusion(t *testing.T) {
 		{"oct key for RS256", octKey, RS256, ErrAlgorithmNotAllowed},
 		{"oct key for ES256", octKey, ES256, ErrAlgorithmNotAllowed},
 		{"ec key for PS256", ecKey, PS256, ErrAlgorithmNotAllowed},
-		{"ec key for EdDSA", ecKey, EdDSA, ErrAlgorithmNotAllowed},
+		{"ec key for EdDSA", ecKey, Ed25519, ErrAlgorithmNotAllowed},
 		{"rsa key for unknown alg", rsaKey, Algorithm("XX999"), ErrUnsupportedAlgorithm},
 	}
 	for _, c := range cases {
@@ -191,7 +191,7 @@ func TestVerifierForAlgHappyPaths(t *testing.T) {
 		{FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1"), PS256},
 		{FromRSAPublicKey(&tk.rsa2048.PublicKey, "r1"), RS256},
 		{FromECDSAPublicKey(&tk.p256.PublicKey, "e1"), ES256},
-		{FromEd25519PublicKey(tk.edPub, "o1"), EdDSA},
+		{FromEd25519PublicKey(tk.edPub, "o1"), Ed25519},
 	}
 	for _, c := range cases {
 		v, err := c.key.verifierForAlg(c.alg)

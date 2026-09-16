@@ -347,7 +347,7 @@ func (k Key) verifierForAlg(alg Algorithm) (Verifier, error) {
 			return nil, err
 		}
 
-		return NewEd25519Verifier(pub.(ed25519.PublicKey), k.Kid)
+		return internalalg.NewEd25519VerifierFor(alg, pub.(ed25519.PublicKey), k.Kid)
 	default:
 		return nil, ErrUnsupportedAlgorithm
 	}
@@ -366,11 +366,26 @@ func (k Key) permitsVerify(alg Algorithm) error {
 		return fmt.Errorf("%w: key_ops %q does not include \"verify\"", ErrKeyUsage, k.KeyOps)
 	}
 
-	if k.Alg != "" && Algorithm(k.Alg) != alg {
+	if k.Alg != "" && !sameAlgorithm(Algorithm(k.Alg), alg) {
 		return fmt.Errorf("%w: key is for %q, token uses %q", ErrKeyUsage, k.Alg, alg)
 	}
 
 	return nil
+}
+
+// sameAlgorithm reports whether a key's "alg" and a token's "alg" denote the
+// same algorithm. They must be identical, except that the deprecated
+// polymorphic "EdDSA" and the fully-specified "Ed25519" are interchangeable:
+// RFC 9864 §5 keeps the key representation unchanged apart from "alg", and
+// this library supports EdDSA over Ed25519 keys only.
+func sameAlgorithm(keyAlg, tokenAlg Algorithm) bool {
+	if keyAlg == tokenAlg {
+		return true
+	}
+
+	isEd := func(a Algorithm) bool { return a == Ed25519 || a == EdDSA }
+
+	return isEd(keyAlg) && isEd(tokenAlg)
 }
 
 func (k Key) rsaPublic() (*rsa.PublicKey, error) {

@@ -47,7 +47,7 @@ token, _ := jwt.Sign(MyClaims{
 keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub))
 var claims MyClaims // type is inferred from &claims — no jwt.Parse[...]
 err := jwt.Parse(ctx, token, &claims, keys,
-    jwt.WithAllowedAlgorithms(jwt.EdDSA),
+    jwt.WithAllowedAlgorithms(jwt.Ed25519),
     jwt.WithIssuer("me"),
 ) // claims.Role, claims.Subject, ...
 ```
@@ -60,7 +60,7 @@ per-call `With*` overrides —
 
 ```go
 var apiOpts = jwt.ParseOptions{
-    AllowedAlgorithms: []jwt.Algorithm{jwt.EdDSA},
+    AllowedAlgorithms: []jwt.Algorithm{jwt.Ed25519},
     Issuer:            "me",
 }
 err := jwt.Parse(ctx, token, &claims, keys, apiOpts, jwt.WithAudience("orders"))

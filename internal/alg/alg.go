@@ -36,6 +36,11 @@ const (
 	ES256 Algorithm = "ES256"
 	ES384 Algorithm = "ES384"
 	ES512 Algorithm = "ES512"
+	// Ed25519 is the fully-specified EdDSA-over-Ed25519 identifier
+	// (RFC 9864 §2.2).
+	Ed25519 Algorithm = "Ed25519"
+	// EdDSA is the polymorphic identifier from RFC 8037, deprecated by
+	// RFC 9864 §4.1.2; only Ed25519 keys are supported for it.
 	EdDSA Algorithm = "EdDSA"
 )
 
@@ -91,7 +96,7 @@ func FamilyOf(name string) Family {
 		return FamilyRSAPKCS1
 	case "ES256", "ES384", "ES512":
 		return FamilyECDSA
-	case "EdDSA":
+	case "Ed25519", "EdDSA":
 		return FamilyEdDSA
 	default:
 		return FamilyUnknown
@@ -356,23 +361,36 @@ func NewEd25519Signer(key ed25519.PrivateKey, kid ...string) (Signer, error) {
 
 	return &ed25519Signer{append(ed25519.PrivateKey(nil), key...), optKID(kid)}, nil
 }
-func (s *ed25519Signer) Algorithm() Algorithm           { return EdDSA }
+func (s *ed25519Signer) Algorithm() Algorithm           { return Ed25519 }
 func (s *ed25519Signer) KeyID() string                  { return s.kid }
 func (s *ed25519Signer) Sign(in []byte) ([]byte, error) { return ed25519.Sign(s.key, in), nil }
 
 type ed25519Verifier struct {
+	alg Algorithm
 	key ed25519.PublicKey
 	kid string
 }
 
+// NewEd25519Verifier returns a Verifier for the RFC 9864 "Ed25519" algorithm.
 func NewEd25519Verifier(key ed25519.PublicKey, kid ...string) (Verifier, error) {
+	return NewEd25519VerifierFor(Ed25519, key, kid...)
+}
+
+// NewEd25519VerifierFor returns an Ed25519 Verifier reporting alg, which must
+// be Ed25519 or the deprecated polymorphic EdDSA (RFC 9864 §4.1.2); both
+// denote the same computation over an Ed25519 key.
+func NewEd25519VerifierFor(a Algorithm, key ed25519.PublicKey, kid ...string) (Verifier, error) {
+	if a != Ed25519 && a != EdDSA {
+		return nil, fmt.Errorf("%w: %q is not an Ed25519 algorithm", ErrUnsupportedAlgorithm, a)
+	}
+
 	if len(key) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("%w: Ed25519 public key must be %d bytes, got %d", ErrMalformedKey, ed25519.PublicKeySize, len(key))
 	}
 
-	return &ed25519Verifier{append(ed25519.PublicKey(nil), key...), optKID(kid)}, nil
+	return &ed25519Verifier{a, append(ed25519.PublicKey(nil), key...), optKID(kid)}, nil
 }
-func (v *ed25519Verifier) Algorithm() Algorithm { return EdDSA }
+func (v *ed25519Verifier) Algorithm() Algorithm { return v.alg }
 func (v *ed25519Verifier) KeyID() string        { return v.kid }
 func (v *ed25519Verifier) Verify(in, sig []byte) error {
 	if len(sig) != ed25519.SignatureSize || !ed25519.Verify(v.key, in, sig) {

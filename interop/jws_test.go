@@ -12,7 +12,9 @@ import (
 )
 
 // jwsAlgs is the full JWS matrix. ourSign is false for the PKCS#1 v1.5
-// family, which this library verifies but never produces (spec §0.2).
+// family, which this library verifies but never produces (spec §0.2), and
+// for the deprecated polymorphic EdDSA (RFC 9864 §4.1.2), which it verifies
+// when allowlisted but signs as the fully-specified Ed25519.
 var jwsAlgs = []struct {
 	alg     jwt.Algorithm
 	ourSign bool
@@ -21,7 +23,30 @@ var jwsAlgs = []struct {
 	{jwt.RS256, false}, {jwt.RS384, false}, {jwt.RS512, false},
 	{jwt.PS256, true}, {jwt.PS384, true}, {jwt.PS512, true},
 	{jwt.ES256, true}, {jwt.ES384, true}, {jwt.ES512, true},
-	{jwt.EdDSA, true},
+	{jwt.Ed25519, true},
+	{jwt.EdDSA, false}, //nolint:staticcheck // legacy identifier kept for inbound interop
+}
+
+// joseLacksEd25519 reports algorithms go-jose v4 cannot process: it predates
+// RFC 9864 and only knows the polymorphic "EdDSA" identifier.
+func joseLacksEd25519(t *testing.T, alg jwt.Algorithm) {
+	t.Helper()
+	if alg == jwt.Ed25519 {
+		t.Skip("go-jose v4 does not implement the RFC 9864 \"Ed25519\" identifier")
+	}
+}
+
+// ed25519Method teaches golang-jwt v5 (which only registers "EdDSA") the
+// RFC 9864 "Ed25519" identifier — the one-line adaptation its users need to
+// consume this library's Ed25519 tokens. The computation is identical.
+type ed25519Method struct{ *jwtv5.SigningMethodEd25519 }
+
+func (ed25519Method) Alg() string { return "Ed25519" }
+
+func init() {
+	jwtv5.RegisterSigningMethod("Ed25519", func() jwtv5.SigningMethod {
+		return ed25519Method{jwtv5.SigningMethodEdDSA}
+	})
 }
 
 const marker = "interop-marker"
@@ -74,7 +99,7 @@ func oursSign(t *testing.T, alg jwt.Algorithm) string {
 		s, err = jwt.NewECDSASigner(alg, keys.p384, "k")
 	case jwt.ES512:
 		s, err = jwt.NewECDSASigner(alg, keys.p521, "k")
-	case jwt.EdDSA:
+	case jwt.Ed25519, jwt.EdDSA:
 		s, err = jwt.NewEd25519Signer(keys.edPriv, "k")
 	default:
 		t.Fatalf("no built-in signer for %s", alg)
@@ -108,7 +133,7 @@ func oursKeyProvider(t *testing.T, alg jwt.Algorithm) jwt.KeyProvider {
 		return jwt.StaticKeyProvider(jwt.FromECDSAPublicKey(&keys.p384.PublicKey, "k"))
 	case jwt.ES512:
 		return jwt.StaticKeyProvider(jwt.FromECDSAPublicKey(&keys.p521.PublicKey, "k"))
-	case jwt.EdDSA:
+	case jwt.Ed25519, jwt.EdDSA:
 		return jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(keys.edPub, "k"))
 	default:
 		t.Fatalf("no key provider for %s", alg)
@@ -146,7 +171,7 @@ func josePriv(alg jwt.Algorithm) any {
 		return keys.p384
 	case jwt.ES512:
 		return keys.p521
-	case jwt.EdDSA:
+	case jwt.Ed25519, jwt.EdDSA:
 		return keys.edPriv
 	}
 	return nil
@@ -164,7 +189,7 @@ func josePub(alg jwt.Algorithm) any {
 		return &keys.p384.PublicKey
 	case jwt.ES512:
 		return &keys.p521.PublicKey
-	case jwt.EdDSA:
+	case jwt.Ed25519, jwt.EdDSA:
 		return keys.edPub
 	}
 	return nil
@@ -225,7 +250,7 @@ func ghSign(t *testing.T, alg jwt.Algorithm) string {
 		key = keys.p384
 	case jwt.ES512:
 		key = keys.p521
-	case jwt.EdDSA:
+	case jwt.Ed25519, jwt.EdDSA:
 		key = keys.edPriv
 	}
 	s, err := tok.SignedString(key)
@@ -256,9 +281,12 @@ func TestJWS_OursVerifiedElsewhere(t *testing.T) {
 		if !c.ourSign {
 			continue
 		}
-		t.Run(string(c.alg), func(t *testing.T) {
-			tok := oursSign(t, c.alg)
+		tok := oursSign(t, c.alg)
+		t.Run(string(c.alg)+"/by-go-jose", func(t *testing.T) {
+			joseLacksEd25519(t, c.alg)
 			joseVerify(t, c.alg, tok)
+		})
+		t.Run(string(c.alg)+"/by-golang-jwt", func(t *testing.T) {
 			ghVerify(t, c.alg, tok)
 		})
 	}
@@ -267,6 +295,7 @@ func TestJWS_OursVerifiedElsewhere(t *testing.T) {
 func TestJWS_ElsewhereVerifiedByOurs(t *testing.T) {
 	for _, c := range jwsAlgs {
 		t.Run(string(c.alg)+"/from-go-jose", func(t *testing.T) {
+			joseLacksEd25519(t, c.alg)
 			oursParse(t, c.alg, joseSign(t, c.alg))
 		})
 		t.Run(string(c.alg)+"/from-golang-jwt", func(t *testing.T) {

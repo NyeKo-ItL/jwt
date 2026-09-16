@@ -44,7 +44,9 @@ These are binding constraints on everything that follows, not suggestions:
      produce a PKCS#1 v1.5 signature _out of the box_.
    - ECDSA: `ES256`/`ES384`/`ES512` — sign and verify (algorithm choice
      already tracks curve strength, so there is no weaker-variant problem).
-   - EdDSA: `Ed25519` — sign and verify; the only OKP algorithm in play.
+   - EdDSA: `Ed25519` (RFC 9864 fully-specified identifier) — sign and
+     verify; the only OKP algorithm in play. The deprecated polymorphic
+     `EdDSA` identifier is verify-only, when explicitly allowlisted.
    - **Crucially, "curated" describes the built-in constructors, not a
      closed type system.** `Signer` and `Verifier` are plain interfaces
      (§5.1). Nothing stops a caller from implementing `Signer` themselves
@@ -155,7 +157,8 @@ All of the following are mandatory for v1.0 — there is no "optional tier."
 | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) | JSON Web Token (JWT)                    | Full claims set, `StringOrURI`, `NumericDate`, compact JWT structure.                                                                                                                                                                          |
 | [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) | JSON Web Signature (JWS)                | Compact serialization; full §4.1 header parameter set (parsed, not all auto-actioned — see §2.1).                                                                                                                                              |
 | [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518) | JSON Web Algorithms (JWA)               | HS256/384/512, RS256/384/512 (built-in verify-only), PS256/384/512, ES256/384/512 — exact byte-level requirements (e.g. fixed-length concatenated ECDSA `r‖s`, not ASN.1 DER); §4/§5 key-management and content-encryption algorithms for JWE. |
-| [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) | CFRG ECDH/EdDSA in JOSE                 | `EdDSA` with Ed25519 (`crv: Ed25519`), sign + verify.                                                                                                                                                                                          |
+| [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) | CFRG ECDH/EdDSA in JOSE                 | OKP key representation with `crv: Ed25519`; legacy `alg: EdDSA` verify-only.                                                                                                                                                                   |
+| [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864) | Fully-Specified Algorithms for JOSE     | `alg: Ed25519`, sign + verify; `EdDSA` treated as deprecated (§4.1.2) and never emitted.                                                                                                                                                       |
 | [RFC 7516](https://www.rfc-editor.org/rfc/rfc7516) | JSON Web Encryption (JWE)               | Compact serialization; encrypt/decrypt with the algorithm set in §5.2.                                                                                                                                                                         |
 | [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517) | JSON Web Key (JWK)                      | `kty: RSA/EC/OKP/oct` representation; `oct` never serialized into a document served over HTTP.                                                                                                                                                 |
 | [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) | JWK Thumbprint                          | Both from a parsed `Key` and directly from caller-supplied raw key bytes.                                                                                                                                                                      |
@@ -261,7 +264,7 @@ identifiers by concern for readability; they do not imply sub-packages.
 ### 5.1 Algorithms, signing & parsing (JWS core)
 
 ```go
-// Algorithm identifies a JWA/EdDSA signing algorithm. It is an open string
+// Algorithm identifies a JWS signing algorithm (RFC 7518, RFC 9864). It is an open string
 // type, not a closed enum: a caller implementing a custom Signer/Verifier
 // (see below) can define their own Algorithm value and it works exactly like
 // a built-in one everywhere an Algorithm is accepted.
@@ -280,7 +283,8 @@ const (
 	ES256 Algorithm = "ES256"
 	ES384 Algorithm = "ES384"
 	ES512 Algorithm = "ES512"
-	EdDSA Algorithm = "EdDSA"
+	Ed25519 Algorithm = "Ed25519" // RFC 9864 §2.2
+	EdDSA   Algorithm = "EdDSA"   // Deprecated (RFC 9864 §4.1.2): verify-only, when allowlisted
 	// "none" (RFC 7518 §3.6) has no constant and no built-in Signer/Verifier,
 	// and Parse's allowlist check (§4.1) cannot be satisfied by it even via a
 	// custom implementation: see §4.2.
@@ -291,7 +295,7 @@ const (
 //
 // The library ships constructors for the curated best-practice algorithm
 // per key type (§0.2): NewHMACSigner (HS256/384/512), NewRSAPSSSigner
-// (PS256/384/512), NewECDSASigner (ES256/384/512), NewEd25519Signer (EdDSA).
+// (PS256/384/512), NewECDSASigner (ES256/384/512), NewEd25519Signer (Ed25519).
 // There is no built-in constructor for PKCS#1 v1.5 RSA signing (RS256/384/
 // 512) — an application that must sign with it (e.g. for a legacy consumer,
 // or a KMS/HSM-backed key that never leaves hardware) implements Signer
@@ -440,7 +444,7 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error)
 // dst. dst's type is inferred:
 //
 //	var claims MyClaims
-//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+//	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.Ed25519))
 //
 // Registered-claim validation runs whether or not dst models them.
 // WithAllowedAlgorithms is mandatory — Parse returns ErrNoAllowedAlgorithms
@@ -507,7 +511,7 @@ abstraction (§0.9 in practice):
 
 ```go
 keys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(pub, ""))
-claims, err := jwt.Parse[MyClaims](ctx, token, keys, jwt.WithAllowedAlgorithms(jwt.EdDSA))
+claims, err := jwt.Parse[MyClaims](ctx, token, keys, jwt.WithAllowedAlgorithms(jwt.Ed25519))
 ```
 
 ```go
@@ -1015,7 +1019,7 @@ here.
 ├── alg_hmac.go                # HS256/384/512 Signer/Verifier
 ├── alg_rsa.go                 # PS*/RS* Signer/Verifier
 ├── alg_ecdsa.go                # ES256/384/512 Signer/Verifier
-├── alg_eddsa.go                # EdDSA Signer/Verifier
+├── alg_eddsa.go                # Ed25519 Signer/Verifier
 ├── jwe.go                     # EncryptClaims, DecryptClaims, Encrypter, Decrypter
 ├── jwe_rsa.go                  # RSA-OAEP-256
 ├── jwe_ecdh.go                 # ECDH-ES(+A256KW)

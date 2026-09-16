@@ -29,7 +29,7 @@ func TestEd25519RoundTrip(t *testing.T) {
 		t.Fatalf("verify: %v", err)
 	}
 
-	if s.Algorithm() != EdDSA || v.Algorithm() != EdDSA || s.KeyID() != "o1" || v.KeyID() != "o1" {
+	if s.Algorithm() != Ed25519 || v.Algorithm() != Ed25519 || s.KeyID() != "o1" || v.KeyID() != "o1" {
 		t.Fatal("getters wrong")
 	}
 }
