@@ -16,7 +16,8 @@ import (
 func loadFixture(t *testing.T, name string) (payload json.RawMessage, claims map[string]any) {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join("testdata", "idtoken_fixtures", name+".json"))
+	raw, err := os.ReadFile(filepath.Join("testdata", "idtoken_fixtures", name+".json")) //nolint:gosec // test-controlled fixture name
+
 	if err != nil {
 		t.Fatal(err)
 	}
