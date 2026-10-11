@@ -109,7 +109,16 @@ func (ecdhUnwrapper) supports(alg KeyAlgorithm) bool {
 }
 
 func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) ([]byte, error) {
+	if hdr.Alg == ECDHESA256KW && len(encryptedKey) != cekLen+8 {
+		return nil, ErrDecryptionFailed
+	}
+
 	if hdr.EPK == nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	apu, apv, err := decodePartyInfo(hdr)
+	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
 
@@ -124,11 +133,6 @@ func (u ecdhUnwrapper) unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (
 	}
 
 	z, err := ecdhZ(u.priv, ecPub)
-	if err != nil {
-		return nil, ErrDecryptionFailed
-	}
-
-	apu, apv, err := decodePartyInfo(hdr)
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
@@ -170,12 +174,19 @@ func decodePartyInfo(hdr *jweHeader) (apu, apv []byte, err error) {
 		}
 	}
 
+	if hdr.apuPresent && hdr.apvPresent && bytes.Equal(apu, apv) {
+		return nil, nil, fmt.Errorf("apu and apv must be distinct")
+	}
+
 	return apu, apv, nil
 }
 
 // NewECDHESEncrypter derives (ECDH-ES) or derives-and-wraps
 // (ECDH-ES+A256KW) the CEK against an EC public key. alg must be ECDHES or
-// ECDHESA256KW.
+// ECDHESA256KW. This asymmetric JWE encryption authenticates the ciphertext
+// to the recipient but does not authenticate its sender; sign before
+// encrypting, preferably with EncryptNestedJWT, when issuer authentication is
+// required.
 func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentAlgorithm, kid ...string) (Encrypter, error) {
 	if pub == nil {
 		return nil, fmt.Errorf("%w: nil EC public key", ErrMalformedKey)
@@ -187,6 +198,9 @@ func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentA
 
 	if curveName(pub.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
+	}
+	if _, err := FromECDSAPublicKey(pub).PublicKey(); err != nil {
+		return nil, fmt.Errorf("%w: invalid EC public key", ErrMalformedKey)
 	}
 
 	return newEncrypter(content, option.FirstString(kid), ecdhWrapper{pub: pub, alg: alg})
@@ -201,6 +215,17 @@ func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error
 
 	if curveName(priv.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
+	}
+	if _, err := FromECDSAPublicKey(&priv.PublicKey).PublicKey(); err != nil {
+		return nil, fmt.Errorf("%w: invalid EC public key", ErrMalformedKey)
+	}
+	privateECDH, err := priv.ECDH()
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid EC private key: %w", ErrMalformedKey, err)
+	}
+	publicECDH, err := priv.PublicKey.ECDH()
+	if err != nil || !bytes.Equal(privateECDH.PublicKey().Bytes(), publicECDH.Bytes()) {
+		return nil, fmt.Errorf("%w: EC public point does not match private scalar", ErrMalformedKey)
 	}
 
 	return &decrypter{kid: option.FirstString(kid), unwrapper: ecdhUnwrapper{priv: priv}}, nil
