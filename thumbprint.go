@@ -14,6 +14,10 @@ import (
 // required members, with keys in lexicographic order and no whitespace
 // (RFC 7638 §3).
 func Thumbprint(k Key, hash ...crypto.Hash) (string, error) {
+	if err := k.validateRepresentation(); err != nil {
+		return "", err
+	}
+
 	canonical, err := k.thumbprintInput()
 	if err != nil {
 		return "", err
@@ -39,6 +43,10 @@ func ThumbprintBytes(kty KeyType, raw []byte, hash ...crypto.Hash) (string, erro
 	case KeyTypeOct:
 		canonical = fmt.Sprintf(`{"k":%q,"kty":"oct"}`, b64.Encode(raw))
 	case KeyTypeOKP:
+		if len(raw) != 32 {
+			return "", fmt.Errorf("%w: Ed25519 public key must be 32 bytes, got %d", ErrMalformedKey, len(raw))
+		}
+
 		canonical = fmt.Sprintf(`{"crv":"Ed25519","kty":"OKP","x":%q}`, b64.Encode(raw))
 	default:
 		return "", fmt.Errorf("%w: ThumbprintBytes supports only oct and OKP, not %q", ErrMalformedKey, kty)
@@ -111,5 +119,9 @@ func ParseKey(data []byte) (Key, error) {
 		return Key{}, fmt.Errorf("%w: JWK has no \"kty\"", ErrMalformedKey)
 	}
 
-	return k, nil
+	if err := k.validateRepresentation(); err != nil {
+		return Key{}, err
+	}
+
+	return k.Clone(), nil
 }

@@ -38,7 +38,7 @@ func (r *rotator) rotate(ctx context.Context, fam jwt.TokenFamily, presented str
 		return jwt.RotationResult{ReuseDetected: true}, nil
 	}
 
-	if !jwt.Equal(r.live[fam.ID], presented) {
+	if !jwt.VerifyOpaqueTokenHash(r.live[fam.ID], presented) {
 		// a superseded (or forged) token — burn the family permanently
 		_ = r.revoke.Revoke(ctx, fam.ID, jwt.ReasonReuseDetected, time.Time{})
 		return jwt.RotationResult{ReuseDetected: true}, nil

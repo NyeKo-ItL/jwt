@@ -4,6 +4,7 @@
 package alg
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -11,8 +12,10 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/asn1"
 	"fmt"
 	"math/big"
+	"reflect"
 
 	_ "crypto/sha256" // registers SHA-256 for crypto.Hash.New
 	_ "crypto/sha512" // registers SHA-384 and SHA-512 for crypto.Hash.New
@@ -211,19 +214,16 @@ type ecdsaSigner struct {
 }
 
 // NewECDSASigner returns an ES* Signer producing the fixed-length R||S
-// encoding (RFC 7518 §3.4), not ASN.1 DER.
+// encoding (RFC 7518 §3.4), not ASN.1 DER. Signatures use deterministic
+// nonces from RFC 6979 with the JWS algorithm's hash.
 func NewECDSASigner(a Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, error) {
 	curve, h, size, ok := ECDSAParams(string(a))
 	if !ok {
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, a)
 	}
 
-	if key == nil {
-		return nil, fmt.Errorf("%w: nil ECDSA private key", ErrMalformedKey)
-	}
-
-	if key.Curve != curve {
-		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, a, curve.Params().Name)
+	if err := validateECDSAPrivateKey(key, curve); err != nil {
+		return nil, err
 	}
 
 	return &ecdsaSigner{a, key, optKID(kid), h, size}, nil
@@ -231,14 +231,23 @@ func NewECDSASigner(a Algorithm, key *ecdsa.PrivateKey, kid ...string) (Signer, 
 func (s *ecdsaSigner) Algorithm() Algorithm { return s.alg }
 func (s *ecdsaSigner) KeyID() string        { return s.kid }
 func (s *ecdsaSigner) Sign(in []byte) ([]byte, error) {
-	r, ss, err := ecdsa.Sign(rand.Reader, s.key, HashSum(s.hash, in))
+	digest := HashSum(s.hash, in)
+	der, err := s.key.Sign(nil, digest, s.hash)
 	if err != nil {
 		return nil, err
 	}
 
+	var signature struct {
+		R, S *big.Int
+	}
+	rest, err := asn1.Unmarshal(der, &signature)
+	if err != nil || len(rest) != 0 || signature.R == nil || signature.S == nil {
+		return nil, fmt.Errorf("%w: invalid deterministic ECDSA signature encoding", ErrInvalidSignature)
+	}
+
 	out := make([]byte, 2*s.size)
-	r.FillBytes(out[:s.size])
-	ss.FillBytes(out[s.size:])
+	signature.R.FillBytes(out[:s.size])
+	signature.S.FillBytes(out[s.size:])
 
 	return out, nil
 }
@@ -259,12 +268,8 @@ func NewECDSAVerifier(a Algorithm, key *ecdsa.PublicKey, kid ...string) (Verifie
 		return nil, fmt.Errorf("%w: %q is not an ECDSA algorithm", ErrUnsupportedAlgorithm, a)
 	}
 
-	if key == nil {
-		return nil, fmt.Errorf("%w: nil ECDSA public key", ErrMalformedKey)
-	}
-
-	if key.Curve != curve {
-		return nil, fmt.Errorf("%w: %s requires curve %s", ErrKeyTypeMismatch, a, curve.Params().Name)
+	if err := validateECDSAPublicKey(key, curve); err != nil {
+		return nil, err
 	}
 
 	return &ecdsaVerifier{a, key, optKID(kid), h, size}, nil
@@ -286,6 +291,61 @@ func (v *ecdsaVerifier) Verify(in, sig []byte) error {
 	return nil
 }
 
+func validateECDSAPrivateKey(key *ecdsa.PrivateKey, curve elliptic.Curve) error {
+	if key == nil || key.Curve == nil || ecdsaFieldIsNil(key, "D") ||
+		ecdsaFieldIsNil(&key.PublicKey, "X") || ecdsaFieldIsNil(&key.PublicKey, "Y") {
+		return fmt.Errorf("%w: nil or incomplete ECDSA private key", ErrMalformedKey)
+	}
+
+	if key.Curve != curve {
+		return fmt.Errorf("%w: requires curve %s", ErrKeyTypeMismatch, curve.Params().Name)
+	}
+
+	privateECDH, err := key.ECDH()
+	if err != nil {
+		return fmt.Errorf("%w: invalid ECDSA private scalar: %w", ErrMalformedKey, err)
+	}
+
+	publicECDH, err := key.PublicKey.ECDH()
+	if err != nil {
+		return fmt.Errorf("%w: invalid ECDSA public point: %w", ErrMalformedKey, err)
+	}
+	if !bytes.Equal(publicECDH.Bytes(), privateECDH.PublicKey().Bytes()) {
+		return fmt.Errorf("%w: ECDSA public point does not match private scalar", ErrMalformedKey)
+	}
+
+	return nil
+}
+
+func validateECDSAPublicKey(key *ecdsa.PublicKey, curve elliptic.Curve) error {
+	if key == nil || key.Curve == nil || ecdsaFieldIsNil(key, "X") || ecdsaFieldIsNil(key, "Y") {
+		return fmt.Errorf("%w: nil or incomplete ECDSA public key", ErrMalformedKey)
+	}
+
+	if key.Curve != curve {
+		return fmt.Errorf("%w: requires curve %s", ErrKeyTypeMismatch, curve.Params().Name)
+	}
+
+	if _, err := key.ECDH(); err != nil {
+		return fmt.Errorf("%w: invalid ECDSA public point: %w", ErrMalformedKey, err)
+	}
+
+	return nil
+}
+
+// ecdsaFieldIsNil checks legacy big.Int pointer fields without directly
+// accessing them. Direct access is deprecated in Go 1.26+, while the standard
+// key methods do not safely reject nil affine coordinates before Go 1.28.
+func ecdsaFieldIsNil(key any, name string) bool {
+	v := reflect.ValueOf(key)
+	if !v.IsValid() || v.IsNil() {
+		return true
+	}
+
+	field := v.Elem().FieldByName(name)
+	return !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil()
+}
+
 type rsaPSSSigner struct {
 	alg  Algorithm
 	key  *rsa.PrivateKey
@@ -300,7 +360,10 @@ type rsaVerifier struct {
 	pss  bool
 }
 
-const minRSABits = 2048
+const (
+	minRSABits = 2048
+	maxRSABits = 8192
+)
 
 // NewRSAPSSSigner returns a PS* Signer (salt length = hash size, RFC 7518
 // §3.5). Keys below 2048 bits are rejected.
@@ -310,12 +373,8 @@ func NewRSAPSSSigner(a Algorithm, key *rsa.PrivateKey, kid ...string) (Signer, e
 		return nil, fmt.Errorf("%w: %q is not an RSA-PSS algorithm", ErrUnsupportedAlgorithm, a)
 	}
 
-	if key == nil {
-		return nil, fmt.Errorf("%w: nil RSA private key", ErrMalformedKey)
-	}
-
-	if key.N.BitLen() < minRSABits {
-		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, key.N.BitLen(), minRSABits)
+	if err := validateRSAPrivateKey(key); err != nil {
+		return nil, err
 	}
 
 	return &rsaPSSSigner{a, key, optKID(kid), h}, nil
@@ -326,12 +385,8 @@ func (s *rsaPSSSigner) Sign(in []byte) ([]byte, error) {
 	return rsa.SignPSS(rand.Reader, s.key, s.hash, HashSum(s.hash, in), &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: s.hash})
 }
 func newRSAVerifier(a Algorithm, key *rsa.PublicKey, kid string, h crypto.Hash, pss bool) (Verifier, error) {
-	if key == nil {
-		return nil, fmt.Errorf("%w: nil RSA public key", ErrMalformedKey)
-	}
-
-	if key.N.BitLen() < minRSABits {
-		return nil, fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, key.N.BitLen(), minRSABits)
+	if err := validateRSAPublicKey(key); err != nil {
+		return nil, err
 	}
 
 	return &rsaVerifier{a, key, kid, h, pss}, nil
@@ -358,6 +413,47 @@ func NewRSAPKCS1Verifier(a Algorithm, key *rsa.PublicKey, kid ...string) (Verifi
 
 	return newRSAVerifier(a, key, optKID(kid), h, false)
 }
+func validateRSAPrivateKey(key *rsa.PrivateKey) error {
+	if key == nil {
+		return fmt.Errorf("%w: nil RSA private key", ErrMalformedKey)
+	}
+
+	if err := validateRSAPublicKey(&key.PublicKey); err != nil {
+		return err
+	}
+
+	if key.D == nil {
+		return fmt.Errorf("%w: RSA private key has no private exponent", ErrMalformedKey)
+	}
+
+	if err := key.Validate(); err != nil {
+		return fmt.Errorf("%w: invalid RSA private key: %w", ErrMalformedKey, err)
+	}
+
+	return nil
+}
+
+func validateRSAPublicKey(key *rsa.PublicKey) error {
+	if key == nil || key.N == nil {
+		return fmt.Errorf("%w: incomplete RSA public key", ErrMalformedKey)
+	}
+
+	bits := key.N.BitLen()
+	if key.N.Sign() <= 0 || key.N.Bit(0) == 0 || key.E < 3 || key.E&1 == 0 {
+		return fmt.Errorf("%w: invalid RSA public key", ErrMalformedKey)
+	}
+
+	if bits < minRSABits {
+		return fmt.Errorf("%w: RSA key is %d bits, need >= %d", ErrWeakKey, bits, minRSABits)
+	}
+
+	if bits > maxRSABits {
+		return fmt.Errorf("%w: RSA key is %d bits, maximum is %d", ErrMalformedKey, bits, maxRSABits)
+	}
+
+	return nil
+}
+
 func (v *rsaVerifier) Algorithm() Algorithm { return v.alg }
 func (v *rsaVerifier) KeyID() string        { return v.kid }
 func (v *rsaVerifier) Verify(in, sig []byte) error {
