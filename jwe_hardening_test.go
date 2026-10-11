@@ -32,7 +32,12 @@ func sealJWE(t *testing.T, protectedJSON string, encryptedKey, cek, plaintext []
 	}
 
 	gcm, _ := cipher.NewGCM(block)
+
 	iv := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatal(err)
+	}
+
 	protected := b64.Encode([]byte(protectedJSON))
 	sealed := gcm.Seal(nil, iv, plaintext, []byte(protected))
 	ct, tag := sealed[:len(sealed)-gcm.Overhead()], sealed[len(sealed)-gcm.Overhead():]
