@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func allowTestURL(*url.URL) error { return nil }
 
 func jwksBytes(t *testing.T, keys ...Key) []byte {
 	t.Helper()
@@ -35,7 +38,7 @@ func TestKeyFetcherLookupAndCache(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 	base := time.Unix(1_700_000_000, 0)
 	f.now = func() time.Time { return base }
 	ctx := context.Background()
@@ -81,7 +84,7 @@ func TestKeyFetcherRefreshPicksUpRotation(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 
 	ctx := context.Background()
 	if _, ok, _ := f.Lookup(ctx, "old"); !ok {
@@ -112,7 +115,7 @@ func TestKeyFetcherHonorsMaxAge(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithMinRefreshInterval(time.Second))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithMinRefreshInterval(time.Second), WithURLPolicy(allowTestURL))
 	base := time.Unix(1_700_000_000, 0)
 	f.now = func() time.Time { return base }
 	ctx := context.Background()
@@ -140,7 +143,7 @@ func TestKeyFetcherErrors(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client())).Refresh(ctx); err == nil {
+	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL)).Refresh(ctx); err == nil {
 		t.Fatal("expected non-200 error")
 	}
 
@@ -149,7 +152,7 @@ func TestKeyFetcherErrors(t *testing.T) {
 	}))
 	defer big.Close()
 
-	f := NewKeyFetcher(big.URL, WithHTTPClient(big.Client()), WithMaxResponseBytes(1024))
+	f := NewKeyFetcher(big.URL, WithHTTPClient(big.Client()), WithMaxResponseBytes(1024), WithURLPolicy(allowTestURL))
 	if _, _, err := f.Lookup(ctx, "x"); err == nil {
 		t.Fatal("expected size-cap error")
 	}
@@ -182,7 +185,7 @@ func TestDiscoverJWKSURI(t *testing.T) {
 	srv := httptest.NewTLSServer(&mux)
 	defer srv.Close()
 
-	got, err := DiscoverJWKSURI(ctx, srv.URL, srv.Client())
+	got, err := DiscoverJWKSURI(ctx, srv.URL, srv.Client(), allowTestURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +211,7 @@ func TestKeyFetcherRejectsBadBodyAndURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client())).Refresh(ctx); err == nil {
+	if err := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL)).Refresh(ctx); err == nil {
 		t.Fatal("expected error for malformed JWKS body")
 	}
 }
