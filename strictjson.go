@@ -51,6 +51,7 @@ var registeredHeaderNames = map[string]bool{
 	"x5t": true, "x5t#S256": true, "typ": true, "cty": true, "crit": true,
 	"enc": true, "zip": true,
 	"epk": true, "apu": true, "apv": true, "iv": true, "tag": true, "p2s": true, "p2c": true,
+	"ek": true, "psk_id": true,
 }
 
 // headerMembers decodes a JOSE header into its raw members, for presence

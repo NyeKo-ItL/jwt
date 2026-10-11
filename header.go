@@ -31,4 +31,12 @@ type Header struct {
 	// Critical is "crit" (§4.1.11). No extension is implemented, so Parse
 	// rejects any token carrying it (ErrUnsupportedCritical).
 	Critical []string `json:"crit,omitempty"`
+	// EncapsulatedKey is "ek", a base64url-encoded HPKE encapsulated secret
+	// (RFC-ietf-jose-hpke-encrypt-22 §4.1). It is parsed for inspection only;
+	// HPKE is not implemented by this package.
+	EncapsulatedKey string `json:"ek,omitempty"`
+	// PreSharedKeyID is "psk_id", the base64url-encoded HPKE pre-shared-key
+	// identifier (RFC-ietf-jose-hpke-encrypt-22 §4). It is parsed for
+	// inspection only; HPKE is not implemented by this package.
+	PreSharedKeyID string `json:"psk_id,omitempty"`
 }
