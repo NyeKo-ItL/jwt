@@ -2,8 +2,225 @@ package jwt
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/subtle"
 	"fmt"
+	"strings"
+
+	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
+
+// IDTokenClaims is the provider-neutral OpenID Connect Core 1.0 ID Token
+// Claims Set. Embed it in an application-specific ID-token type when the
+// provider-specific ready-made types below are not appropriate.
+//
+// AccessTokenHash and CodeHash carry the OIDC half-hash values. This package
+// validates their base64url representation but cannot recompute them without
+// the access token or authorization code; the relying party remains
+// responsible for that flow-specific comparison. Nonce is available through
+// StandardClaims and likewise requires comparison with the authentication
+// request by the relying party.
+type IDTokenClaims struct {
+	RegisteredClaims
+	StandardClaims
+
+	// AuthorizedParty is "azp": the client to which the ID Token was issued.
+	AuthorizedParty string `json:"azp,omitempty"`
+	// AccessTokenHash is "at_hash" (OIDC Core §3.1.3.6/§3.2.2.9).
+	AccessTokenHash string `json:"at_hash,omitempty"`
+	// CodeHash is "c_hash" (OIDC Core §3.3.2.11).
+	CodeHash string `json:"c_hash,omitempty"`
+	// AuthTime is "auth_time": time of end-user authentication.
+	AuthTime *NumericDate `json:"auth_time,omitempty"`
+	// ACR is "acr": authentication context class reference.
+	ACR string `json:"acr,omitempty"`
+	// AMR is "amr": authentication method references (RFC 8176 values).
+	AMR []string `json:"amr,omitempty"`
+}
+
+// ValidateIDTokenClaims validates the provider-neutral OIDC Core §2 ID-token
+// profile. iss, sub, aud, exp and iat are required. iss, sub, aud, and azp use
+// RFC 7519 StringOrURI syntax without normalization. azp is required for a
+// multi-audience token and, whenever present, must identify one audience.
+// at_hash and c_hash, when present, must be canonical unpadded base64url; their
+// flow-specific digest comparison remains the caller's responsibility.
+func ValidateIDTokenClaims(claims IDTokenClaims) error {
+	var missing []string
+	if claims.Issuer == "" {
+		missing = append(missing, "iss")
+	}
+
+	if claims.Subject == "" {
+		missing = append(missing, "sub")
+	}
+
+	if len(claims.Audience) == 0 {
+		missing = append(missing, "aud")
+	}
+
+	if claims.ExpiresAt == nil {
+		missing = append(missing, "exp")
+	}
+
+	if claims.IssuedAt == nil {
+		missing = append(missing, "iat")
+	}
+
+	if len(claims.Audience) > 1 && claims.AuthorizedParty == "" {
+		missing = append(missing, "azp")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s", ErrMissingClaim, strings.Join(missing, ", "))
+	}
+
+	if err := ValidateStringOrURI(claims.Issuer); err != nil {
+		return fmt.Errorf("iss: %w", err)
+	}
+
+	if err := ValidateStringOrURI(claims.Subject); err != nil {
+		return fmt.Errorf("sub: %w", err)
+	}
+
+	for i, audience := range claims.Audience {
+		if audience == "" {
+			return fmt.Errorf("%w: aud[%d] is empty", ErrInvalidClaim, i)
+		}
+
+		if err := ValidateStringOrURI(audience); err != nil {
+			return fmt.Errorf("aud[%d]: %w", i, err)
+		}
+	}
+
+	if claims.AuthorizedParty != "" {
+		if err := ValidateStringOrURI(claims.AuthorizedParty); err != nil {
+			return fmt.Errorf("azp: %w", err)
+		}
+
+		if !claims.Audience.Has(claims.AuthorizedParty) {
+			return fmt.Errorf("%w: azp %q is not in aud", ErrInvalidClaim, claims.AuthorizedParty)
+		}
+	}
+
+	for name, value := range map[string]string{"at_hash": claims.AccessTokenHash, "c_hash": claims.CodeHash} {
+		if value == "" {
+			continue
+		}
+
+		decoded, err := b64.Decode(value)
+		if err != nil || len(decoded) == 0 {
+			return fmt.Errorf("%w: %s is not canonical base64url", ErrInvalidClaim, name)
+		}
+	}
+
+	for i, method := range claims.AMR {
+		if method == "" {
+			return fmt.Errorf("%w: amr[%d] is empty", ErrInvalidClaim, i)
+		}
+	}
+
+	return nil
+}
+
+// IDTokenValidationContext supplies the relying-party state needed for the
+// flow-dependent checks in OIDC Core §3.1.3.7. ClientID is required. Additional
+// trusted audiences, expected nonce, access token, and authorization code are
+// optional and checked when configured or when the corresponding hash claim is
+// present.
+type IDTokenValidationContext struct {
+	ClientID          string
+	TrustedAudiences  []string
+	ExpectedNonce     string
+	RequireNonce      bool
+	AccessToken       string
+	AuthorizationCode string
+	SigningAlgorithm  Algorithm
+}
+
+// ValidateIDTokenForContext applies ValidateIDTokenClaims and the OIDC checks
+// that depend on relying-party state: client audience, additional trusted
+// audiences, azp, nonce, at_hash, and c_hash. It performs exact comparisons and
+// never normalizes identifiers.
+func ValidateIDTokenForContext(claims IDTokenClaims, validation IDTokenValidationContext) error {
+	if err := ValidateIDTokenClaims(claims); err != nil {
+		return err
+	}
+	if validation.ClientID == "" {
+		return fmt.Errorf("%w: client_id validation context is required", ErrInvalidClaim)
+	}
+	if !claims.Audience.Has(validation.ClientID) {
+		return ErrAudienceMismatch
+	}
+
+	trusted := make(map[string]bool, len(validation.TrustedAudiences)+1)
+	trusted[validation.ClientID] = true
+	for _, audience := range validation.TrustedAudiences {
+		trusted[audience] = true
+	}
+	for _, audience := range claims.Audience {
+		if !trusted[audience] {
+			return fmt.Errorf("%w: untrusted additional audience %q", ErrAudienceMismatch, audience)
+		}
+	}
+
+	if claims.AuthorizedParty != "" && claims.AuthorizedParty != validation.ClientID {
+		return fmt.Errorf("%w: azp %q does not match client_id %q", ErrInvalidClaim, claims.AuthorizedParty, validation.ClientID)
+	}
+	if len(claims.Audience) > 1 && claims.AuthorizedParty != validation.ClientID {
+		return fmt.Errorf("%w: multi-audience ID Token requires azp equal to client_id", ErrInvalidClaim)
+	}
+
+	if validation.RequireNonce || validation.ExpectedNonce != "" {
+		if claims.Nonce == "" || subtle.ConstantTimeCompare([]byte(claims.Nonce), []byte(validation.ExpectedNonce)) != 1 {
+			return fmt.Errorf("%w: nonce mismatch", ErrInvalidClaim)
+		}
+	}
+
+	if err := validateOIDCHash("at_hash", claims.AccessTokenHash, validation.AccessToken, validation.SigningAlgorithm); err != nil {
+		return err
+	}
+	if err := validateOIDCHash("c_hash", claims.CodeHash, validation.AuthorizationCode, validation.SigningAlgorithm); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateOIDCHash(name, claim, value string, alg Algorithm) error {
+	if claim == "" {
+		return nil
+	}
+	if value == "" {
+		return fmt.Errorf("%w: %s is present but its source value was not provided", ErrInvalidClaim, name)
+	}
+
+	hash, ok := oidcHashAlgorithm(alg)
+	if !ok || !hash.Available() {
+		return fmt.Errorf("%w: cannot validate %s for signing algorithm %q", ErrUnsupportedAlgorithm, name, alg)
+	}
+	h := hash.New()
+	_, _ = h.Write([]byte(value))
+	digest := h.Sum(nil)
+	want := b64.Encode(digest[:len(digest)/2])
+	if subtle.ConstantTimeCompare([]byte(claim), []byte(want)) != 1 {
+		return fmt.Errorf("%w: %s mismatch", ErrInvalidClaim, name)
+	}
+
+	return nil
+}
+
+func oidcHashAlgorithm(alg Algorithm) (crypto.Hash, bool) {
+	switch alg {
+	case HS256, RS256, PS256, ES256:
+		return crypto.SHA256, true
+	case HS384, RS384, PS384, ES384:
+		return crypto.SHA384, true
+	case HS512, RS512, PS512, ES512, Ed25519, EdDSA:
+		return crypto.SHA512, true
+	default:
+		return 0, false
+	}
+}
 
 // StandardClaims are the OpenID Connect Core 1.0 §5.1 standard claims,
 // common across virtually every OIDC provider. Embed it (alongside

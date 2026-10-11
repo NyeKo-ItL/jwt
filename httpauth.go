@@ -70,17 +70,22 @@ var ErrNoClaimsInContext = errors.New("jwt: no verified claims in context")
 
 // ClaimsFromContext unmarshals the verified payload that Middleware stored on
 // the request context into dst (a pointer to any claims struct; its type is
-// inferred, so no explicit type argument):
+// inferred, so no explicit type argument). Decoding is atomic: dst is assigned
+// only after complete successful decoding:
 //
 //	var claims MyClaims
 //	if err := jwt.ClaimsFromContext(r.Context(), &claims); err != nil { ... }
 func ClaimsFromContext[C any](ctx context.Context, dst *C) error {
+	if dst == nil {
+		return ErrInvalidDestination
+	}
+
 	payload, ok := ctx.Value(claimsContextKey{}).([]byte)
 	if !ok {
 		return ErrNoClaimsInContext
 	}
 
-	if err := decodeObject(payload, dst); err != nil {
+	if err := decodeFreshObject(payload, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -117,6 +122,10 @@ func (o MiddlewareOptions) applyParse(c *parseConfig) {
 func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
 		o.applyParse(&cfg)
 	}
 
@@ -152,7 +161,7 @@ func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.H
 var tokenErrors = []error{
 	ErrInvalidSignature, ErrExpired, ErrNotYetValid, ErrIssuerMismatch, ErrAudienceMismatch,
 	ErrAlgorithmNotAllowed, ErrMissingClaim, ErrTypeMismatch, ErrKeyNotFound, ErrKeyUsage,
-	ErrKeyTypeMismatch, ErrUnsupportedCritical, ErrUnsupportedAlgorithm, ErrDecryptionFailed,
+	ErrKeyTypeMismatch, ErrUnsupportedCritical, ErrUnsupportedAlgorithm, ErrDecryptionFailed, ErrInvalidClaim,
 }
 
 // WriteChallenge answers a failed bearer authentication. Responses carry only

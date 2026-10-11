@@ -82,15 +82,26 @@ func TestAudienceHas(t *testing.T) {
 }
 
 func TestNumericDateMarshal(t *testing.T) {
-	n := NewNumericDate(time.Unix(1609459200, 0))
+	for _, tc := range []struct {
+		name string
+		time time.Time
+		want string
+	}{
+		{"integer", time.Unix(1609459200, 0), "1609459200"},
+		{"positive fraction", time.Unix(1, 500_000_000), "1.5"},
+		{"negative fraction", time.Unix(-1, 500_000_000), "-0.5"},
+		{"negative nanosecond", time.Unix(-1, 999_999_999), "-0.000000001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := json.Marshal(NewNumericDate(tc.time))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	got, err := json.Marshal(n)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if string(got) != "1609459200" {
-		t.Fatalf("Marshal = %s, want 1609459200", got)
+			if string(got) != tc.want {
+				t.Fatalf("Marshal = %s, want %s", got, tc.want)
+			}
+		})
 	}
 }
 

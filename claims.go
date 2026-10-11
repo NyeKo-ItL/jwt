@@ -4,11 +4,80 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
+	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// ErrInvalidClaim reports a present claim whose value violates the claim's
+// profile syntax or cross-claim constraints. It is distinct from
+// ErrMissingClaim; profile validators wrap it with the claim name and detail.
+var ErrInvalidClaim = errors.New("jwt: invalid claim value")
+
+// ValidateStringOrURI validates RFC 7519 §2 StringOrURI syntax. Values without
+// a colon are arbitrary case-sensitive strings. Values containing a colon must
+// be valid RFC 3986 URIs. The function validates only; it never normalizes, so
+// callers can continue to compare issuer, subject, and audience values exactly.
+func ValidateStringOrURI(value string) error {
+	colon := strings.IndexByte(value, ':')
+	if colon < 0 {
+		return nil
+	}
+
+	if colon == 0 || !isAlpha(value[0]) {
+		return fmt.Errorf("%w: %q is not a StringOrURI", ErrInvalidClaim, value)
+	}
+
+	for i := 1; i < colon; i++ {
+		c := value[i]
+		if !isAlpha(c) && (c < '0' || c > '9') && c != '+' && c != '-' && c != '.' {
+			return fmt.Errorf("%w: %q is not a StringOrURI", ErrInvalidClaim, value)
+		}
+	}
+
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '%' {
+			if i+2 >= len(value) || !isHex(value[i+1]) || !isHex(value[i+2]) {
+				return fmt.Errorf("%w: %q is not a StringOrURI", ErrInvalidClaim, value)
+			}
+
+			i += 2
+			continue
+		}
+
+		if !isURIChar(c) {
+			return fmt.Errorf("%w: %q is not a StringOrURI", ErrInvalidClaim, value)
+		}
+	}
+
+	u, err := url.Parse(value)
+	if err != nil || u.Scheme == "" {
+		return fmt.Errorf("%w: %q is not a StringOrURI", ErrInvalidClaim, value)
+	}
+
+	return nil
+}
+
+func isAlpha(c byte) bool {
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+}
+
+func isHex(c byte) bool {
+	return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+func isURIChar(c byte) bool {
+	if isAlpha(c) || ('0' <= c && c <= '9') {
+		return true
+	}
+
+	return strings.ContainsRune("-._~:/?#[]@!$&'()*+,;=", rune(c))
+}
 
 // Audience is RFC 7519 §4.1.3's audience claim: transparently (de)serialized
 // from either a bare JSON string or a JSON array of strings.
@@ -67,9 +136,30 @@ func NewNumericDate(t time.Time) *NumericDate {
 	return &NumericDate{t}
 }
 
-// MarshalJSON emits the value as integer seconds since the Unix epoch.
+// MarshalJSON emits seconds since the Unix epoch as a JSON number, preserving
+// nanosecond precision when present. Integer times retain their compact form.
 func (n NumericDate) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.FormatInt(n.Unix(), 10)), nil
+	sec, nsec := n.Unix(), n.Nanosecond()
+	if nsec == 0 {
+		return []byte(strconv.FormatInt(sec, 10)), nil
+	}
+
+	negative := sec < 0
+	whole, fraction := sec, nsec
+	if negative {
+		// time.Time represents -0.5 as sec=-1,nsec=500ms. Convert that floor
+		// representation to the conventional decimal spelling "-0.5".
+		whole = -(sec + 1)
+		fraction = int(time.Second) - nsec
+	}
+
+	frac := strings.TrimRight(fmt.Sprintf("%09d", fraction), "0")
+	prefix := ""
+	if negative {
+		prefix = "-"
+	}
+
+	return []byte(prefix + strconv.FormatInt(whole, 10) + "." + frac), nil
 }
 
 // NumericDate bounds: 0001-01-01T00:00:00Z and 9999-12-31T23:59:59Z, the

@@ -399,13 +399,12 @@ func TestParseInsecure(t *testing.T) {
 		t.Fatalf("ParseInsecure on tampered token: %v", err)
 	}
 
-	// a bare header.payload (2 segments) is acceptable
+	// A compact JWS always has exactly three segments, even on the insecure
+	// inspection path. This avoids treating a JWE encrypted-key segment as a
+	// claims payload.
 	twoSeg := b64.Encode([]byte(`{"alg":"none"}`)) + "." + b64.Encode([]byte(`{"sub":"x"}`))
-	if _, err := parseInsecure[appClaims](twoSeg); err != nil {
-		t.Fatalf("ParseInsecure 2-segment: %v", err)
-	}
 
-	for _, bad := range []string{"", "onlyonesegment", b64.Encode([]byte(`{}`)) + ".!!!", strings.Repeat("a", maxTokenBytes+1)} {
+	for _, bad := range []string{"", "onlyonesegment", twoSeg, b64.Encode([]byte(`{}`)) + ".!!!", strings.Repeat("a", maxTokenBytes+1)} {
 		if _, err := parseInsecure[appClaims](bad); !errors.Is(err, ErrMalformedToken) {
 			t.Fatalf("ParseInsecure(%.10q) err = %v", bad, err)
 		}
