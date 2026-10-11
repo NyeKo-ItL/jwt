@@ -189,6 +189,11 @@
         "status": "Verified",
         "type": "Editorial",
         "section": "13.2"
+      },
+      "9212": {
+        "status": "Rejected",
+        "type": "Editorial",
+        "section": "4"
       }
     },
     "RFC7800": {
@@ -855,6 +860,118 @@
           "rfc9864#2.2"
         ]
       },
+      "HPKE-0": {
+        "description": "Integrated Encryption with HPKE using DHKEM(P-256, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-128-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-0-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(P-256, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-128-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
+      "HPKE-1": {
+        "description": "Integrated Encryption with HPKE using DHKEM(P-384, HKDF-SHA384) KEM, HKDF-SHA384 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-1-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(P-384, HKDF-SHA384) KEM, HKDF-SHA384 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
+      "HPKE-2": {
+        "description": "Integrated Encryption with HPKE using DHKEM(P-521, HKDF-SHA512) KEM, HKDF-SHA512 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-2-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(P-521, HKDF-SHA512) KEM, HKDF-SHA512 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
+      "HPKE-3": {
+        "description": "Integrated Encryption with HPKE using DHKEM(X25519, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-128-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-3-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(X25519, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-128-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
+      "HPKE-4": {
+        "description": "Integrated Encryption with HPKE using DHKEM(X25519, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and ChaCha20Poly1305 AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-5": {
+        "description": "Integrated Encryption with HPKE using DHKEM(X448, HKDF-SHA512) KEM, HKDF-SHA512 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-5-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(X448, HKDF-SHA512) KEM, HKDF-SHA512 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
+      "HPKE-6": {
+        "description": "Integrated Encryption with HPKE using DHKEM(X448, HKDF-SHA512) KEM, HKDF-SHA512 KDF, and ChaCha20Poly1305 AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-7": {
+        "description": "Integrated Encryption with HPKE using DHKEM(P-256, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#5.1"
+        ]
+      },
+      "HPKE-7-KE": {
+        "description": "Key Encryption with HPKE using DHKEM(P-256, HKDF-SHA256) KEM, HKDF-SHA256 KDF, and AES-256-GCM AEAD",
+        "usage": "alg",
+        "requirements": "Optional",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#6.2"
+        ]
+      },
       "HS1": {
         "description": "HMAC using SHA-1",
         "usage": "JWK",
@@ -1126,6 +1243,13 @@
           "rfc7515#4.1.10"
         ]
       },
+      "ek": {
+        "description": "A base64url-encoded encapsulated secret, as defined in",
+        "usage": "JWE",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#4.1"
+        ]
+      },
       "enc": {
         "description": "Encryption Algorithm",
         "usage": "JWE",
@@ -1243,6 +1367,13 @@
         "usage": "JWS",
         "references": [
           "rfc8225#8.1"
+        ]
+      },
+      "psk_id": {
+        "description": "A base64url-encoded key identifier (kid) for the pre-shared key, as defined in",
+        "usage": "JWE",
+        "references": [
+          "RFC-ietf-jose-hpke-encrypt-22#4"
         ]
       },
       "sub": {
@@ -2396,9 +2527,9 @@
   "drafts": {
     "draft-ietf-jose-deprecate-none-rsa15": {
       "title": "JOSE: Deprecate 'none' and 'RSA1_5'",
-      "rev": "05",
+      "rev": "06",
       "state": "Active",
-      "iesg_state": "Publication Requested"
+      "iesg_state": "Waiting for AD Go-Ahead"
     },
     "draft-ietf-oauth-rfc8725bis": {
       "title": "JSON Web Token Best Current Practices",

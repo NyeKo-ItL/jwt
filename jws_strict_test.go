@@ -43,18 +43,20 @@ func TestParseRejectsCriticalHeaders(t *testing.T) {
 		// cause rejection (§4.1.11: "If any of the listed extension Header
 		// Parameters are not understood and supported by the recipient, then
 		// the JWS is invalid").
-		"unknown extension":      `{"alg":"HS256","crit":["exp-ext"],"exp-ext":1}`,
-		"RFC 7797 b64":           `{"alg":"HS256","crit":["b64"],"b64":false}`,
-		"listed but absent":      `{"alg":"HS256","crit":["missing"]}`,
-		"empty list":             `{"alg":"HS256","crit":[]}`,
-		"registered name alg":    `{"alg":"HS256","crit":["alg"]}`,
-		"registered name kid":    `{"alg":"HS256","kid":"k","crit":["kid"]}`,
-		"registered JWE name":    `{"alg":"HS256","crit":["enc"],"enc":"A128GCM"}`,
-		"null":                   `{"alg":"HS256","crit":null}`,
-		"not an array":           `{"alg":"HS256","crit":"exp-ext","exp-ext":1}`,
-		"array of non-strings":   `{"alg":"HS256","crit":[1]}`,
-		"one good one unknown":   `{"alg":"HS256","crit":["a","b"],"a":1,"b":2}`,
-		"duplicate crit members": `{"alg":"HS256","crit":["a"],"crit":["a"],"a":1}`,
+		"unknown extension":           `{"alg":"HS256","crit":["exp-ext"],"exp-ext":1}`,
+		"RFC 7797 b64":                `{"alg":"HS256","crit":["b64"],"b64":false}`,
+		"listed but absent":           `{"alg":"HS256","crit":["missing"]}`,
+		"empty list":                  `{"alg":"HS256","crit":[]}`,
+		"registered name alg":         `{"alg":"HS256","crit":["alg"]}`,
+		"registered name kid":         `{"alg":"HS256","kid":"k","crit":["kid"]}`,
+		"registered JWE name":         `{"alg":"HS256","crit":["enc"],"enc":"A128GCM"}`,
+		"registered HPKE name ek":     `{"alg":"HS256","crit":["ek"],"ek":"encoded"}`,
+		"registered HPKE name psk_id": `{"alg":"HS256","crit":["psk_id"],"psk_id":"encoded"}`,
+		"null":                        `{"alg":"HS256","crit":null}`,
+		"not an array":                `{"alg":"HS256","crit":"exp-ext","exp-ext":1}`,
+		"array of non-strings":        `{"alg":"HS256","crit":[1]}`,
+		"one good one unknown":        `{"alg":"HS256","crit":["a","b"],"a":1,"b":2}`,
+		"duplicate crit members":      `{"alg":"HS256","crit":["a"],"crit":["a"],"a":1}`,
 	}
 	for name, hdr := range cases {
 		t.Run(name, func(t *testing.T) {

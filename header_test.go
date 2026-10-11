@@ -19,16 +19,18 @@ func TestHeaderMinimalMarshal(t *testing.T) {
 
 func TestHeaderFullRoundTrip(t *testing.T) {
 	in := Header{
-		Algorithm:      ES256,
-		Type:           "JWT",
-		ContentType:    "example",
-		KeyID:          "k1",
-		JWKSetURL:      "https://issuer/jwks",
-		X509URL:        "https://issuer/x5u",
-		X509CertChain:  []string{"MIIB", "MIIC"},
-		X509CertSHA1:   "deadbeef",
-		X509CertSHA256: "cafebabe",
-		Critical:       []string{"exp"},
+		Algorithm:       ES256,
+		Type:            "JWT",
+		ContentType:     "example",
+		KeyID:           "k1",
+		JWKSetURL:       "https://issuer/jwks",
+		X509URL:         "https://issuer/x5u",
+		X509CertChain:   []string{"MIIB", "MIIC"},
+		X509CertSHA1:    "deadbeef",
+		X509CertSHA256:  "cafebabe",
+		Critical:        []string{"exp"},
+		EncapsulatedKey: "encoded-ek",
+		PreSharedKeyID:  "encoded-psk",
 	}
 
 	raw, err := json.Marshal(in)

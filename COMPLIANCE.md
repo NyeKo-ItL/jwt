@@ -35,7 +35,7 @@ weekly standards-watch workflow reports later changes.
 | 4.1.2–4.1.3, 4.1.5–4.1.8 | `jku`, `jwk`, `x5u`, `x5c`, `x5t`, `x5t#S256` | ✅ Parsed and exposed on `Header`; never fetched or trusted (RFC 8725 §3.10) | `header.go` · `TestHeaderFullRoundTrip` |
 | 4.1.4 | `kid` | ✅ Only key-selection input | `keyprovider.go`, `keyset.go` · `TestParseKeyResolution`, `TestKeyProviderConformance` |
 | 4.1.9–4.1.10 | `typ`, `cty` media types; `application/` may be omitted | ✅ Media-type comparison | `typeMatches` · `TestTypeMatchesMediaTypeRules` |
-| 4.1.11 | `crit`: reject if any listed extension is not understood; not empty; no registered names | ✅ No extension is implemented, so any `crit` is rejected before key lookup | `checkCritical` · `TestParseRejectsCriticalHeaders`, `TestCriticalHeaderCheckedBeforeKeyLookup` |
+| 4.1.11 | `crit`: reject if any listed extension is not understood; not empty; no registered names | ✅ No extension is implemented, so any `crit` is rejected before key lookup; registered `ek` and `psk_id` are also rejected in `crit` | `checkCritical` · `TestParseRejectsCriticalHeaders`, `TestCriticalHeaderCheckedBeforeKeyLookup` |
 | 4.2–4.3 | Public / private header parameters | ✅ Ignored unless listed in `crit` | — |
 | 5.1 | Message signature creation | ✅ `Sign` | `TestSignParseRoundTripAllFamilies`, `interop/TestJWS_OursVerifiedElsewhere` |
 | 5.2 | Validation steps (decode, understood params, verify over the received ASCII input) | ✅ | `parseVerified` · `TestKnownAnswerJWS`, `interop/TestJWS_ElsewhereVerifiedByOurs` |
@@ -55,6 +55,7 @@ weekly standards-watch workflow reports later changes.
 | 4.1.1–4.1.2 | `alg` and `enc` REQUIRED and understood | ✅ Both required; both mandatory allowlists in `DecryptClaims`, checked before the `Decrypter` | `parseJWEProtected`, `DecryptClaims` · `TestDecryptClaimsRequiresAllowlists`, `TestDecryptClaimsEnforcesAllowlists`, `TestDecryptClaimsAllowlistAppliesToCustomDecrypter` |
 | 4.1.3 | `zip` | ⛔ Compression unsupported, so `zip` is refused (removes decompression-bomb risk, RFC 8725 §3.6) | `TestDecryptRejectsZipAndCrit` |
 | 4.1.4–4.1.12 | `jku`, `jwk`, `kid`, `x5*`, `typ`, `cty` | ✅ `kid`, `typ`, `cty` modeled; `typ` checked by `WithRequiredType`; others ignored, never dereferenced | `TestDecryptClaimsRequiredType` |
+| HPKE header parameters | `ek`, `psk_id` | ✅ Modeled on `Header` for inspection and treated as registered names by `crit`; HPKE processing is not implemented | `header.go`, `strictjson.go`, `TestParseRejectsCriticalHeaders` |
 | 4.1.13 | `crit` | ✅ Rejected as for JWS | `TestDecryptRejectsZipAndCrit` |
 | 5.1 | Encryption | ✅ | `TestJWERoundTripAllAlgorithms`, `interop/TestJWE_OursDecryptedByGoJose` |
 | 5.2 | Decryption; AAD = ASCII(BASE64URL(protected header)); fail on tag mismatch | ✅ Single generic error, no plaintext on failure | `jwe.go` `Decrypt` · `TestJWEFailsClosedOnTamper`, `TestKnownAnswerJWE`, `interop/TestJWE_GoJoseDecryptedByOurs` |
@@ -106,6 +107,7 @@ Implementation requirement levels are those of the IANA JOSE registry.
 | ECDH-ES (§4.6) | Recommended+ | ✅ P-256/384/521; `epk` required and validated on-curve; `apu`/`apv` in the Concat KDF | `TestConcatKDFRFC7518AppendixC`, `TestDecryptECDHESWithPartyInfoRFC7518AppendixC`, `TestDecryptECDHESRejectsBadPartyInfoAndEPK` |
 | ECDH-ES+A128KW / +A192KW (§4.6) | Recommended / Optional | ⛔ Only +A256KW | — |
 | ECDH-ES+A256KW (§4.6) | Recommended | ✅ AlgorithmID = `alg` | `TestDecryptECDHESWithPartyInfoKeyWrap`, `interop/` |
+| HPKE-0…HPKE-7 and HPKE-{0,1,2,3,5,7}-KE | Optional | ⛔ Not implemented; callers must provide their own `Encrypter`/`Decrypter` if HPKE support is required | — |
 | A*GCMKW (§4.7), PBES2 (§4.8) | Optional | ⛔ | — |
 
 ### JWE content encryption (§5)
@@ -253,11 +255,11 @@ alias shown in `interop/jws_test.go`.
 
 ## Standards tracked for changes
 
-| Document | Status (2026-09-16) | Relevance |
+| Document | Status (2026-10-11) | Relevance |
 |---|---|---|
 | RFC 9864 | Published; updates RFC 7518 and RFC 8037 | Implemented (above) |
 | draft-ietf-oauth-rfc8725bis | In the RFC Editor queue | Will update RFC 8725; re-check §3 once published |
-| draft-ietf-jose-deprecate-none-rsa15 | Publication requested | No code impact: neither `none` nor RSA1_5 is supported |
+| draft-ietf-jose-deprecate-none-rsa15 | Active; rev 06; Waiting for AD Go-Ahead | No code impact: neither `none` nor RSA1_5 is supported |
 | RFC 8996, RFC 9700 | Published; update RFC 6750 | Deployment guidance (TLS 1.2+, OAuth security BCP) |
 
 The weekly `standards-watch` workflow checks RFC status and errata, the IANA
