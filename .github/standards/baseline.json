@@ -212,7 +212,7 @@
     },
     "RFC9068": {
       "8802": {
-        "status": "Reported",
+        "status": "Rejected",
         "type": "Technical",
         "section": "2.2"
       }
