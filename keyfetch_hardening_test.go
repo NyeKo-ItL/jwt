@@ -26,7 +26,7 @@ func TestKeyFetcherRejectsRedirectToHTTP(t *testing.T) {
 	}))
 	defer tls.Close()
 
-	err := NewKeyFetcher(tls.URL, WithHTTPClient(tls.Client())).Refresh(context.Background())
+	err := NewKeyFetcher(tls.URL, WithHTTPClient(tls.Client()), WithURLPolicy(allowTestURL)).Refresh(context.Background())
 	if !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("https->http redirect: err = %v, want ErrKeyFetch", err)
 	}
@@ -44,7 +44,7 @@ func TestKeyFetcherFollowsHTTPSRedirect(t *testing.T) {
 	srv := httptest.NewTLSServer(&mux)
 	defer srv.Close()
 
-	if _, ok, err := NewKeyFetcher(srv.URL+"/old", WithHTTPClient(srv.Client())).Lookup(context.Background(), "k"); err != nil || !ok {
+	if _, ok, err := NewKeyFetcher(srv.URL+"/old", WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL)).Lookup(context.Background(), "k"); err != nil || !ok {
 		t.Fatalf("https->https redirect: ok=%v err=%v", ok, err)
 	}
 }
@@ -62,7 +62,7 @@ func TestKeyFetcherKeepsCallerRedirectPolicyAndDoesNotMutateClient(t *testing.T)
 	client := srv.Client()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return errNoRedirects }
 
-	err := NewKeyFetcher(srv.URL+"/a", WithHTTPClient(client)).Refresh(context.Background())
+	err := NewKeyFetcher(srv.URL+"/a", WithHTTPClient(client), WithURLPolicy(allowTestURL)).Refresh(context.Background())
 	if !errors.Is(err, errNoRedirects) {
 		t.Fatalf("caller CheckRedirect not honored: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestKeyFetcherRedirectLimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := NewKeyFetcher(srv.URL+"/", WithHTTPClient(srv.Client())).Refresh(context.Background()); !errors.Is(err, ErrKeyFetch) {
+	if err := NewKeyFetcher(srv.URL+"/", WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL)).Refresh(context.Background()); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("endless redirects: %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestKeyFetcherSingleFlightColdStart(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 
 	const n = 100
 
@@ -160,7 +160,7 @@ func TestKeyFetcherConcurrentRefreshJoinsFlight(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 
 	var wg sync.WaitGroup
 	for range 20 {
@@ -196,7 +196,7 @@ func TestKeyFetcherFailureBackoff(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 	base := time.Unix(1_700_000_000, 0)
 	f.now = func() time.Time { return base }
 	ctx := context.Background()
@@ -240,7 +240,7 @@ func TestKeyFetcherServesStaleKeysWhenRefreshFails(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 	base := time.Unix(1_700_000_000, 0)
 	f.now = func() time.Time { return base }
 	ctx := context.Background()
@@ -273,7 +273,7 @@ func TestKeyFetcherFollowerHonorsOwnContext(t *testing.T) {
 	defer srv.Close()
 	defer close(release)
 
-	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()))
+	f := NewKeyFetcher(srv.URL, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))
 
 	go func() { _, _, _ = f.Lookup(context.Background(), "k") }() // leader
 
@@ -313,7 +313,7 @@ func TestKeyFetcherCapsMaxAge(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			hits.Store(0)
 
-			f := NewKeyFetcher(srv.URL, append(tc.opts, WithHTTPClient(srv.Client()))...)
+			f := NewKeyFetcher(srv.URL, append(tc.opts, WithHTTPClient(srv.Client()), WithURLPolicy(allowTestURL))...)
 			base := time.Unix(1_700_000_000, 0)
 			ctx := context.Background()
 
@@ -373,7 +373,7 @@ func TestDiscoverJWKSURIHappyPaths(t *testing.T) {
 	ctx := context.Background()
 
 	for _, issuer := range []string{srv.URL, srv.URL + "/tenant/v2.0"} {
-		got, err := DiscoverJWKSURI(ctx, issuer, srv.Client())
+		got, err := DiscoverJWKSURI(ctx, issuer, srv.Client(), allowTestURL)
 		if err != nil || got != issuer+"/keys" {
 			t.Fatalf("issuer %q: got %q, %v", issuer, got, err)
 		}
@@ -387,7 +387,7 @@ func TestDiscoverJWKSURITrailingSlashIssuer(t *testing.T) {
 		return map[string]string{"issuer": iss + "/", "jwks_uri": iss + "/keys"}
 	})
 
-	got, err := DiscoverJWKSURI(context.Background(), srv.URL+"/", srv.Client())
+	got, err := DiscoverJWKSURI(context.Background(), srv.URL+"/", srv.Client(), allowTestURL)
 	if err != nil || got != srv.URL+"/keys" {
 		t.Fatalf("got %q, %v", got, err)
 	}
@@ -416,7 +416,7 @@ func TestDiscoverJWKSURIRejections(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := discoveryServer(t, tc.doc)
-			if got, err := DiscoverJWKSURI(ctx, srv.URL, srv.Client()); !errors.Is(err, ErrKeyFetch) {
+			if got, err := DiscoverJWKSURI(ctx, srv.URL, srv.Client(), allowTestURL); !errors.Is(err, ErrKeyFetch) {
 				t.Fatalf("got %q, err = %v, want ErrKeyFetch", got, err)
 			}
 		})
@@ -429,7 +429,7 @@ func TestDiscoverJWKSURINoSilentFallback(t *testing.T) {
 	notFound := httptest.NewTLSServer(http.NotFoundHandler())
 	defer notFound.Close()
 
-	if got, err := DiscoverJWKSURI(ctx, notFound.URL, notFound.Client()); !errors.Is(err, ErrKeyFetch) {
+	if got, err := DiscoverJWKSURI(ctx, notFound.URL, notFound.Client(), allowTestURL); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("404 discovery: got %q, err = %v", got, err)
 	}
 
@@ -437,7 +437,7 @@ func TestDiscoverJWKSURINoSilentFallback(t *testing.T) {
 	url, client := unreachable.URL, unreachable.Client()
 	unreachable.Close()
 
-	if got, err := DiscoverJWKSURI(ctx, url, client); !errors.Is(err, ErrKeyFetch) {
+	if got, err := DiscoverJWKSURI(ctx, url, client, allowTestURL); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("network failure: got %q, err = %v", got, err)
 	}
 }
@@ -458,7 +458,7 @@ func TestDiscoverJWKSURIBodyCap(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := DiscoverJWKSURI(context.Background(), srv.URL, srv.Client()); !errors.Is(err, ErrKeyFetch) {
+	if _, err := DiscoverJWKSURI(context.Background(), srv.URL, srv.Client(), allowTestURL); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("oversized discovery document: %v", err)
 	}
 }
@@ -472,7 +472,7 @@ func TestDiscoverJWKSURIRejectsRedirectToHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := DiscoverJWKSURI(context.Background(), srv.URL, srv.Client()); !errors.Is(err, ErrKeyFetch) {
+	if _, err := DiscoverJWKSURI(context.Background(), srv.URL, srv.Client(), allowTestURL); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("redirect to http: %v", err)
 	}
 }

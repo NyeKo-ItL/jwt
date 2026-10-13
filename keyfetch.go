@@ -2,9 +2,11 @@ package jwt
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -15,11 +17,14 @@ import (
 
 const (
 	defaultMaxJWKSBytes     = 1 << 20 // 1 MiB
+	defaultMaxKeyCount      = 100
 	defaultMinRefresh       = time.Minute
 	defaultFetcherTimeout   = 30 * time.Second
 	defaultMaxCacheDuration = 24 * time.Hour
+	defaultMaxStaleDuration = 24 * time.Hour
 	maxRedirects            = 10
 	wellKnownOpenIDConfig   = "/.well-known/openid-configuration"
+	maxDuration             = time.Duration(1<<63 - 1)
 )
 
 // ErrKeyFetch reports that remote key material could not be obtained: a
@@ -39,22 +44,30 @@ var ErrKeyFetch = errors.New("jwt: fetching remote keys failed")
 //     attempts — successful or not — are rate-limited to one per
 //     WithMinRefreshInterval, so unknown "kid" values or an unreachable
 //     upstream cannot amplify traffic.
-//   - A Cache-Control max-age hint is honored but capped
+//   - Cache-Control is honored and max-age is capped
 //     (WithMaxCacheDuration), so a revoked key cannot stay pinned for long.
-//   - When a refresh fails, keys from the last good document keep resolving.
+//   - Failed refreshes may use the last good document only for the bounded
+//     WithMaxStaleDuration window; the default eventually fails closed.
+//   - The default URL policy rejects local, private-looking, and IP-literal
+//     targets. Callers must still preapprove issuer hostnames: no DNS lookup is
+//     performed because checking an address without binding the HTTP dial to
+//     that same address would introduce a DNS TOCTOU vulnerability.
 type KeyFetcher struct {
 	uri        string
 	client     *http.Client
+	urlPolicy  URLPolicy
 	minRefresh time.Duration
 	maxBytes   int64
+	maxKeys    int
 	maxCache   time.Duration
+	maxStale   time.Duration
 
 	mu          sync.Mutex
 	set         *KeySet
 	fetchedAt   time.Time
-	freshFor    time.Duration // from Cache-Control: max-age (capped), 0 if absent
-	lastAttempt time.Time     // start of the most recent network attempt
-	lastErr     error         // outcome of the most recent completed attempt
+	freshFor    time.Duration
+	lastAttempt time.Time // start of the most recent network attempt
+	lastErr     error     // outcome of the most recent completed attempt
 	inflight    *fetchFlight
 	now         func() time.Time
 }
@@ -62,8 +75,14 @@ type KeyFetcher struct {
 // fetchFlight is one in-progress network fetch that concurrent callers join.
 type fetchFlight struct {
 	done chan struct{}
+	set  *KeySet
 	err  error
 }
+
+// URLPolicy validates an absolute HTTPS URL before a request is sent. It is
+// applied to the initial URL, discovery results, and every redirect. Policies
+// used by a KeyFetcher must be safe for concurrent use.
+type URLPolicy func(*url.URL) error
 
 // FetcherOption configures a KeyFetcher.
 type FetcherOption func(*KeyFetcher)
@@ -75,6 +94,17 @@ func WithHTTPClient(c *http.Client) FetcherOption {
 	return func(f *KeyFetcher) {
 		if c != nil {
 			f.client = c
+		}
+	}
+}
+
+// WithURLPolicy replaces the default URL/network policy. Use an allowlist
+// policy when the URI or issuer originates from untrusted input. A nil policy
+// is ignored. The policy does not replace HTTPS validation.
+func WithURLPolicy(policy URLPolicy) FetcherOption {
+	return func(f *KeyFetcher) {
+		if policy != nil {
+			f.urlPolicy = policy
 		}
 	}
 }
@@ -99,6 +129,16 @@ func WithMaxResponseBytes(n int64) FetcherOption {
 	}
 }
 
+// WithMaxKeyCount caps the number of keys accepted in one JWKS document
+// (default 100). Non-positive values are ignored.
+func WithMaxKeyCount(n int) FetcherOption {
+	return func(f *KeyFetcher) {
+		if n > 0 {
+			f.maxKeys = n
+		}
+	}
+}
+
 // WithMaxCacheDuration caps how long a Cache-Control max-age hint may keep a
 // document fresh (default 24 hours). Non-positive values are ignored.
 func WithMaxCacheDuration(d time.Duration) FetcherOption {
@@ -109,21 +149,38 @@ func WithMaxCacheDuration(d time.Duration) FetcherOption {
 	}
 }
 
+// WithMaxStaleDuration sets how long a stale cached document may be used when
+// refresh fails (default 24 hours). Zero disables stale serving. Negative
+// values are ignored.
+func WithMaxStaleDuration(d time.Duration) FetcherOption {
+	return func(f *KeyFetcher) {
+		if d >= 0 {
+			f.maxStale = d
+		}
+	}
+}
+
 // NewKeyFetcher returns a KeyFetcher for the given JWKS URI. Nothing is
-// fetched until the first Lookup or Refresh.
+// fetched until the first Lookup or Refresh. The URI's issuer/host must be
+// preapproved by the application even when the default URL policy is used.
 func NewKeyFetcher(uri string, opts ...FetcherOption) *KeyFetcher {
 	f := &KeyFetcher{
 		uri:        uri,
+		urlPolicy:  defaultURLPolicy,
 		minRefresh: defaultMinRefresh,
 		maxBytes:   defaultMaxJWKSBytes,
+		maxKeys:    defaultMaxKeyCount,
 		maxCache:   defaultMaxCacheDuration,
+		maxStale:   defaultMaxStaleDuration,
 		now:        time.Now,
 	}
 	for _, o := range opts {
-		o(f)
+		if o != nil {
+			o(f)
+		}
 	}
 
-	f.client = safeHTTPClient(f.client)
+	f.client = safeHTTPClient(f.client, f.urlPolicy)
 
 	return f
 }
@@ -145,8 +202,8 @@ func (f *KeyFetcher) Lookup(ctx context.Context, kid string) (Key, bool, error) 
 	}
 
 	if f.inflight == nil && !f.mayAttemptAt(now) {
-		// Rate-limited: answer from whatever is cached, stale or not.
-		set, lastErr := f.set, f.lastErr
+		// Rate-limited: stale fallback remains bounded by maxStale.
+		set, lastErr := f.fallbackLocked(now, f.lastErr)
 		f.mu.Unlock()
 
 		return lookupOrErr(set, kid, lastErr)
@@ -159,15 +216,21 @@ func (f *KeyFetcher) Lookup(ctx context.Context, kid string) (Key, bool, error) 
 		return Key{}, false, err
 	}
 
+	if fl.err == nil {
+		// fl.set is also used for no-store responses: the callers that joined this
+		// request may consume it, but it is not retained by the fetcher.
+		return lookupOrErr(fl.set, kid, nil)
+	}
+
 	f.mu.Lock()
-	set := f.set
+	set, err := f.fallbackLocked(f.now(), fl.err)
 	f.mu.Unlock()
 
-	return lookupOrErr(set, kid, fl.err)
+	return lookupOrErr(set, kid, err)
 }
 
-// lookupOrErr answers from set when it holds kid (serving stale keys through
-// an outage), otherwise reports err (nil meaning a clean "not found").
+// lookupOrErr answers from set when it holds kid, otherwise reports err (nil
+// meaning a clean "not found").
 func lookupOrErr(set *KeySet, kid string, err error) (Key, bool, error) {
 	if set != nil {
 		if k, ok := set.lookup(kid); ok {
@@ -179,15 +242,37 @@ func lookupOrErr(set *KeySet, kid string, err error) (Key, bool, error) {
 }
 
 // staleAt reports whether the cached document has aged past its freshness
-// window (the capped Cache-Control max-age, or minRefresh when no hint was
-// given).
+// window. freshFor is zero for no-cache and max-age=0 responses.
 func (f *KeyFetcher) staleAt(now time.Time) bool {
-	window := f.freshFor
-	if window <= 0 {
-		window = f.minRefresh
+	return cacheAge(now, f.fetchedAt) >= f.freshFor
+}
+
+// fallbackLocked returns the retained set only while its bounded stale window
+// remains open. f.mu must be held.
+func (f *KeyFetcher) fallbackLocked(now time.Time, fetchErr error) (*KeySet, error) {
+	if f.set == nil {
+		return nil, fetchErr
 	}
 
-	return now.Sub(f.fetchedAt) >= window
+	age := cacheAge(now, f.fetchedAt)
+	if age < f.freshFor || age-f.freshFor < f.maxStale {
+		return f.set, fetchErr
+	}
+
+	if fetchErr == nil {
+		fetchErr = fmt.Errorf("%w: cached JWKS exceeded the maximum stale duration", ErrKeyFetch)
+	}
+
+	return nil, fetchErr
+}
+
+func cacheAge(now, fetchedAt time.Time) time.Duration {
+	age := now.Sub(fetchedAt)
+	if age < 0 {
+		return 0
+	}
+
+	return age
 }
 
 // mayAttemptAt reports whether the rate limit allows a new network attempt.
@@ -233,13 +318,26 @@ func (f *KeyFetcher) startFlightLocked(ctx context.Context, now time.Time) *fetc
 	go func() {
 		defer cancel()
 
-		set, maxAge, err := fetchJWKS(fetchCtx, f.client, f.uri, f.maxBytes)
+		set, cache, err := fetchJWKS(fetchCtx, f.client, f.uri, f.maxBytes, f.maxKeys, f.urlPolicy)
 
 		f.mu.Lock()
+		fl.set = set
 		if err == nil {
-			f.set = set
-			f.fetchedAt = f.now()
-			f.freshFor = min(maxAge, f.maxCache)
+			if cache.noStore {
+				f.set = nil
+				f.fetchedAt = time.Time{}
+				f.freshFor = 0
+			} else {
+				f.set = set
+				f.fetchedAt = f.now()
+				f.freshFor = f.minRefresh
+				if cache.hasMaxAge {
+					f.freshFor = min(cache.maxAge, f.maxCache)
+				}
+				if cache.noCache {
+					f.freshFor = 0
+				}
+			}
 		}
 
 		f.lastErr = err
@@ -265,9 +363,9 @@ func waitFlight(ctx context.Context, fl *fetchFlight) error {
 }
 
 // safeHTTPClient returns a copy of c (or a default client with a timeout when
-// c is nil) whose redirect policy refuses any hop that is not HTTPS before
-// deferring to c's own CheckRedirect, or to a 10-hop limit when c has none.
-func safeHTTPClient(c *http.Client) *http.Client {
+// c is nil). Its redirect policy enforces HTTPS and URLPolicy before deferring
+// to the caller's policy, or to a 10-hop limit when the caller has none.
+func safeHTTPClient(c *http.Client, policies ...URLPolicy) *http.Client {
 	var out http.Client
 	if c == nil {
 		out.Timeout = defaultFetcherTimeout
@@ -275,10 +373,11 @@ func safeHTTPClient(c *http.Client) *http.Client {
 		out = *c
 	}
 
+	policy := selectURLPolicy(policies)
 	next := out.CheckRedirect
 	out.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if req.URL.Scheme != "https" {
-			return fmt.Errorf("%w: refusing redirect to non-https URL %q", ErrKeyFetch, req.URL.Redacted())
+		if err := validateURL(req.URL, policy); err != nil {
+			return err
 		}
 
 		if next != nil {
@@ -295,21 +394,26 @@ func safeHTTPClient(c *http.Client) *http.Client {
 	return &out
 }
 
-// getCapped performs a GET for uri (HTTPS enforced) and returns a body of at
-// most maxBytes, plus the response headers. Every failure wraps ErrKeyFetch.
-func getCapped(ctx context.Context, client *http.Client, uri, accept string, maxBytes int64) ([]byte, http.Header, error) {
-	if err := requireHTTPS(uri); err != nil {
+// getCapped performs a GET for uri and returns a body of at most maxBytes,
+// plus the response headers. HTTPS and URLPolicy are enforced before dialing;
+// every failure wraps ErrKeyFetch.
+func getCapped(ctx context.Context, client *http.Client, uri, accept string, maxBytes int64, policies ...URLPolicy) ([]byte, http.Header, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %w: %w", ErrKeyFetch, ErrMalformedKey, err)
+	}
+	if err := validateURL(u, selectURLPolicy(policies)); err != nil {
 		return nil, nil, err
 	}
 
-	//nolint:gosec // The URL is explicit caller configuration (or a validated discovery result); HTTPS is enforced above and on every redirect.
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	//nolint:gosec // HTTPS and the configured URL policy are enforced above and on every redirect.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrKeyFetch, err)
 	}
 
 	req.Header.Set("Accept", accept)
-	//nolint:gosec // The URL is explicit caller configuration; HTTPS is enforced above and on every redirect.
+	//nolint:gosec // HTTPS and the configured URL policy are enforced above and on every redirect.
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrKeyFetch, err)
@@ -332,51 +436,155 @@ func getCapped(ctx context.Context, client *http.Client, uri, accept string, max
 	return body, resp.Header, nil
 }
 
-func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes int64) (*KeySet, time.Duration, error) {
-	body, header, err := getCapped(ctx, client, uri, "application/jwk-set+json, application/json", maxBytes)
+type cacheControl struct {
+	maxAge    time.Duration
+	hasMaxAge bool
+	noCache   bool
+	noStore   bool
+}
+
+func fetchJWKS(ctx context.Context, client *http.Client, uri string, maxBytes int64, maxKeys int, policy URLPolicy) (*KeySet, cacheControl, error) {
+	body, header, err := getCapped(ctx, client, uri, "application/jwk-set+json, application/json", maxBytes, policy)
 	if err != nil {
-		return nil, 0, err
+		return nil, cacheControl{}, err
+	}
+
+	var doc struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.Unmarshal(body, &doc); err == nil && len(doc.Keys) > maxKeys {
+		return nil, cacheControl{}, fmt.Errorf("%w: JWKS document has %d keys, limit is %d", ErrKeyFetch, len(doc.Keys), maxKeys)
 	}
 
 	set, err := ParseKeySet(body)
 	if err != nil {
-		return nil, 0, fmt.Errorf("%w: %w", ErrKeyFetch, err)
+		return nil, cacheControl{}, fmt.Errorf("%w: %w", ErrKeyFetch, err)
 	}
 
-	return set, parseMaxAge(header.Get("Cache-Control")), nil
+	return set, parseCacheControl(header.Values("Cache-Control")), nil
 }
 
-// requireHTTPS rejects anything but an absolute https URL with a host.
-func requireHTTPS(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return fmt.Errorf("%w: %w: %w", ErrKeyFetch, ErrMalformedKey, err)
-	}
-
-	if u.Scheme != "https" || u.Host == "" {
-		return fmt.Errorf("%w: %w: URL must be absolute https, got %q", ErrKeyFetch, ErrMalformedKey, u.Redacted())
+func validateHTTPSURL(u *url.URL) error {
+	if u == nil || !strings.EqualFold(u.Scheme, "https") || u.Host == "" {
+		redacted := "<nil>"
+		if u != nil {
+			redacted = u.Redacted()
+		}
+		return fmt.Errorf("%w: %w: URL must be absolute https, got %q", ErrKeyFetch, ErrMalformedKey, redacted)
 	}
 
 	return nil
 }
 
-// parseMaxAge extracts the max-age value (seconds) from a Cache-Control
-// header, returning 0 when absent or non-positive.
-func parseMaxAge(header string) time.Duration {
-	for part := range strings.SplitSeq(header, ",") {
-		part = strings.TrimSpace(part)
+func validateURL(u *url.URL, policy URLPolicy) error {
+	if err := validateHTTPSURL(u); err != nil {
+		return err
+	}
+	if policy == nil {
+		policy = defaultURLPolicy
+	}
+	if err := policy(u); err != nil {
+		return fmt.Errorf("%w: URL policy rejected %q: %w", ErrKeyFetch, u.Redacted(), err)
+	}
 
-		v, ok := strings.CutPrefix(part, "max-age=")
-		if !ok {
-			continue
-		}
+	return nil
+}
 
-		if secs, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && secs > 0 {
-			return time.Duration(secs) * time.Second
+func selectURLPolicy(policies []URLPolicy) URLPolicy {
+	for _, policy := range policies {
+		if policy != nil {
+			return policy
 		}
 	}
 
-	return 0
+	return defaultURLPolicy
+}
+
+// defaultURLPolicy rejects direct local/private targets without resolving DNS.
+// Applications must additionally preapprove hostnames and, where DNS rebinding
+// is in scope, supply a transport that binds validation and dialing together.
+func defaultURLPolicy(u *url.URL) error {
+	if u.User != nil {
+		return errors.New("userinfo is not allowed")
+	}
+
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if host == "" {
+		return errors.New("host is empty")
+	}
+	if ip := net.ParseIP(strings.TrimSuffix(host, "%")); ip != nil || strings.Contains(host, "%") {
+		return errors.New("IP-literal hosts are not allowed")
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") ||
+		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") ||
+		strings.HasSuffix(host, ".home.arpa") || !strings.Contains(host, ".") {
+		return errors.New("local or private-looking host is not allowed")
+	}
+
+	return nil
+}
+
+// parseMaxAge preserves the original helper contract for callers and tests.
+func parseMaxAge(header string) time.Duration {
+	cache := parseCacheControl([]string{header})
+	if cache.noCache || cache.noStore || !cache.hasMaxAge {
+		return 0
+	}
+
+	return cache.maxAge
+}
+
+func parseCacheControl(headers []string) cacheControl {
+	var out cacheControl
+	maxAgeCount := 0
+
+	for _, header := range headers {
+		for part := range strings.SplitSeq(header, ",") {
+			name, value, hasValue := strings.Cut(strings.TrimSpace(part), "=")
+			name = strings.TrimSpace(name)
+
+			switch {
+			case strings.EqualFold(name, "no-cache"):
+				out.noCache = true
+			case strings.EqualFold(name, "no-store"):
+				out.noStore = true
+			case strings.EqualFold(name, "max-age"):
+				maxAgeCount++
+				out.hasMaxAge = true
+				if maxAgeCount == 1 && hasValue {
+					out.maxAge = parseDeltaSeconds(value)
+				} else {
+					out.maxAge = 0
+				}
+			}
+		}
+	}
+
+	return out
+}
+
+func parseDeltaSeconds(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+		unquoted, err := strconv.Unquote(value)
+		if err != nil {
+			return 0
+		}
+		value = unquoted
+	}
+
+	secs, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		if errors.Is(err, strconv.ErrRange) {
+			return maxDuration
+		}
+		return 0
+	}
+	if secs > uint64(maxDuration/time.Second) {
+		return maxDuration
+	}
+
+	return time.Duration(secs) * time.Second
 }
 
 // DiscoverJWKSURI resolves the "jwks_uri" of an OpenID Provider from its
@@ -389,18 +597,28 @@ func parseMaxAge(header string) time.Duration {
 //     (Discovery §4.3), which defeats mix-up and substituted documents;
 //   - "jwks_uri" must be present and https.
 //
-// Every failure — network, status, size, JSON, or validation — wraps
-// ErrKeyFetch; there is no silent fallback to a guessed URL. A nil client
-// uses a default client with a 30-second timeout; a supplied client is copied
-// and given the same HTTPS-only redirect guard as KeyFetcher.
-func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (string, error) {
+// Every failure — network, status, size, JSON, policy, or validation — wraps
+// ErrKeyFetch; there is no silent fallback to a guessed URL. A nil client uses
+// a default client with a 30-second timeout; a supplied client is copied.
+//
+// The optional policy is applied to the issuer discovery URL, every redirect,
+// and the discovered jwks_uri. When omitted, the default rejects direct local
+// and private-looking targets. The application MUST preapprove issuer
+// hostnames; the default deliberately avoids a DNS lookup that could create a
+// check/dial TOCTOU gap.
+func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client, policies ...URLPolicy) (string, error) {
 	u, err := url.Parse(issuer)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+	if err != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
 		return "", fmt.Errorf("%w: issuer must be an https URL without query or fragment, got %q", ErrKeyFetch, issuer)
 	}
 
-	body, _, err := getCapped(ctx, safeHTTPClient(client),
-		strings.TrimSuffix(issuer, "/")+wellKnownOpenIDConfig, "application/json", defaultMaxJWKSBytes)
+	policy := selectURLPolicy(policies)
+	if err := validateURL(u, policy); err != nil {
+		return "", err
+	}
+
+	discoveryURI := strings.TrimSuffix(issuer, "/") + wellKnownOpenIDConfig
+	body, _, err := getCapped(ctx, safeHTTPClient(client, policy), discoveryURI, "application/json", defaultMaxJWKSBytes, policy)
 	if err != nil {
 		return "", err
 	}
@@ -421,7 +639,11 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client) (s
 		return "", fmt.Errorf("%w: discovery document has no jwks_uri", ErrKeyFetch)
 	}
 
-	if err := requireHTTPS(doc.JWKSURI); err != nil {
+	jwksURL, err := url.Parse(doc.JWKSURI)
+	if err != nil {
+		return "", fmt.Errorf("%w: malformed jwks_uri: %w", ErrKeyFetch, err)
+	}
+	if err := validateURL(jwksURL, policy); err != nil {
 		return "", err
 	}
 
