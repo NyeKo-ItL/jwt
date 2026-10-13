@@ -58,8 +58,10 @@ jobs:
           done
       # Dependabot pull requests do not receive repository secrets. Upload only
       # from trusted pushes; coverage is still enforced locally on every PR.
+      # Release tags run this reusable workflow without repository secrets, so
+      # they must not attempt an authenticated Codecov upload.
       - name: Upload coverage reports to Codecov
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           slug: NyeKo-ItL/jwt
