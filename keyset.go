@@ -216,6 +216,7 @@ func parseKeySet(data []byte, permissive bool) (*KeySet, []KeySetDiagnostic, err
 			}
 
 			diagnostics = append(diagnostics, KeySetDiagnostic{Index: i, Err: wrapped})
+
 			continue
 		}
 
@@ -224,6 +225,7 @@ func parseKeySet(data []byte, permissive bool) (*KeySet, []KeySetDiagnostic, err
 				Index: i,
 				Err:   fmt.Errorf("%w: unsupported JWK kty %q or curve %q", ErrUnsupportedAlgorithm, k.Kty, k.crv),
 			})
+
 			continue
 		}
 

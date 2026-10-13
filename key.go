@@ -179,6 +179,7 @@ var (
 // UnmarshalJSON.
 func (k *Key) checkCanonical() error {
 	seen := make(map[string]bool, len(k.KeyOps))
+
 	var operationClasses uint8
 
 	for _, op := range k.KeyOps {
@@ -276,6 +277,7 @@ func ecdsaCoordinateMissing(pub *ecdsa.PublicKey, name string) bool {
 	}
 
 	field := reflect.ValueOf(pub).Elem().FieldByName(name)
+
 	return !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil()
 }
 
@@ -308,6 +310,7 @@ func (k Key) PublicKey() (crypto.PublicKey, error) {
 		}
 
 		n := new(big.Int).SetBytes(k.n)
+
 		e := new(big.Int).SetBytes(k.e)
 		if n.Sign() <= 0 || n.BitLen() > MaxRSAKeyBits || n.Bit(0) == 0 || !e.IsInt64() {
 			return nil, ErrMalformedKey

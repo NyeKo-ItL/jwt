@@ -31,10 +31,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	signer, err := jwt.NewEd25519Signer(signKey, "sig-1")
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	inner, err := jwt.Sign(payload{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "https://issuer.example",
@@ -52,6 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	compact, err := jwt.EncryptNestedJWT(inner, enc, jwt.WithJWEType("account+jwt"))
 	if err != nil {
 		log.Fatal(err)
@@ -67,6 +70,7 @@ func main() {
 	var claims payload
 
 	verificationKeys := jwt.StaticKeyProvider(jwt.FromEd25519PublicKey(verifyKey, "sig-1"))
+
 	err = jwt.DecryptNestedJWT(context.Background(), compact, &claims, dec, verificationKeys, jwt.NestedJWTPolicies{
 		JWE: []jwt.ParseOption{
 			jwt.WithAllowedKeyAlgorithms(jwt.ECDHESA256KW),

@@ -145,18 +145,22 @@ func ValidateIDTokenForContext(claims IDTokenClaims, validation IDTokenValidatio
 	if err := ValidateIDTokenClaims(claims); err != nil {
 		return err
 	}
+
 	if validation.ClientID == "" {
 		return fmt.Errorf("%w: client_id validation context is required", ErrInvalidClaim)
 	}
+
 	if !claims.Audience.Has(validation.ClientID) {
 		return ErrAudienceMismatch
 	}
 
 	trusted := make(map[string]bool, len(validation.TrustedAudiences)+1)
+
 	trusted[validation.ClientID] = true
 	for _, audience := range validation.TrustedAudiences {
 		trusted[audience] = true
 	}
+
 	for _, audience := range claims.Audience {
 		if !trusted[audience] {
 			return fmt.Errorf("%w: untrusted additional audience %q", ErrAudienceMismatch, audience)
@@ -166,6 +170,7 @@ func ValidateIDTokenForContext(claims IDTokenClaims, validation IDTokenValidatio
 	if claims.AuthorizedParty != "" && claims.AuthorizedParty != validation.ClientID {
 		return fmt.Errorf("%w: azp %q does not match client_id %q", ErrInvalidClaim, claims.AuthorizedParty, validation.ClientID)
 	}
+
 	if len(claims.Audience) > 1 && claims.AuthorizedParty != validation.ClientID {
 		return fmt.Errorf("%w: multi-audience ID Token requires azp equal to client_id", ErrInvalidClaim)
 	}
@@ -179,6 +184,7 @@ func ValidateIDTokenForContext(claims IDTokenClaims, validation IDTokenValidatio
 	if err := validateOIDCHash("at_hash", claims.AccessTokenHash, validation.AccessToken, validation.SigningAlgorithm); err != nil {
 		return err
 	}
+
 	if err := validateOIDCHash("c_hash", claims.CodeHash, validation.AuthorizationCode, validation.SigningAlgorithm); err != nil {
 		return err
 	}
@@ -190,6 +196,7 @@ func validateOIDCHash(name, claim, value string, alg Algorithm) error {
 	if claim == "" {
 		return nil
 	}
+
 	if value == "" {
 		return fmt.Errorf("%w: %s is present but its source value was not provided", ErrInvalidClaim, name)
 	}
@@ -198,9 +205,11 @@ func validateOIDCHash(name, claim, value string, alg Algorithm) error {
 	if !ok || !hash.Available() {
 		return fmt.Errorf("%w: cannot validate %s for signing algorithm %q", ErrUnsupportedAlgorithm, name, alg)
 	}
+
 	h := hash.New()
 	_, _ = h.Write([]byte(value))
 	digest := h.Sum(nil)
+
 	want := b64.Encode(digest[:len(digest)/2])
 	if subtle.ConstantTimeCompare([]byte(claim), []byte(want)) != 1 {
 		return fmt.Errorf("%w: %s mismatch", ErrInvalidClaim, name)

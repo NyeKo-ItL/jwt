@@ -17,11 +17,13 @@ func TestV1FetchMaxStaleDurationFailsClosed(t *testing.T) {
 	body := jwksBytes(t, FromEd25519PublicKey(tk.edPub, "k"))
 
 	var failing atomic.Bool
+
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if failing.Load() {
 			http.Error(w, "down", http.StatusServiceUnavailable)
 			return
 		}
+
 		w.Header().Set("Cache-Control", "max-age=60")
 		_, _ = w.Write(body)
 	}))
@@ -42,6 +44,7 @@ func TestV1FetchMaxStaleDurationFailsClosed(t *testing.T) {
 	}
 
 	failing.Store(true)
+
 	f.now = func() time.Time { return base.Add(time.Minute) }
 	if _, ok, err := f.Lookup(context.Background(), "k"); err != nil || !ok {
 		t.Fatalf("inside stale window: ok=%v err=%v", ok, err)
@@ -58,11 +61,13 @@ func TestV1FetchZeroMaxStaleDisablesFallback(t *testing.T) {
 	body := jwksBytes(t, FromEd25519PublicKey(tk.edPub, "k"))
 
 	var failing atomic.Bool
+
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if failing.Load() {
 			http.Error(w, "down", http.StatusServiceUnavailable)
 			return
 		}
+
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(body)
 	}))
@@ -76,12 +81,14 @@ func TestV1FetchZeroMaxStaleDisablesFallback(t *testing.T) {
 		WithMinRefreshInterval(time.Second),
 		WithMaxStaleDuration(0),
 	)
+
 	f.now = func() time.Time { return base }
 	if _, ok, err := f.Lookup(context.Background(), "k"); err != nil || !ok {
 		t.Fatalf("warm-up: ok=%v err=%v", ok, err)
 	}
 
 	failing.Store(true)
+
 	f.now = func() time.Time { return base.Add(time.Second) }
 	if _, ok, err := f.Lookup(context.Background(), "k"); ok || !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("stale fallback not disabled: ok=%v err=%v", ok, err)
@@ -102,6 +109,7 @@ func TestV1FetchCacheControlDirectives(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var hits atomic.Int32
+
 			srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				hits.Add(1)
 				w.Header().Set("Cache-Control", tc.header)
@@ -116,10 +124,12 @@ func TestV1FetchCacheControlDirectives(t *testing.T) {
 				WithURLPolicy(allowTestURL),
 				WithMinRefreshInterval(time.Second),
 			)
+
 			f.now = func() time.Time { return base }
 			if _, ok, err := f.Lookup(context.Background(), "k"); err != nil || !ok {
 				t.Fatalf("first lookup: ok=%v err=%v", ok, err)
 			}
+
 			if (f.set != nil) != tc.wantStore {
 				t.Fatalf("retained=%v, want %v", f.set != nil, tc.wantStore)
 			}
@@ -128,6 +138,7 @@ func TestV1FetchCacheControlDirectives(t *testing.T) {
 			if _, ok, err := f.Lookup(context.Background(), "k"); err != nil || !ok {
 				t.Fatalf("second lookup: ok=%v err=%v", ok, err)
 			}
+
 			if got := hits.Load(); got != 2 {
 				t.Fatalf("directive incorrectly made response fresh: hits=%d", got)
 			}
@@ -177,8 +188,10 @@ func TestV1FetchNilOptionsAndKeyCountCap(t *testing.T) {
 
 func TestV1FetchURLPolicyCoversInitialAndRedirects(t *testing.T) {
 	var targetHits atomic.Int32
+
 	target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		targetHits.Add(1)
+
 		_, _ = w.Write([]byte(`{"keys":[]}`))
 	}))
 	defer target.Close()
@@ -192,10 +205,12 @@ func TestV1FetchURLPolicyCoversInitialAndRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	allowOriginOnly := func(u *url.URL) error {
 		if u.Host != originURL.Host {
 			return errors.New("host is not preapproved")
 		}
+
 		return nil
 	}
 
@@ -203,18 +218,22 @@ func TestV1FetchURLPolicyCoversInitialAndRedirects(t *testing.T) {
 	if err := f.Refresh(context.Background()); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("redirect policy error=%v", err)
 	}
+
 	if got := targetHits.Load(); got != 0 {
 		t.Fatalf("redirect target was reached %d times", got)
 	}
 
 	var initialHits atomic.Int32
+
 	blocked := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		initialHits.Add(1)
 	}))
 	defer blocked.Close()
+
 	if err := NewKeyFetcher(blocked.URL, WithHTTPClient(blocked.Client())).Refresh(context.Background()); !errors.Is(err, ErrKeyFetch) {
 		t.Fatalf("default initial policy error=%v", err)
 	}
+
 	if got := initialHits.Load(); got != 0 {
 		t.Fatalf("blocked initial URL was reached %d times", got)
 	}

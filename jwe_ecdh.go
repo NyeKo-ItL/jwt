@@ -199,6 +199,7 @@ func NewECDHESEncrypter(pub *ecdsa.PublicKey, alg KeyAlgorithm, content ContentA
 	if curveName(pub.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
+
 	if _, err := FromECDSAPublicKey(pub).PublicKey(); err != nil {
 		return nil, fmt.Errorf("%w: invalid EC public key", ErrMalformedKey)
 	}
@@ -216,13 +217,16 @@ func NewECDHESDecrypter(priv *ecdsa.PrivateKey, kid ...string) (Decrypter, error
 	if curveName(priv.Curve) == "" {
 		return nil, fmt.Errorf("%w: unsupported EC curve", ErrMalformedKey)
 	}
+
 	if _, err := FromECDSAPublicKey(&priv.PublicKey).PublicKey(); err != nil {
 		return nil, fmt.Errorf("%w: invalid EC public key", ErrMalformedKey)
 	}
+
 	privateECDH, err := priv.ECDH()
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid EC private key: %w", ErrMalformedKey, err)
 	}
+
 	publicECDH, err := priv.PublicKey.ECDH()
 	if err != nil || !bytes.Equal(privateECDH.PublicKey().Bytes(), publicECDH.Bytes()) {
 		return nil, fmt.Errorf("%w: EC public point does not match private scalar", ErrMalformedKey)

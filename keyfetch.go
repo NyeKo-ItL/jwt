@@ -174,6 +174,7 @@ func NewKeyFetcher(uri string, opts ...FetcherOption) *KeyFetcher {
 		maxStale:   defaultMaxStaleDuration,
 		now:        time.Now,
 	}
+
 	for _, o := range opts {
 		if o != nil {
 			o(f)
@@ -322,6 +323,7 @@ func (f *KeyFetcher) startFlightLocked(ctx context.Context, now time.Time) *fetc
 
 		f.mu.Lock()
 		fl.set = set
+
 		if err == nil {
 			if cache.noStore {
 				f.set = nil
@@ -330,10 +332,12 @@ func (f *KeyFetcher) startFlightLocked(ctx context.Context, now time.Time) *fetc
 			} else {
 				f.set = set
 				f.fetchedAt = f.now()
+
 				f.freshFor = f.minRefresh
 				if cache.hasMaxAge {
 					f.freshFor = min(cache.maxAge, f.maxCache)
 				}
+
 				if cache.noCache {
 					f.freshFor = 0
 				}
@@ -402,6 +406,7 @@ func getCapped(ctx context.Context, client *http.Client, uri, accept string, max
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w: %w", ErrKeyFetch, ErrMalformedKey, err)
 	}
+
 	if err := validateURL(u, selectURLPolicy(policies)); err != nil {
 		return nil, nil, err
 	}
@@ -470,6 +475,7 @@ func validateHTTPSURL(u *url.URL) error {
 		if u != nil {
 			redacted = u.Redacted()
 		}
+
 		return fmt.Errorf("%w: %w: URL must be absolute https, got %q", ErrKeyFetch, ErrMalformedKey, redacted)
 	}
 
@@ -480,9 +486,11 @@ func validateURL(u *url.URL, policy URLPolicy) error {
 	if err := validateHTTPSURL(u); err != nil {
 		return err
 	}
+
 	if policy == nil {
 		policy = defaultURLPolicy
 	}
+
 	if err := policy(u); err != nil {
 		return fmt.Errorf("%w: URL policy rejected %q: %w", ErrKeyFetch, u.Redacted(), err)
 	}
@@ -512,9 +520,11 @@ func defaultURLPolicy(u *url.URL) error {
 	if host == "" {
 		return errors.New("host is empty")
 	}
+
 	if ip := net.ParseIP(strings.TrimSuffix(host, "%")); ip != nil || strings.Contains(host, "%") {
 		return errors.New("IP-literal hosts are not allowed")
 	}
+
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") ||
 		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") ||
 		strings.HasSuffix(host, ".home.arpa") || !strings.Contains(host, ".") {
@@ -536,6 +546,7 @@ func parseMaxAge(header string) time.Duration {
 
 func parseCacheControl(headers []string) cacheControl {
 	var out cacheControl
+
 	maxAgeCount := 0
 
 	for _, header := range headers {
@@ -550,6 +561,7 @@ func parseCacheControl(headers []string) cacheControl {
 				out.noStore = true
 			case strings.EqualFold(name, "max-age"):
 				maxAgeCount++
+
 				out.hasMaxAge = true
 				if maxAgeCount == 1 && hasValue {
 					out.maxAge = parseDeltaSeconds(value)
@@ -570,6 +582,7 @@ func parseDeltaSeconds(value string) time.Duration {
 		if err != nil {
 			return 0
 		}
+
 		value = unquoted
 	}
 
@@ -578,8 +591,10 @@ func parseDeltaSeconds(value string) time.Duration {
 		if errors.Is(err, strconv.ErrRange) {
 			return maxDuration
 		}
+
 		return 0
 	}
+
 	if secs > uint64(maxDuration/time.Second) {
 		return maxDuration
 	}
@@ -618,6 +633,7 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client, po
 	}
 
 	discoveryURI := strings.TrimSuffix(issuer, "/") + wellKnownOpenIDConfig
+
 	body, _, err := getCapped(ctx, safeHTTPClient(client, policy), discoveryURI, "application/json", defaultMaxJWKSBytes, policy)
 	if err != nil {
 		return "", err
@@ -643,6 +659,7 @@ func DiscoverJWKSURI(ctx context.Context, issuer string, client *http.Client, po
 	if err != nil {
 		return "", fmt.Errorf("%w: malformed jwks_uri: %w", ErrKeyFetch, err)
 	}
+
 	if err := validateURL(jwksURL, policy); err != nil {
 		return "", err
 	}

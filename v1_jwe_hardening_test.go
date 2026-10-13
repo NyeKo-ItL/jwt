@@ -20,6 +20,7 @@ var v1JWEAllow = ParseOptions{
 
 func TestV1JWEDecryptClaimsAtomicAndNilOptions(t *testing.T) {
 	cek := mkKEK(32)
+
 	enc, err := NewDirectEncrypter(cek, A256GCM)
 	if err != nil {
 		t.Fatal(err)
@@ -36,8 +37,11 @@ func TestV1JWEDecryptClaimsAtomicAndNilOptions(t *testing.T) {
 	}
 
 	dst := appClaims{RegisteredClaims: RegisteredClaims{Subject: "old"}, Scope: "stale"}
-	var nilOption ParseOption
-	var nilOptions *ParseOptions
+
+	var (
+		nilOption  ParseOption
+		nilOptions *ParseOptions
+	)
 	if err := DecryptClaims(context.Background(), tok, &dst, dec, v1JWEAllow, nilOption, nilOptions); err != nil {
 		t.Fatalf("DecryptClaims: %v", err)
 	}
@@ -47,6 +51,7 @@ func TestV1JWEDecryptClaimsAtomicAndNilOptions(t *testing.T) {
 	}
 
 	bad := sealJWE(t, `{"alg":"dir","enc":"A256GCM"}`, nil, cek, []byte(`{"sub":"changed","scope":1}`))
+
 	dst = appClaims{RegisteredClaims: RegisteredClaims{Subject: "keep"}, Scope: "keep"}
 	if err := DecryptClaims(context.Background(), bad, &dst, dec, v1JWEAllow); !errors.Is(err, ErrMalformedToken) {
 		t.Fatalf("bad destination decode: %v", err)
@@ -63,6 +68,7 @@ func TestV1JWEDecryptClaimsAtomicAndNilOptions(t *testing.T) {
 
 func TestV1JWEEncryptClaimsRequiresJSONObjectAndSupportsOptions(t *testing.T) {
 	cek := mkKEK(32)
+
 	enc, err := NewDirectEncrypter(cek, A256GCM)
 	if err != nil {
 		t.Fatal(err)
@@ -82,8 +88,12 @@ func TestV1JWEEncryptClaimsRequiresJSONObjectAndSupportsOptions(t *testing.T) {
 	}
 
 	reusable := EncryptOptions{Type: "example+jwt", ContentType: "json"}
-	var nilOption EncryptOption
-	var nilOptions *EncryptOptions
+
+	var (
+		nilOption  EncryptOption
+		nilOptions *EncryptOptions
+	)
+
 	tok, err := EncryptClaims(map[string]string{"sub": "u"}, enc, reusable, nilOption, nilOptions)
 	if err != nil {
 		t.Fatal(err)
@@ -151,6 +161,7 @@ func TestV1JWEAESKWKnownVectorAndExactLengthGuards(t *testing.T) {
 func BenchmarkV1JWEAESKWRejectHostileEncryptedKey(b *testing.B) {
 	u := aesKWUnwrapper{kek: make([]byte, 32)}
 	hostile := make([]byte, 1<<20)
+
 	b.ReportAllocs()
 	b.SetBytes(int64(len(hostile)))
 
@@ -161,6 +172,7 @@ func BenchmarkV1JWEAESKWRejectHostileEncryptedKey(b *testing.B) {
 
 func TestV1JWEECDHRejectsEqualPartyInfoIncludingExplicitEmpty(t *testing.T) {
 	tk := newTestKeys(t)
+
 	dec, err := NewECDHESDecrypter(tk.p256)
 	if err != nil {
 		t.Fatal(err)
@@ -188,6 +200,7 @@ func TestV1JWEECDHRejectsEqualPartyInfoIncludingExplicitEmpty(t *testing.T) {
 
 			cek := concatKDF(z, string(A256GCM), party, party, 256)
 			hdr := `{"alg":"ECDH-ES","enc":"A256GCM",` + fields + `"epk":` + string(epk) + `}`
+
 			tok := sealJWE(t, hdr, nil, cek, []byte(`{}`))
 			if _, err := dec.Decrypt(context.Background(), tok); !errors.Is(err, ErrDecryptionFailed) {
 				t.Fatalf("err = %v", err)
@@ -196,6 +209,7 @@ func TestV1JWEECDHRejectsEqualPartyInfoIncludingExplicitEmpty(t *testing.T) {
 	}
 
 	cek := concatKDF(z, string(A256GCM), nil, []byte("recipient"), 256)
+
 	hdr := `{"alg":"ECDH-ES","enc":"A256GCM","apu":"","apv":"cmVjaXBpZW50","epk":` + string(epk) + `}`
 	if _, err := dec.Decrypt(context.Background(), sealJWE(t, hdr, nil, cek, []byte(`{}`))); err != nil {
 		t.Fatalf("distinct party info rejected: %v", err)
@@ -204,15 +218,18 @@ func TestV1JWEECDHRejectsEqualPartyInfoIncludingExplicitEmpty(t *testing.T) {
 
 func TestV1JWEEPKRejectsEveryPrivateParameter(t *testing.T) {
 	tk := newTestKeys(t)
+
 	epk, err := FromECDSAPublicKey(&tk.p256.PublicKey).MarshalJSON()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	base := strings.TrimSuffix(string(epk), "}")
+
 	for _, name := range []string{"d", "k", "p", "q", "dp", "dq", "qi", "oth"} {
 		t.Run(name, func(t *testing.T) {
 			raw := `{"alg":"ECDH-ES","enc":"A256GCM","epk":` + base + `,"` + name + `":""}}`
+
 			compact := b64.Encode([]byte(raw)) + "...."
 			if _, _, err := parseJWEProtected(compact); !errors.Is(err, ErrDecryptionFailed) {
 				t.Fatalf("err = %v", err)
@@ -223,6 +240,7 @@ func TestV1JWEEPKRejectsEveryPrivateParameter(t *testing.T) {
 
 func TestV1JWENestedSignedThenEncrypted(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
+
 	signer, err := NewHMACSigner(HS256, secret, "sig-1")
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +254,7 @@ func TestV1JWENestedSignedThenEncrypted(t *testing.T) {
 	cek := mkKEK(32)
 	enc, _ := NewDirectEncrypter(cek, A256GCM, "enc-1")
 	dec, _ := NewDirectDecrypter(cek, "enc-1")
+
 	outer, err := EncryptNestedJWT(inner, enc, WithJWEType("nested+jwt"), WithJWEContentType("ignored"))
 	if err != nil {
 		t.Fatal(err)
@@ -265,6 +284,7 @@ func TestV1JWENestedSignedThenEncrypted(t *testing.T) {
 	sig, _ := b64.Decode(parts[2])
 	sig[0] ^= 0xff
 	tamperedInner := parts[0] + "." + parts[1] + "." + b64.Encode(sig)
+
 	tamperedOuter, err := EncryptNestedJWT(tamperedInner, enc, WithJWEType("nested+jwt"))
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +309,7 @@ func TestV1JWENestedSignedThenEncrypted(t *testing.T) {
 	}
 
 	withoutJWSAllowlist := policies
+
 	withoutJWSAllowlist.JWS = nil
 	if err := DecryptNestedJWT(context.Background(), outer, &got, dec, keys, withoutJWSAllowlist); !errors.Is(err, ErrNoAllowedAlgorithms) {
 		t.Fatalf("distinct inner policy: %v", err)
@@ -330,8 +351,10 @@ func TestV1JWEECDHRejectsPartialKeysAtConstruction(t *testing.T) {
 		t.Fatalf("partial private key: %v", err)
 	}
 
-	var nilDecrypter *decrypter
-	var dst appClaims
+	var (
+		nilDecrypter *decrypter
+		dst          appClaims
+	)
 	if err := DecryptClaims(context.Background(), "", &dst, nilDecrypter, v1JWEAllow); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("typed nil decrypter: %v", err)
 	}
@@ -361,6 +384,7 @@ func TestV1JWERSARejectsPartialInvalidAndOversizedKeys(t *testing.T) {
 	}
 
 	inconsistent := *tk.rsa2048
+
 	inconsistent.D = new(big.Int).Add(tk.rsa2048.D, big.NewInt(1))
 	if _, err := NewRSAOAEP256Decrypter(&inconsistent); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("inconsistent private key: %v", err)

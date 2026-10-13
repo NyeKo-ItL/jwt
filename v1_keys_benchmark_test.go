@@ -13,11 +13,13 @@ func BenchmarkV1KeysKeySetLookupAbsent(b *testing.B) {
 	for i := range keys {
 		keys[i] = FromEd25519PublicKey(make([]byte, 32), "kid-"+strconv.Itoa(i))
 	}
+
 	set := NewKeySet(keys...)
 	ctx := context.Background()
 
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _, _ = set.Lookup(ctx, "absent")
 	}
@@ -28,6 +30,7 @@ func BenchmarkV1KeysParseKeySetJWKS(b *testing.B) {
 	for i := range keys {
 		keys[i] = FromEd25519PublicKey(make([]byte, 32), "kid-"+strconv.Itoa(i))
 	}
+
 	doc, err := json.Marshal(NewKeySet(keys...))
 	if err != nil {
 		b.Fatal(err)
@@ -36,6 +39,7 @@ func BenchmarkV1KeysParseKeySetJWKS(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(doc)))
 	b.ResetTimer()
+
 	for range b.N {
 		if _, err := ParseKeySet(doc); err != nil {
 			b.Fatal(err)
@@ -47,6 +51,7 @@ func BenchmarkV1KeysMemoryRevocationStore(b *testing.B) {
 	store := NewMemoryRevocationStore()
 	ctx := context.Background()
 	expires := time.Now().Add(time.Hour)
+
 	ids := make([]string, 1024)
 	for i := range ids {
 		ids[i] = "jti-" + strconv.Itoa(i)
@@ -54,6 +59,7 @@ func BenchmarkV1KeysMemoryRevocationStore(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		if err := store.Revoke(ctx, ids[i%len(ids)], ReasonAdmin, expires); err != nil {
 			b.Fatal(err)
@@ -63,6 +69,7 @@ func BenchmarkV1KeysMemoryRevocationStore(b *testing.B) {
 
 func BenchmarkV1KeysMemoryRevocationStoreLookup(b *testing.B) {
 	store := NewMemoryRevocationStore()
+
 	ctx := context.Background()
 	if err := store.Revoke(ctx, "revoked", ReasonAdmin, time.Time{}); err != nil {
 		b.Fatal(err)
@@ -70,6 +77,7 @@ func BenchmarkV1KeysMemoryRevocationStoreLookup(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _ = store.IsRevoked(ctx, "revoked")
 	}

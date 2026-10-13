@@ -47,6 +47,7 @@ func ValidateStringOrURI(value string) error {
 			}
 
 			i += 2
+
 			continue
 		}
 
@@ -145,6 +146,7 @@ func (n NumericDate) MarshalJSON() ([]byte, error) {
 	}
 
 	negative := sec < 0
+
 	whole, fraction := sec, nsec
 	if negative {
 		// time.Time represents -0.5 as sec=-1,nsec=500ms. Convert that floor
@@ -154,6 +156,7 @@ func (n NumericDate) MarshalJSON() ([]byte, error) {
 	}
 
 	frac := strings.TrimRight(fmt.Sprintf("%09d", fraction), "0")
+
 	prefix := ""
 	if negative {
 		prefix = "-"

@@ -138,6 +138,7 @@ func (s *memoryRevocationStore) Revoke(_ context.Context, id string, reason Revo
 
 	s.generation++
 	entry := revocationEntry{reason: reason, expiresAt: expiresAt, generation: s.generation}
+
 	s.items[id] = entry
 	if !expiresAt.IsZero() {
 		heap.Push(&s.expirations, revocationExpiry{id: id, expiresAt: expiresAt, generation: entry.generation})
@@ -165,6 +166,7 @@ func (s *memoryRevocationStore) IsRevoked(_ context.Context, id string) (bool, e
 func (s *memoryRevocationStore) removeExpiredLocked(now time.Time) {
 	for len(s.expirations) > 0 && !s.expirations[0].expiresAt.After(now) {
 		expired := heap.Pop(&s.expirations).(revocationExpiry)
+
 		entry, ok := s.items[expired.id]
 		if ok && entry.generation == expired.generation && !entry.live(now) {
 			delete(s.items, expired.id)

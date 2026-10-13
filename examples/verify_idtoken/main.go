@@ -82,6 +82,7 @@ func main() {
 			SigningAlgorithm: jwt.ES256,
 		})
 	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
