@@ -29,12 +29,14 @@ func TestV1KeysKeySetDeepCopiesEveryBoundary(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Lookup: ok=%v err=%v", ok, err)
 	}
+
 	if got.KeyOps[0] != "verify" || string(got.k) != "0123456789abcdef0123456789abcdef" {
 		t.Fatalf("Add retained caller storage: ops=%v key=%q", got.KeyOps, got.k)
 	}
 
 	got.KeyOps[0] = "changed"
 	got.k[0] ^= 0xff
+
 	again, _, _ := set.Lookup(ctx, "k1")
 	if again.KeyOps[0] != "verify" || string(again.k) != "0123456789abcdef0123456789abcdef" {
 		t.Fatal("Lookup exposed KeySet storage")
@@ -43,6 +45,7 @@ func TestV1KeysKeySetDeepCopiesEveryBoundary(t *testing.T) {
 	keys, _ := set.Keys(ctx)
 	keys[0].KeyOps[0] = "changed"
 	keys[0].k[0] ^= 0xff
+
 	again, _, _ = set.Lookup(ctx, "k1")
 	if again.KeyOps[0] != "verify" || string(again.k) != "0123456789abcdef0123456789abcdef" {
 		t.Fatal("Keys exposed KeySet storage")
@@ -50,6 +53,7 @@ func TestV1KeysKeySetDeepCopiesEveryBoundary(t *testing.T) {
 
 	clone := set.Clone()
 	clone.Remove("k1")
+
 	if _, ok, _ := set.Lookup(ctx, "k1"); !ok {
 		t.Fatal("Clone shared KeySet state")
 	}
@@ -74,6 +78,7 @@ func TestV1KeysStaticAndMapProvidersDeepCopyKeys(t *testing.T) {
 
 			got.KeyOps[0] = "changed"
 			got.k[0] ^= 0xff
+
 			again, ok, err := provider.Lookup(ctx, "k1")
 			if err != nil || !ok || again.KeyOps[0] != "verify" || string(again.k) != "0123456789abcdef0123456789abcdef" {
 				t.Fatalf("provider exposed storage: key=%+v ok=%v err=%v", again, ok, err)
@@ -98,7 +103,7 @@ func TestV1KeysKeySetIndexPreservesOrderOnReplace(t *testing.T) {
 
 func TestV1KeysParseKeySetStrictAndPermissive(t *testing.T) {
 	validX := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
-	doc := []byte(fmt.Sprintf(`{"keys":[{"kty":"unsupported","kid":"u"},{"kty":"OKP","crv":"Ed25519","x":"bad"},{"kty":"OKP","crv":"Ed25519","x":%q,"kid":"good"}]}`, validX))
+	doc := fmt.Appendf(nil, `{"keys":[{"kty":"unsupported","kid":"u"},{"kty":"OKP","crv":"Ed25519","x":"bad"},{"kty":"OKP","crv":"Ed25519","x":%q,"kid":"good"}]}`, validX)
 
 	if _, err := ParseKeySet(doc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("strict ParseKeySet error = %v", err)
@@ -108,9 +113,11 @@ func TestV1KeysParseKeySetStrictAndPermissive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(diagnostics) != 2 || diagnostics[0].Index != 0 || diagnostics[1].Index != 1 {
 		t.Fatalf("diagnostics = %+v", diagnostics)
 	}
+
 	if key, ok, _ := set.Lookup(context.Background(), "good"); !ok || key.Kty != KeyTypeOKP {
 		t.Fatalf("valid key was not retained: %+v, %v", key, ok)
 	}
@@ -119,22 +126,26 @@ func TestV1KeysParseKeySetStrictAndPermissive(t *testing.T) {
 func TestV1KeysParseKeySetLimits(t *testing.T) {
 	validX := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
 	valid := json.RawMessage(fmt.Sprintf(`{"kty":"OKP","crv":"Ed25519","x":%q}`, validX))
+
 	keys := make([]json.RawMessage, MaxKeySetKeys+1)
 	for i := range keys {
 		keys[i] = valid
 	}
+
 	doc, err := json.Marshal(struct {
 		Keys []json.RawMessage `json:"keys"`
 	}{Keys: keys})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := ParseKeySet(doc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("key-count limit error = %v", err)
 	}
 
 	tooLarge := base64.RawURLEncoding.EncodeToString(make([]byte, MaxJWKMaterialBytes+1))
-	materialDoc := []byte(fmt.Sprintf(`{"keys":[{"kty":"oct","k":%q}]}`, tooLarge))
+
+	materialDoc := fmt.Appendf(nil, `{"keys":[{"kty":"oct","k":%q}]}`, tooLarge)
 	if _, err := ParseKeySet(materialDoc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("material limit error = %v", err)
 	}
@@ -142,7 +153,8 @@ func TestV1KeysParseKeySetLimits(t *testing.T) {
 	oversizedN := make([]byte, MaxRSAKeyBits/8+1)
 	oversizedN[0] = 1
 	oversizedN[len(oversizedN)-1] = 1
-	rsaDoc := []byte(fmt.Sprintf(`{"keys":[{"kty":"RSA","n":%q,"e":"AQAB"}]}`, base64.RawURLEncoding.EncodeToString(oversizedN)))
+
+	rsaDoc := fmt.Appendf(nil, `{"keys":[{"kty":"RSA","n":%q,"e":"AQAB"}]}`, base64.RawURLEncoding.EncodeToString(oversizedN))
 	if _, err := ParseKeySet(rsaDoc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("RSA maximum error = %v", err)
 	}
@@ -186,6 +198,7 @@ func TestV1KeysNilAndPartialAsymmetricKeysNeverPanic(t *testing.T) {
 	if _, err := NewRSAPSSVerifier(PS256, oversized); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("oversized RSA verifier error = %v", err)
 	}
+
 	if _, err := FromRSAPublicKey(oversized).PublicKey(); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("oversized RSA JWK error = %v", err)
 	}
@@ -216,7 +229,7 @@ func TestV1KeysRejectMixedKeyOperationsWithoutUse(t *testing.T) {
 		`["verify","deriveKey"]`,
 		`["encrypt","deriveBits"]`,
 	} {
-		raw := []byte(fmt.Sprintf(`{"kty":"OKP","crv":"Ed25519","x":%q,"key_ops":%s}`, x, ops))
+		raw := fmt.Appendf(nil, `{"kty":"OKP","crv":"Ed25519","x":%q,"key_ops":%s}`, x, ops)
 		if _, err := ParseKey(raw); !errors.Is(err, ErrMalformedKey) {
 			t.Fatalf("key_ops %s error = %v", ops, err)
 		}
@@ -225,10 +238,12 @@ func TestV1KeysRejectMixedKeyOperationsWithoutUse(t *testing.T) {
 
 func TestV1KeysECDSARFC6979Vector(t *testing.T) {
 	privateBytes, _ := hex.DecodeString("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+
 	key, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), privateBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	signer, err := NewECDSASigner(ES256, key)
 	if err != nil {
 		t.Fatal(err)
@@ -238,6 +253,7 @@ func TestV1KeysECDSARFC6979Vector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want, _ := hex.DecodeString(
 		"EFD48B2AACB6A8FD1140DD9CD45E81D69D2C877B56AAF991C34D0EA84EAF3716" +
 			"F7CB1C942D657C41D436C7A1B6E29F65F3E900DBB9AFF4064DC4AB2F843ACDA8",
@@ -257,9 +273,11 @@ func TestV1KeysRevocationValidationCapacityAndHeapExpiry(t *testing.T) {
 	if err := NewMemoryRevocationStore().Revoke(ctx, "", ReasonAdmin, time.Time{}); !errors.Is(err, ErrInvalidRevocationID) {
 		t.Fatalf("empty Revoke error = %v", err)
 	}
+
 	if _, err := NewMemoryRevocationStore().IsRevoked(ctx, ""); !errors.Is(err, ErrInvalidRevocationID) {
 		t.Fatalf("empty IsRevoked error = %v", err)
 	}
+
 	if _, err := NewMemoryRevocationStoreWithCapacity(0); !errors.Is(err, ErrInvalidRevocationCapacity) {
 		t.Fatalf("zero capacity error = %v", err)
 	}
@@ -268,15 +286,19 @@ func TestV1KeysRevocationValidationCapacityAndHeapExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	store := bounded.(*memoryRevocationStore)
 	base := time.Unix(1_700_000_000, 0)
+
 	store.now = func() time.Time { return base }
 	if err := store.Revoke(ctx, "a", ReasonAdmin, base.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := store.Revoke(ctx, "b", ReasonAdmin, time.Time{}); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := store.Revoke(ctx, "c", ReasonAdmin, time.Time{}); !errors.Is(err, ErrRevocationStoreFull) {
 		t.Fatalf("full store error = %v", err)
 	}
@@ -285,6 +307,7 @@ func TestV1KeysRevocationValidationCapacityAndHeapExpiry(t *testing.T) {
 	if err := store.Revoke(ctx, "c", ReasonAdmin, time.Time{}); err != nil {
 		t.Fatalf("expired slot was not reclaimed: %v", err)
 	}
+
 	if _, ok := store.items["a"]; ok {
 		t.Fatal("heap cleanup retained expired entry")
 	}
@@ -292,6 +315,7 @@ func TestV1KeysRevocationValidationCapacityAndHeapExpiry(t *testing.T) {
 
 func TestV1KeysOpaqueExplicitAPIAndRedaction(t *testing.T) {
 	const raw = "super-secret-opaque-value"
+
 	token := OpaqueTokenFromRaw(raw)
 	if token.Hash != HashOpaqueToken(raw) || !VerifyOpaqueTokenHash(token.Hash, raw) {
 		t.Fatal("explicit opaque-token helpers disagree")
@@ -310,11 +334,13 @@ func TestV1KeysOpaqueExplicitAPIAndRedaction(t *testing.T) {
 
 func assertNoPanic(t *testing.T, fn func()) {
 	t.Helper()
+
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			t.Fatalf("panicked: %v", recovered)
 		}
 	}()
+
 	fn()
 }
 
@@ -328,5 +354,6 @@ func bytesFilled(n int, value byte) []byte {
 	for i := range out {
 		out[i] = value
 	}
+
 	return out
 }

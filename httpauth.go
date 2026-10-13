@@ -121,6 +121,7 @@ func (o MiddlewareOptions) applyParse(c *parseConfig) {
 // details for infrastructure or configuration problems.
 func Middleware(keys KeyProvider, opts ...ParseOption) func(http.Handler) http.Handler {
 	cfg := parseConfig{now: time.Now}
+
 	for _, o := range opts {
 		if isNilValue(o) {
 			continue

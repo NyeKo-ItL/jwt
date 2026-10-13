@@ -5,27 +5,58 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify release
+  quality:
+    name: Full quality gate
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  security:
+    name: Security gate
+    uses: ./.github/workflows/security.yml
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+
+
+  metadata:
+    name: Verify release metadata
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.27"
-          check-latest: true
-          cache-dependency-path: go.mod
-      - run: go test -race ./...
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Require matching changelog section and clean module
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if ! grep -Fq "## [$version]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $GITHUB_REF_NAME"
+            exit 1
+          fi
+          go mod tidy
+          go mod verify
+          go -C .github/tools mod tidy
+          go -C .github/tools mod verify
+          git diff --exit-code -- go.mod .github/tools/go.mod .github/tools/go.sum
 
   publish:
     name: Publish GitHub release
-    needs: verify
+    needs: [quality, security, metadata]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       id-token: write
@@ -33,9 +64,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: "1.27"
+          go-version: "1.27.2"
           check-latest: true
-          cache-dependency-path: go.mod
+          cache-dependency-path: |
+            go.mod
+            .github/tools/go.sum
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
@@ -44,9 +77,10 @@ jobs:
 
       # Keyless signing: GitHub's OIDC identity is short-lived and no private
       # signing key is stored as a repository secret.
-      - name: Sign release checksums with Sigstore
+      - name: Sign release checksums with pinned Sigstore
         run: |
-          go run github.com/sigstore/cosign/v2/cmd/cosign@v2.4.3 sign-blob \
+          go -C .github/tools build -o "$RUNNER_TEMP/cosign" github.com/sigstore/cosign/v2/cmd/cosign
+          "$RUNNER_TEMP/cosign" sign-blob \
             --yes \
             --bundle dist/checksums.txt.sigstore.json \
             dist/checksums.txt

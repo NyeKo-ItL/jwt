@@ -85,6 +85,32 @@ These are binding constraints on everything that follows, not suggestions:
    (§6) so that consuming code stays short and obvious — this is a design
    goal in its own right, not just a byproduct of the other decisions.
 
+### 0.1 v1 security-audit amendments
+
+The pre-v1 security and conformance audit adds these binding decisions. They
+supersede older examples in this original design where they differ:
+
+- Claim decoding is transactional: caller destinations change only after full
+  verification, validation, and decoding succeed.
+- A missing claim and a claim explicitly set to JSON `null` both fail a
+  required-claim policy.
+- Each verification key is bound to one algorithm. A key without JWK `alg` is
+  usable only when exactly one compatible algorithm is allowlisted.
+- Custom verification is resolved through `VerifierProvider`; the mandatory
+  allowlist and returned `alg`/`kid` checks remain library-enforced.
+- RSA keys are bounded to 2048–8192 bits. ECDSA signing is deterministic RFC 6979. Public constructors reject partial keys without panic.
+- Public-key JWE provides confidentiality to the recipient, not sender
+  authentication. Authorization-bearing asymmetric tokens use a signed inner
+  JWS and `EncryptNestedJWT` / `DecryptNestedJWT` with `cty: JWT`.
+- Remote JWKS documents have size, key-count, material-size, freshness, stale,
+  URL-policy, and request-rate bounds. Strict and RFC 7517 permissive parsers
+  are separate APIs.
+- RFC 9068 validation requires `jti`. OIDC flow-dependent checks use
+  `IDTokenValidationContext` for client audience, trusted additional
+  audiences, `azp`, nonce, `at_hash`, and `c_hash`.
+- The minimum supported toolchain is Go 1.27.2; release tags rerun all quality,
+  security, CodeQL, API-diff, and metadata gates.
+
 ---
 
 ## 1. Why this exists

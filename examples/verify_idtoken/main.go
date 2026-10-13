@@ -1,6 +1,6 @@
 // Command verify_idtoken shows the JWKS + provider-claims path: an OpenID
 // provider signs an ID token with ES256 and publishes its public key in a
-// JWK Set; a relying party verifies it as a jwt.GoogleIDToken. The JWKS is
+// JWK Set; a relying party verifies its core OIDC claims and flow context. The JWKS is
 // kept in-process so the example runs offline — against a real provider
 // swap jwt.ParseKeySet for jwt.NewKeyFetcher(uri).
 package main
@@ -18,6 +18,11 @@ import (
 	"github.com/NyeKo-ItL/jwt"
 )
 
+type googleIDToken struct {
+	jwt.IDTokenClaims
+	HostedDomain string `json:"hd,omitempty"`
+}
+
 func main() {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -33,16 +38,21 @@ func main() {
 
 	verified := jwt.Bool(true)
 
-	idToken, err := jwt.Sign(jwt.GoogleIDToken{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "https://accounts.google.com",
-			Subject:   "110169484474386276334",
-			Audience:  jwt.Audience{"1234567890.apps.googleusercontent.com"},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+	idToken, err := jwt.Sign(googleIDToken{
+		IDTokenClaims: jwt.IDTokenClaims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Issuer:    "https://accounts.google.com",
+				Subject:   "110169484474386276334",
+				Audience:  jwt.Audience{"1234567890.apps.googleusercontent.com"},
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+				IssuedAt:  jwt.NewNumericDate(time.Now()),
+			},
+			StandardClaims: jwt.StandardClaims{
+				Email: "jsmith@example.com", EmailVerified: &verified,
+				Name: "John Smith", Nonce: "nonce-from-session",
+			},
 		},
-		StandardClaims: jwt.StandardClaims{Email: "jsmith@example.com", EmailVerified: &verified, Name: "John Smith"},
-		GoogleClaims:   jwt.GoogleClaims{HostedDomain: "example.com"},
+		HostedDomain: "example.com",
 	}, signer)
 	if err != nil {
 		log.Fatal(err)
@@ -56,13 +66,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var claims jwt.GoogleIDToken
+	var claims googleIDToken
 
 	err = jwt.Parse(context.Background(), idToken, &claims, keys,
 		jwt.WithAllowedAlgorithms(jwt.ES256, jwt.RS256), // Google normally uses RS256
 		jwt.WithIssuer("https://accounts.google.com"),
 		jwt.WithAudience("1234567890.apps.googleusercontent.com"),
+		jwt.WithRequiredClaims("iss", "sub", "aud", "exp", "iat"),
 	)
+	if err == nil {
+		err = jwt.ValidateIDTokenForContext(claims.IDTokenClaims, jwt.IDTokenValidationContext{
+			ClientID:         "1234567890.apps.googleusercontent.com",
+			ExpectedNonce:    "nonce-from-session",
+			RequireNonce:     true,
+			SigningAlgorithm: jwt.ES256,
+		})
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}

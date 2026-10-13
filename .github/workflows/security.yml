@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ jobs:
     name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
         with:
@@ -24,6 +30,7 @@ jobs:
   trivy:
     name: Trivy filesystem scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -43,6 +50,7 @@ jobs:
     # untrusted pull request code. It still runs on pushes to main and weekly.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write

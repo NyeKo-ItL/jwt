@@ -248,7 +248,8 @@ func Report(changes []Change, fetchErrs []error, date string) string {
 				line += " · likely impact: `" + c.Impact + "`"
 			}
 
-			b.WriteString(line + "\n")
+			b.WriteString(line)
+			b.WriteString("\n")
 		}
 
 		b.WriteString("\n")
@@ -258,7 +259,9 @@ func Report(changes []Change, fetchErrs []error, date string) string {
 		b.WriteString("## Fetch failures\n\nThese sources could not be checked; their baseline values were kept.\n\n")
 
 		for _, err := range fetchErrs {
-			b.WriteString("- " + err.Error() + "\n")
+			b.WriteString("- ")
+			b.WriteString(err.Error())
+			b.WriteString("\n")
 		}
 
 		b.WriteString("\n")

@@ -112,18 +112,20 @@ func ExampleValidateAccessTokenClaims() {
 }
 
 func ExampleDecryptClaims() {
-	recipient, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-
-	enc, _ := jwt.NewECDHESEncrypter(&recipient.PublicKey, jwt.ECDHESA256KW, jwt.A256GCM, "enc-1")
+	// Direct claims encryption is appropriate here because both parties share
+	// the same authenticated symmetric key. For public-key JWE, use a signed
+	// inner JWT with EncryptNestedJWT / DecryptNestedJWT instead.
+	key := []byte("0123456789abcdef0123456789abcdef")
+	enc, _ := jwt.NewDirectEncrypter(key, jwt.A256GCM, "enc-1")
 	compact, _ := jwt.EncryptClaims(MyClaims{Role: "billing"}, enc)
 
-	dec, _ := jwt.NewECDHESDecrypter(recipient, "enc-1")
+	dec, _ := jwt.NewDirectDecrypter(key, "enc-1")
 
 	var claims MyClaims
 
 	err := jwt.DecryptClaims(context.Background(), compact, &claims, dec,
-		jwt.WithAllowedKeyAlgorithms(jwt.ECDHESA256KW), // mandatory "alg" allowlist
-		jwt.WithAllowedContentAlgorithms(jwt.A256GCM),  // mandatory "enc" allowlist
+		jwt.WithAllowedKeyAlgorithms(jwt.Direct),      // mandatory "alg" allowlist
+		jwt.WithAllowedContentAlgorithms(jwt.A256GCM), // mandatory "enc" allowlist
 	)
 	fmt.Println(err, claims.Role)
 	// Output: <nil> billing

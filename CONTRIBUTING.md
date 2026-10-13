@@ -6,7 +6,7 @@ are weighed against the design in [`spec.md`](spec.md).
 ## Reporting security issues
 
 **Do not open a public issue for a vulnerability.** Use GitHub's private
-vulnerability reporting (the *Report a vulnerability* button on the Security
+vulnerability reporting (the _Report a vulnerability_ button on the Security
 tab). See [`SECURITY.md`](SECURITY.md).
 
 ## Scope
@@ -18,7 +18,7 @@ OIDC relying-party flow orchestration, filesystem access, key generation
 
 ## Development
 
-Requires Go 1.27+. No third-party runtime dependencies — keep it that way;
+Requires Go 1.27.2 or a later patched release. No third-party runtime dependencies — keep it that way;
 anything that would add a `require` to the root `go.mod` will not be merged.
 
 ```sh
@@ -62,5 +62,7 @@ against any new `KeyProvider` / `RevocationStore` implementation.
    text, and published RFC test vectors go into `testdata/` (see its README).
 5. Changes to `.github/standards/` (the standards-watch tool) run
    `cd .github/standards && go test ./...`.
-6. Once tagged `v1.0.0`, the CI `apidiff` job blocks incompatible API changes
-   without a major version bump.
+6. Once tagged `v1.0.0`, the fail-closed CI `apidiff` job computes the minimum
+   SemVer bump and release tags below that version are rejected.
+7. Security-sensitive changes should be split into reviewable stacked branches;
+   each branch must independently pass race, vet, lint, and its targeted tests.

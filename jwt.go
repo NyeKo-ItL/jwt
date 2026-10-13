@@ -103,6 +103,7 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 	}
 
 	cfg := signConfig{typ: DefaultType}
+
 	for _, o := range opts {
 		if isNilValue(o) {
 			continue
@@ -160,6 +161,7 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 	}
 
 	cfg := parseConfig{now: time.Now}
+
 	for _, o := range opts {
 		if isNilValue(o) {
 			continue
@@ -681,6 +683,7 @@ func requireUnambiguousKeyAlgorithm(key Key, allowed []Algorithm) error {
 
 	seen := make(map[Algorithm]bool, len(allowed))
 	compatible := make([]Algorithm, 0, 2)
+
 	for _, alg := range allowed {
 		identity := alg
 		if identity == EdDSA {
@@ -692,6 +695,7 @@ func requireUnambiguousKeyAlgorithm(key Key, allowed []Algorithm) error {
 		}
 
 		seen[identity] = true
+
 		if _, err := key.verifierForAlg(alg); err == nil {
 			compatible = append(compatible, alg)
 			if len(compatible) > 1 {

@@ -28,7 +28,7 @@ profile, opaque tokens, revocation, and an RFC 6750 HTTP bearer adapter.
   requirement-by-requirement [compliance matrix](COMPLIANCE.md).
 
 > **Status: pre-1.0.** The API may still change between minor versions; every
-> change is listed in the [CHANGELOG](CHANGELOG.md). Requires **Go 1.27** or later.
+> change is listed in the [CHANGELOG](CHANGELOG.md). Requires **Go 1.27.2** or later.
 
 ## Contents
 
@@ -118,18 +118,19 @@ var apiOpts = jwt.ParseOptions{
 err := jwt.Parse(ctx, token, &claims, keys, apiOpts, jwt.WithAudience("orders"))
 ```
 
-| Option | Effect |
-|---|---|
-| `WithAllowedAlgorithms(...)` | **Required.** Accepted JWS `alg` values; `none` is never accepted |
-| `WithIssuer(iss)` | `iss` must equal `iss` |
-| `WithAudience(aud)` | `aud` must contain `aud`; a token without `aud` is rejected |
-| `WithoutAudienceCheck()` | Accept a token whose `aud` names someone else — only for components that are not the recipient |
-| `WithRequiredType(typ)` | `typ` header must match, e.g. `jwt.AccessTokenType` ([RFC 8725 §3.11](https://www.rfc-editor.org/rfc/rfc8725#section-3.11)) |
-| `WithRequiredClaims(names...)` | Each named claim must be present |
-| `WithLeeway(d)` | Clock-skew allowance for `exp` / `nbf` (default 0) |
-| `WithClock(now)` | Time source for all time checks |
-| `WithAllowedKeyAlgorithms(...)`, `WithAllowedContentAlgorithms(...)` | **Required for `DecryptClaims`.** JWE `alg` / `enc` allowlists |
-| `MiddlewareOptions{Realm, OnError}` | `Middleware` only |
+| Option                                                               | Effect                                                                                                                                            |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WithAllowedAlgorithms(...)`                                         | **Required.** Accepted JWS `alg` values; `none` is never accepted; a key without `alg` is rejected when several compatible algorithms are allowed |
+| `WithIssuer(iss)`                                                    | `iss` must equal `iss`                                                                                                                            |
+| `WithAudience(aud)`                                                  | `aud` must contain `aud`; a token without `aud` is rejected                                                                                       |
+| `WithoutAudienceCheck()`                                             | Accept a token whose `aud` names someone else — only for components that are not the recipient                                                    |
+| `WithRequiredType(typ)`                                              | `typ` header must match, e.g. `jwt.AccessTokenType` ([RFC 8725 §3.11](https://www.rfc-editor.org/rfc/rfc8725#section-3.11))                       |
+| `WithRequiredClaims(names...)`                                       | Each named claim must be present                                                                                                                  |
+| `WithLeeway(d)`                                                      | Clock-skew allowance for `exp` / `nbf` (default 0)                                                                                                |
+| `WithClock(now)`                                                     | Time source for all time checks                                                                                                                   |
+| `WithAllowedKeyAlgorithms(...)`, `WithAllowedContentAlgorithms(...)` | **Required for `DecryptClaims`.** JWE `alg` / `enc` allowlists                                                                                    |
+| `WithVerifierProvider(provider)`                                     | Resolve a custom `Verifier` by `alg`/`kid`, e.g. from an HSM or KMS                                                                               |
+| `MiddlewareOptions{Realm, OnError}`                                  | `Middleware` only                                                                                                                                 |
 
 ### OAuth 2.0 access tokens (RFC 9068)
 
@@ -137,8 +138,12 @@ err := jwt.Parse(ctx, token, &claims, keys, apiOpts, jwt.WithAudience("orders"))
 // Authorization server: typ MUST be "at+jwt"
 token, _ := jwt.Sign(jwt.AccessTokenClaims{
     RegisteredClaims: jwt.RegisteredClaims{
-        Issuer: iss, Subject: userID, Audience: jwt.Audience{resource},
-        IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+        Issuer:    iss,
+        Subject:   userID,
+        Audience:  jwt.Audience{resource},
+        IssuedAt:  jwt.NewNumericDate(now),
+        ExpiresAt: jwt.NewNumericDate(now.Add(5 * time.Minute)),
+        ID:        tokenID, // jti is REQUIRED by RFC 9068
     },
     ClientID: clientID,
     Scope:    "orders:read",
@@ -153,7 +158,7 @@ err := jwt.Parse(ctx, token, &at, keys,
     jwt.WithAudience(resource),
 )
 if err == nil {
-    err = jwt.ValidateAccessTokenClaims(at) // iss, exp, aud, sub, client_id, iat present
+    err = jwt.ValidateAccessTokenClaims(at) // iss, exp, aud, sub, client_id, iat, jti present
 }
 ```
 
@@ -164,44 +169,71 @@ uri, err := jwt.DiscoverJWKSURI(ctx, "https://accounts.google.com", nil)
 if err != nil { /* errors.Is(err, jwt.ErrKeyFetch) */ }
 keys := jwt.NewKeyFetcher(uri)
 
-var idt jwt.GoogleIDToken // also OktaIDToken, EntraIDToken, or your own struct
-err = jwt.Parse(ctx, rawIDToken, &idt, keys,
+var core jwt.IDTokenClaims
+err = jwt.Parse(ctx, rawIDToken, &core, keys,
     jwt.WithAllowedAlgorithms(jwt.RS256),
     jwt.WithIssuer("https://accounts.google.com"),
     jwt.WithAudience(clientID),
-    jwt.WithRequiredClaims("sub", "iat"),
+    jwt.WithRequiredClaims("iss", "sub", "aud", "exp", "iat"),
 )
-
-// Relying-party checks that depend on your login flow (OIDC Core §3.1.3.7):
-if idt.Nonce != nonceFromSession { /* reject */ }
+if err == nil {
+    err = jwt.ValidateIDTokenForContext(core, jwt.IDTokenValidationContext{
+        ClientID:         clientID,
+        ExpectedNonce:    nonceFromSession,
+        RequireNonce:     true,
+        AccessToken:      accessToken, // required when at_hash is present
+        AuthorizationCode: code,       // required when c_hash is present
+        SigningAlgorithm: jwt.RS256,
+    })
+}
 ```
 
 - **`DiscoverJWKSURI`** follows OpenID Connect Discovery 1.0: the issuer must be
   `https`, the document's `issuer` must equal it exactly, and there is no
   fallback URL.
-- **`KeyFetcher`** is HTTPS-only (every redirect included) and size-capped.
-  Concurrent lookups share one request, and attempts are rate-limited even when
-  they fail. It keeps serving the last good keys through an outage, and caps
-  `Cache-Control: max-age` (`WithMaxCacheDuration`, default 24 h).
+- **`KeyFetcher`** is HTTPS-only (every redirect included), size/key-count
+  capped, and governed by a URL policy. Concurrent lookups share one request,
+  and attempts are rate-limited even when they fail. Stale keys are served only
+  for `WithMaxStaleDuration` (default 24 h; pass `0` to fail closed immediately).
+  `no-cache`, `no-store`, and capped `max-age` are honored. Preapprove issuer
+  hosts; use `WithURLPolicy` for an explicit allowlist.
 - **Identifying users:** use `sub` (or Entra's `oid` + `tid`), never `email`.
 
 ### Encrypted tokens (JWE)
 
 ```go
+signer, _ := jwt.NewEd25519Signer(signingKey, "sig-1")
+inner, _ := jwt.Sign(claims, signer)
+
 enc, _ := jwt.NewECDHESEncrypter(&recipient.PublicKey, jwt.ECDHESA256KW, jwt.A256GCM, "enc-1")
-compact, _ := jwt.EncryptClaims(claims, enc)
+compact, _ := jwt.EncryptNestedJWT(inner, enc, jwt.WithJWEType("example+jwt"))
 
 dec, _ := jwt.NewECDHESDecrypter(recipient, "enc-1")
 var out MyClaims
-err := jwt.DecryptClaims(ctx, compact, &out, dec,
-    jwt.WithAllowedKeyAlgorithms(jwt.ECDHESA256KW), // mandatory
-    jwt.WithAllowedContentAlgorithms(jwt.A256GCM),  // mandatory
-)
+err := jwt.DecryptNestedJWT(ctx, compact, &out, dec, verificationKeys, jwt.NestedJWTPolicies{
+    JWE: []jwt.ParseOption{
+        jwt.WithAllowedKeyAlgorithms(jwt.ECDHESA256KW),
+        jwt.WithAllowedContentAlgorithms(jwt.A256GCM),
+        jwt.WithRequiredType("example+jwt"),
+    },
+    JWS: []jwt.ParseOption{
+        jwt.WithAllowedAlgorithms(jwt.Ed25519),
+        jwt.WithIssuer(issuer),
+        jwt.WithAudience(audience),
+    },
+})
 ```
 
 Every decryption failure returns the single `jwt.ErrDecryptionFailed`, and no
 plaintext is exposed before the AEAD tag verifies. Compression (`zip`) is
 refused.
+
+**A public-key JWE authenticates the ciphertext to the recipient, not the
+sender.** Anyone with the recipient public key can create one. Never use direct
+asymmetric `DecryptClaims` output for authorization; sign then encrypt and use
+`DecryptNestedJWT`. Direct `EncryptClaims`/`DecryptClaims` remains appropriate
+when sender authenticity is established separately, such as a strictly scoped
+symmetric-key channel.
 
 ### HTTP middleware (RFC 6750)
 
@@ -223,13 +255,13 @@ h := jwt.Middleware(keys,
 }))
 ```
 
-| Failure | Response |
-|---|---|
-| No or unparsable `Authorization: Bearer` | `401`, `WWW-Authenticate: Bearer realm="api"` |
-| Malformed token | `400`, `error="invalid_request"` |
-| Expired, not yet valid, bad signature, wrong issuer/audience, … | `401`, `error="invalid_token"` |
-| JWKS unreachable, request context ended | `503`, no challenge |
-| Misconfiguration or KeyProvider backend failure | `500`, no challenge |
+| Failure                                                         | Response                                      |
+| --------------------------------------------------------------- | --------------------------------------------- |
+| No or unparsable `Authorization: Bearer`                        | `401`, `WWW-Authenticate: Bearer realm="api"` |
+| Malformed token                                                 | `400`, `error="invalid_request"`              |
+| Expired, not yet valid, bad signature, wrong issuer/audience, … | `401`, `error="invalid_token"`                |
+| JWKS unreachable, request context ended                         | `503`, no challenge                           |
+| Misconfiguration or KeyProvider backend failure                 | `500`, no challenge                           |
 
 Responses contain fixed text only. The full error, which may include internal
 hostnames, goes to `OnError`.
@@ -262,49 +294,55 @@ are honored when verifying.
   ([RFC 7638](https://www.rfc-editor.org/rfc/rfc7638)), e.g. for `cnf.jkt`
   ([RFC 7800](https://www.rfc-editor.org/rfc/rfc7800)).
 - **Opaque tokens:** `NewOpaqueToken()` returns a random credential plus the
-  SHA-256 hash you store; `Equal(storedHash, raw)` compares in constant time.
+  SHA-256 hash you store; `VerifyOpaqueTokenHash(storedHash, raw)` compares in
+  constant time. `OpaqueToken` redacts `Raw` from normal Go formatting.
+  `OpaqueTokenFromRaw` is deterministic and only as strong as its input.
 - **Refresh rotation:** `TokenFamily` and `RotationResult` model reuse
   detection; storage is yours (see
   [`examples/refresh_rotation`](examples/refresh_rotation)).
 - **Revocation:** the `RevocationStore` interface (by `jti`, key thumbprint or
   token family) with an in-memory, single-process `NewMemoryRevocationStore`.
-  `Parse` does not consult it; check it after parsing.
+  `Parse` does not consult it; check it after parsing. Use
+  `NewMemoryRevocationStoreWithCapacity` for a bounded local store.
 - **Testing:** [`jwttest`](jwttest) provides fakes and conformance suites for
   your own `KeyProvider` / `RevocationStore` implementations.
 
 ### Errors
 
-Every error wraps a sentinel usable with `errors.Is`:
+Errors produced by library validation wrap a sentinel usable with `errors.Is`.
+Callback errors from signers/verifiers/providers are wrapped with context while
+preserving the original error identity:
 
-| Sentinel | Meaning |
-|---|---|
-| `ErrMalformedToken` | Not a well-formed token (segments, base64url, JSON, size) |
-| `ErrInvalidSignature` | Signature or MAC does not verify |
-| `ErrExpired`, `ErrNotYetValid` | `exp` / `nbf` |
-| `ErrIssuerMismatch`, `ErrAudienceMismatch`, `ErrTypeMismatch`, `ErrMissingClaim` | Claim or header policy |
-| `ErrAlgorithmNotAllowed` | `alg` / `enc` outside the allowlist, or key family mismatch |
-| `ErrKeyNotFound`, `ErrKeyUsage` | No key for `kid`; key's `use` / `key_ops` / `alg` forbid it |
-| `ErrUnsupportedCritical` | Token carries a `crit` header |
-| `ErrDecryptionFailed` | Any JWE decryption failure |
-| `ErrKeyFetch` | JWKS or discovery fetch failed (infrastructure, not the token) |
-| `ErrNoAllowedAlgorithms` | Missing mandatory allowlist (configuration) |
-| `ErrWeakKey`, `ErrMalformedKey`, `ErrKeyTypeMismatch`, `ErrUnsupportedAlgorithm`, `ErrOctNotServable` | Key or constructor problems |
+| Sentinel                                                                                              | Meaning                                                            |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ErrMalformedToken`, `ErrInvalidClaims`, `ErrInvalidDestination`                                      | Malformed compact input, non-object Claims Set, or nil destination |
+| `ErrInvalidSignature`                                                                                 | Signature or MAC does not verify                                   |
+| `ErrExpired`, `ErrNotYetValid`                                                                        | `exp` / `nbf`                                                      |
+| `ErrIssuerMismatch`, `ErrAudienceMismatch`, `ErrTypeMismatch`, `ErrMissingClaim`                      | Claim or header policy                                             |
+| `ErrAlgorithmNotAllowed`                                                                              | `alg` / `enc` outside the allowlist, or key family mismatch        |
+| `ErrKeyNotFound`, `ErrKeyUsage`                                                                       | No key for `kid`; key's `use` / `key_ops` / `alg` forbid it        |
+| `ErrUnsupportedCritical`                                                                              | Token carries a `crit` header                                      |
+| `ErrDecryptionFailed`                                                                                 | Any JWE decryption failure                                         |
+| `ErrKeyFetch`, `ErrKeyProvider`, `ErrVerifierProvider`                                                | JWKS/discovery or provider infrastructure failure                  |
+| `ErrNoAllowedAlgorithms`                                                                              | Missing mandatory allowlist (configuration)                        |
+| `ErrWeakKey`, `ErrMalformedKey`, `ErrKeyTypeMismatch`, `ErrUnsupportedAlgorithm`, `ErrOctNotServable` | Key or constructor problems                                        |
 
 ## Supported algorithms
 
-| | Sign / encrypt | Verify / decrypt |
-|---|---|---|
-| **JWS** | `HS256` `HS384` `HS512`, `PS256` `PS384` `PS512`, `ES256` `ES384` `ES512`, `Ed25519` | the same, plus `RS256` `RS384` `RS512` and the deprecated `EdDSA` (only when allowlisted) |
-| **JWE `alg`** | `RSA-OAEP-256`, `ECDH-ES`, `ECDH-ES+A256KW`, `A256KW`, `dir` | same |
-| **JWE `enc`** | `A128GCM`, `A192GCM`, `A256GCM` | same |
-| **JWK `kty`** | `RSA` (≥ 2048 bits), `EC` (P-256/384/521), `OKP` (Ed25519), `oct` | same |
+|               | Sign / encrypt                                                                       | Verify / decrypt                                                                          |
+| ------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **JWS**       | `HS256` `HS384` `HS512`, `PS256` `PS384` `PS512`, `ES256` `ES384` `ES512`, `Ed25519` | the same, plus `RS256` `RS384` `RS512` and the deprecated `EdDSA` (only when allowlisted) |
+| **JWE `alg`** | `RSA-OAEP-256`, `ECDH-ES`, `ECDH-ES+A256KW`, `A256KW`, `dir`                         | same                                                                                      |
+| **JWE `enc`** | `A128GCM`, `A192GCM`, `A256GCM`                                                      | same                                                                                      |
+| **JWK `kty`** | `RSA` (≥ 2048 bits), `EC` (P-256/384/521), `OKP` (Ed25519), `oct`                    | same                                                                                      |
 
 - **Not provided:** `none`, `RSA1_5`, `RSA-OAEP` (SHA-1), AES-CBC-HMAC,
   `A128KW`/`A192KW`, PBES2, Ed448/X25519, and JSON serialization. The reasons
   are in [COMPLIANCE.md](COMPLIANCE.md).
-- **Custom algorithms:** `Signer`, `Verifier`, `Encrypter`, `Decrypter` and
-  `KeyProvider` are plain interfaces, so you can plug in e.g. a KMS signer.
-  Allowlists still apply to custom implementations.
+- **Custom algorithms:** `Signer`, `Encrypter`, `Decrypter`, `KeyProvider`, and
+  `VerifierProvider` are plain interfaces. Use `WithVerifierProvider` for an
+  HSM/KMS verifier. Mandatory allowlists and returned `alg`/`kid` checks still
+  apply.
 - **`Ed25519` naming:** tokens are signed with the `Ed25519` identifier from
   [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864), which replaces `EdDSA`.
   Verifiers that predate RFC 9864, such as `golang-jwt/jwt/v5`, need a
@@ -326,12 +364,13 @@ Highlights:
 - **Claim checks:** `exp`, `nbf` and `aud` are always enforced; the clock is
   injectable.
 - **Secrets:** constant-time comparisons; minimum key sizes (HMAC ≥ hash size,
-  RSA ≥ 2048 bits).
+  RSA 2048–8192 bits); deterministic ECDSA; deep-copied key material.
 - **Decryption:** JWE decryption fails closed with one generic error.
 - **Remote keys:** JWKS fetching is HTTPS-only, bounded and rate-limited;
   discovery validates the issuer.
 
 **Still your responsibility:**
+
 - TLS for your own endpoints.
 - `nonce` and `azp` checks for OIDC logins.
 - Scope and role authorization.
@@ -345,21 +384,21 @@ Do not open a public issue.
 
 ## Standards
 
-| Standard | Coverage |
-|---|---|
-| [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) JWS | Compact serialization, full header, `crit` |
-| [RFC 7516](https://www.rfc-editor.org/rfc/rfc7516) JWE | Compact serialization, AEAD algorithms |
-| [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517) JWK | Keys and key sets, `use` / `key_ops` / `alg` |
-| [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518) JWA | Algorithms above; canonical key encodings |
-| [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) JWT | Registered claims and validation |
-| [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) JWK Thumbprint | Any hash, SHA-256 default |
-| [RFC 7800](https://www.rfc-editor.org/rfc/rfc7800) Proof-of-Possession | `cnf` with `jwk` / `jkt` |
-| [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) CFRG curves | Ed25519 keys and signatures |
-| [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864) Fully-specified algorithms | `Ed25519`; `EdDSA` deprecated |
-| [RFC 8725](https://www.rfc-editor.org/rfc/rfc8725) JWT BCP | All §3 practices (some opt-in) |
-| [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) Bearer tokens | Header method, challenges, error codes |
-| [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) JWT access tokens | Claims, `at+jwt`, validation |
-| [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) / [Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) | ID-token claims, JWKS discovery |
+| Standard                                                                                                                                                       | Coverage                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| [RFC 7515](https://www.rfc-editor.org/rfc/rfc7515) JWS                                                                                                         | Compact serialization, full header, `crit`   |
+| [RFC 7516](https://www.rfc-editor.org/rfc/rfc7516) JWE                                                                                                         | Compact serialization, AEAD algorithms       |
+| [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517) JWK                                                                                                         | Keys and key sets, `use` / `key_ops` / `alg` |
+| [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518) JWA                                                                                                         | Algorithms above; canonical key encodings    |
+| [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519) JWT                                                                                                         | Registered claims and validation             |
+| [RFC 7638](https://www.rfc-editor.org/rfc/rfc7638) JWK Thumbprint                                                                                              | Any hash, SHA-256 default                    |
+| [RFC 7800](https://www.rfc-editor.org/rfc/rfc7800) Proof-of-Possession                                                                                         | `cnf` with `jwk` / `jkt`                     |
+| [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037) CFRG curves                                                                                                 | Ed25519 keys and signatures                  |
+| [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864) Fully-specified algorithms                                                                                  | `Ed25519`; `EdDSA` deprecated                |
+| [RFC 8725](https://www.rfc-editor.org/rfc/rfc8725) JWT BCP                                                                                                     | All §3 practices (some opt-in)               |
+| [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) Bearer tokens                                                                                               | Header method, challenges, error codes       |
+| [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) JWT access tokens                                                                                           | Claims, `at+jwt`, validation                 |
+| [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) / [Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) | ID-token claims, JWKS discovery              |
 
 The per-requirement status — implemented, opt-in, not implemented, and the few
 deliberate deviations with their reasons — is in **[COMPLIANCE.md](COMPLIANCE.md)**.
@@ -368,25 +407,28 @@ changes.
 
 ## Project
 
-| Document | Purpose |
-|---|---|
-| [pkg.go.dev](https://pkg.go.dev/github.com/NyeKo-ItL/jwt) | API reference with examples |
-| [COMPLIANCE.md](COMPLIANCE.md) | Standards traceability matrix |
-| [SECURITY.md](SECURITY.md) | Enforced security invariants and vulnerability reporting |
-| [CHANGELOG.md](CHANGELOG.md) | Release notes, including breaking changes |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup and contribution rules |
-| [spec.md](spec.md) | Original design specification and rationale |
-| [examples/](examples) | Runnable programs |
-| [testdata/README.md](testdata/README.md) | Provenance of test vectors and fixtures |
+| Document                                                  | Purpose                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------- |
+| [pkg.go.dev](https://pkg.go.dev/github.com/NyeKo-ItL/jwt) | API reference with examples                              |
+| [COMPLIANCE.md](COMPLIANCE.md)                            | Standards traceability matrix                            |
+| [SECURITY.md](SECURITY.md)                                | Enforced security invariants and vulnerability reporting |
+| [CHANGELOG.md](CHANGELOG.md)                              | Release notes, including breaking changes                |
+| [MIGRATION.md](MIGRATION.md)                              | Breaking changes and migration guidance for v1           |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                        | Development setup and contribution rules                 |
+| [spec.md](spec.md)                                        | Original design specification and rationale              |
+| [examples/](examples)                                     | Runnable programs                                        |
+| [testdata/README.md](testdata/README.md)                  | Provenance of test vectors and fixtures                  |
 
 **Quality gates** (CI):
-- `go test -race` with RFC known-answer vectors.
+
+- `go test -race` on Go 1.27.2+ with RFC known-answer vectors.
 - Interoperability tests ([`interop/`](interop)).
 - Coverage ≥ 85%.
 - `golangci-lint`, including doc-comment checks.
 - `govulncheck`, CodeQL and OpenSSF Scorecard.
 - Scheduled fuzzing of `Parse`, `DecryptClaims` and `ParseKeySet`.
-- From v1.0.0: an `apidiff` gate against breaking API changes.
+- A fail-closed `apidiff` gate that computes the minimum SemVer bump; release
+  tags rerun every quality/security gate and require a matching changelog section.
 
 **Versioning:** [Semantic Versioning](https://semver.org/). Before v1.0.0,
 minor versions may contain breaking changes, always listed in the changelog.

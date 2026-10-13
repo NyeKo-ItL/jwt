@@ -16,6 +16,7 @@ func oidcHalfHash(value string) string {
 
 func validV1IDTokenClaims() IDTokenClaims {
 	now := NewNumericDate(time.Unix(1_700_000_000, 0))
+
 	return IDTokenClaims{
 		RegisteredClaims: RegisteredClaims{
 			Issuer:    "https://issuer.example",
@@ -69,6 +70,7 @@ func TestV1CoreValidateIDTokenForContext(t *testing.T) {
 			gotClaims, gotValidation := claims, validation
 			gotClaims.Audience = append(Audience(nil), claims.Audience...)
 			mutate(&gotClaims, &gotValidation)
+
 			if err := ValidateIDTokenForContext(gotClaims, gotValidation); err == nil {
 				t.Fatal("expected validation failure")
 			}
@@ -92,6 +94,7 @@ func TestV1CoreIDTokenRequiredClaimsAndStringOrURI(t *testing.T) {
 			t.Errorf("valid StringOrURI %q: %v", value, err)
 		}
 	}
+
 	for _, value := range []string{":missing-scheme", "https://bad host", "urn:%zz"} {
 		if err := ValidateStringOrURI(value); !errors.Is(err, ErrInvalidClaim) {
 			t.Errorf("invalid StringOrURI %q: %v", value, err)
@@ -109,6 +112,7 @@ func TestV1CoreAccessTokenRequiresJTI(t *testing.T) {
 	if err := ValidateAccessTokenClaims(claims); !errors.Is(err, ErrMissingClaim) {
 		t.Fatalf("missing jti: %v", err)
 	}
+
 	claims.ID = "token-1"
 	if err := ValidateAccessTokenClaims(claims); err != nil {
 		t.Fatalf("complete access token: %v", err)

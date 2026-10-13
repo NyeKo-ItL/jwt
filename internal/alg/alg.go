@@ -232,6 +232,7 @@ func (s *ecdsaSigner) Algorithm() Algorithm { return s.alg }
 func (s *ecdsaSigner) KeyID() string        { return s.kid }
 func (s *ecdsaSigner) Sign(in []byte) ([]byte, error) {
 	digest := HashSum(s.hash, in)
+
 	der, err := s.key.Sign(nil, digest, s.hash)
 	if err != nil {
 		return nil, err
@@ -240,6 +241,7 @@ func (s *ecdsaSigner) Sign(in []byte) ([]byte, error) {
 	var signature struct {
 		R, S *big.Int
 	}
+
 	rest, err := asn1.Unmarshal(der, &signature)
 	if err != nil || len(rest) != 0 || signature.R == nil || signature.S == nil {
 		return nil, fmt.Errorf("%w: invalid deterministic ECDSA signature encoding", ErrInvalidSignature)
@@ -310,6 +312,7 @@ func validateECDSAPrivateKey(key *ecdsa.PrivateKey, curve elliptic.Curve) error 
 	if err != nil {
 		return fmt.Errorf("%w: invalid ECDSA public point: %w", ErrMalformedKey, err)
 	}
+
 	if !bytes.Equal(publicECDH.Bytes(), privateECDH.PublicKey().Bytes()) {
 		return fmt.Errorf("%w: ECDSA public point does not match private scalar", ErrMalformedKey)
 	}
@@ -343,6 +346,7 @@ func ecdsaFieldIsNil(key any, name string) bool {
 	}
 
 	field := v.Elem().FieldByName(name)
+
 	return !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil()
 }
 

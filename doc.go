@@ -20,11 +20,15 @@
 // encoding/json/v2 with exact member names, no duplicates and valid UTF-8.
 // Header parameters such as "jku", "x5u" and "jwk" are never dereferenced
 // (RFC 8725 §3.10). A JWK's "use", "key_ops" and "alg" restrict what it can
-// verify.
+// verify, destinations are decoded atomically, and remote JWKS use bounded
+// resource, freshness, stale, and URL policies. Public-key JWE does not prove
+// sender identity; EncryptNestedJWT and DecryptNestedJWT provide the signed-
+// then-encrypted path for authorization-bearing claims.
 //
 // # Documentation
 //
 // README.md has a usage guide, COMPLIANCE.md maps each RFC requirement to its
 // implementation and tests, SECURITY.md lists the enforced invariants, and
-// spec.md records the original design.
+// MIGRATION.md covers stable-release changes, and spec.md records the
+// original design plus audit amendments.
 package jwt

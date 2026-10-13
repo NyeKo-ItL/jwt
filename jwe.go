@@ -344,6 +344,7 @@ func EncryptJWE(plaintext []byte, enc Encrypter, opts ...EncryptOption) (string,
 	}
 
 	cfg := encryptConfig{}
+
 	for _, o := range opts {
 		if isNilValue(o) {
 			continue
@@ -404,6 +405,7 @@ func EncryptNestedJWT(compactJWS string, enc Encrypter, opts ...EncryptOption) (
 	}
 
 	cfg := encryptConfig{}
+
 	for _, o := range opts {
 		if isNilValue(o) {
 			continue
@@ -546,6 +548,7 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 
 func decryptJWEWithPolicy(ctx context.Context, compact string, dec Decrypter, opts []ParseOption) ([]byte, jweHeader, parseConfig, error) {
 	var hdr jweHeader
+
 	cfg := parseConfig{now: time.Now}
 	applyParseOptions(&cfg, opts)
 

@@ -31,6 +31,7 @@ func aesKWWrap(kek, plaintext []byte) ([]byte, error) {
 	copy(out[8:], plaintext)
 
 	a, r := out[:8], out[8:]
+
 	var buf [16]byte
 
 	for j := range 6 {
@@ -68,6 +69,7 @@ func aesKWUnwrap(kek, ciphertext []byte) ([]byte, error) {
 	copy(a[:], ciphertext[:8])
 
 	var buf [16]byte
+
 	for j := 5; j >= 0; j-- {
 		for i := n - 1; i >= 0; i-- {
 			t := uint64(n)*uint64(j) + uint64(i) + 1 //nolint:gosec // n and i are bounded by the ciphertext size.
