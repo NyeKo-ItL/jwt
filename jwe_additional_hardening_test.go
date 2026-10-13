@@ -165,7 +165,7 @@ func BenchmarkV1JWEAESKWRejectHostileEncryptedKey(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(hostile)))
 
-	for range b.N {
+	for b.Loop() {
 		_, _ = u.unwrap(nil, hostile, 32)
 	}
 }

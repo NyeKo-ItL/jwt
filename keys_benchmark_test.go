@@ -18,9 +18,8 @@ func BenchmarkV1KeysKeySetLookupAbsent(b *testing.B) {
 	ctx := context.Background()
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for range b.N {
+	for b.Loop() {
 		_, _, _ = set.Lookup(ctx, "absent")
 	}
 }
@@ -38,9 +37,8 @@ func BenchmarkV1KeysParseKeySetJWKS(b *testing.B) {
 
 	b.ReportAllocs()
 	b.SetBytes(int64(len(doc)))
-	b.ResetTimer()
 
-	for range b.N {
+	for b.Loop() {
 		if _, err := ParseKeySet(doc); err != nil {
 			b.Fatal(err)
 		}
@@ -76,9 +74,8 @@ func BenchmarkV1KeysMemoryRevocationStoreLookup(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for range b.N {
+	for b.Loop() {
 		_, _ = store.IsRevoked(ctx, "revoked")
 	}
 }

@@ -413,7 +413,7 @@ changes.
 | [COMPLIANCE.md](COMPLIANCE.md)                            | Standards traceability matrix                            |
 | [SECURITY.md](SECURITY.md)                                | Enforced security invariants and vulnerability reporting |
 | [CHANGELOG.md](CHANGELOG.md)                              | Release notes, including breaking changes                |
-| [MIGRATION-v1.md](MIGRATION-v1.md)                        | Breaking changes and migration guidance for v1           |
+| [MIGRATION.md](MIGRATION.md)                              | Breaking changes and migration guidance for v1           |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                        | Development setup and contribution rules                 |
 | [spec.md](spec.md)                                        | Original design specification and rationale              |
 | [examples/](examples)                                     | Runnable programs                                        |

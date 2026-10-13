@@ -103,7 +103,7 @@ func TestV1KeysKeySetIndexPreservesOrderOnReplace(t *testing.T) {
 
 func TestV1KeysParseKeySetStrictAndPermissive(t *testing.T) {
 	validX := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
-	doc := []byte(fmt.Sprintf(`{"keys":[{"kty":"unsupported","kid":"u"},{"kty":"OKP","crv":"Ed25519","x":"bad"},{"kty":"OKP","crv":"Ed25519","x":%q,"kid":"good"}]}`, validX))
+	doc := fmt.Appendf(nil, `{"keys":[{"kty":"unsupported","kid":"u"},{"kty":"OKP","crv":"Ed25519","x":"bad"},{"kty":"OKP","crv":"Ed25519","x":%q,"kid":"good"}]}`, validX)
 
 	if _, err := ParseKeySet(doc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("strict ParseKeySet error = %v", err)
@@ -145,7 +145,7 @@ func TestV1KeysParseKeySetLimits(t *testing.T) {
 
 	tooLarge := base64.RawURLEncoding.EncodeToString(make([]byte, MaxJWKMaterialBytes+1))
 
-	materialDoc := []byte(fmt.Sprintf(`{"keys":[{"kty":"oct","k":%q}]}`, tooLarge))
+	materialDoc := fmt.Appendf(nil, `{"keys":[{"kty":"oct","k":%q}]}`, tooLarge)
 	if _, err := ParseKeySet(materialDoc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("material limit error = %v", err)
 	}
@@ -154,7 +154,7 @@ func TestV1KeysParseKeySetLimits(t *testing.T) {
 	oversizedN[0] = 1
 	oversizedN[len(oversizedN)-1] = 1
 
-	rsaDoc := []byte(fmt.Sprintf(`{"keys":[{"kty":"RSA","n":%q,"e":"AQAB"}]}`, base64.RawURLEncoding.EncodeToString(oversizedN)))
+	rsaDoc := fmt.Appendf(nil, `{"keys":[{"kty":"RSA","n":%q,"e":"AQAB"}]}`, base64.RawURLEncoding.EncodeToString(oversizedN))
 	if _, err := ParseKeySet(rsaDoc); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("RSA maximum error = %v", err)
 	}
@@ -229,7 +229,7 @@ func TestV1KeysRejectMixedKeyOperationsWithoutUse(t *testing.T) {
 		`["verify","deriveKey"]`,
 		`["encrypt","deriveBits"]`,
 	} {
-		raw := []byte(fmt.Sprintf(`{"kty":"OKP","crv":"Ed25519","x":%q,"key_ops":%s}`, x, ops))
+		raw := fmt.Appendf(nil, `{"kty":"OKP","crv":"Ed25519","x":%q,"key_ops":%s}`, x, ops)
 		if _, err := ParseKey(raw); !errors.Is(err, ErrMalformedKey) {
 			t.Fatalf("key_ops %s error = %v", ops, err)
 		}

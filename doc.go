@@ -29,6 +29,6 @@
 //
 // README.md has a usage guide, COMPLIANCE.md maps each RFC requirement to its
 // implementation and tests, SECURITY.md lists the enforced invariants, and
-// MIGRATION-v1.md covers stable-release changes, and spec.md records the
+// MIGRATION.md covers stable-release changes, and spec.md records the
 // original design plus audit amendments.
 package jwt
