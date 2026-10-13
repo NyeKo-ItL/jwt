@@ -1,10 +1,13 @@
 package jwt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -21,6 +24,17 @@ const maxTokenBytes = 1 << 20 // 1 MiB
 // satisfying the explicit-typing guidance of RFC 8725 §3.11. For an RFC 9068
 // access token pass WithType(AccessTokenType).
 const DefaultType = "JWT"
+
+var (
+	// ErrInvalidClaims reports that a value supplied for signing is not a JWT
+	// Claims Set JSON object. Marshal errors keep their original identity and
+	// are not replaced by this sentinel.
+	ErrInvalidClaims = errors.New("jwt: invalid Claims Set")
+	// ErrInvalidDestination reports a nil destination passed to Parse,
+	// ParseInsecure or ClaimsFromContext. Destinations are otherwise updated
+	// atomically: any error leaves the caller's value unchanged.
+	ErrInvalidDestination = errors.New("jwt: nil claims destination")
+)
 
 // SignOption customizes the JOSE header Sign emits; it never affects "alg".
 // Both the functional options (WithType, WithContentType) and a SignOptions
@@ -72,13 +86,14 @@ func WithContentType(cty string) SignOption {
 	return signOptionFunc(func(c *signConfig) { c.contentType = cty })
 }
 
-// Sign JSON-encodes claims — any value that marshals to a JSON object, most
-// often a struct embedding RegisteredClaims — and produces a compact JWS
-// (RFC 7515 §7.1). The generated header carries "alg", "typ" (DefaultType
-// unless WithType is given), an optional "cty" from WithContentType, and —
-// when the signer has one — "kid".
+// Sign JSON-encodes claims — which must marshal to a JSON object — and
+// produces a compact JWS (RFC 7515 §7.1). The generated header carries "alg",
+// "typ" (DefaultType unless WithType is given), an optional "cty" from
+// WithContentType, and — when the signer has one — "kid". Nil options are
+// ignored. Errors returned by a custom Signer are wrapped with context while
+// retaining their identity for errors.Is/errors.As.
 func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
-	if signer == nil {
+	if isNilValue(signer) {
 		return "", fmt.Errorf("%w: nil signer", ErrUnsupportedAlgorithm)
 	}
 
@@ -89,6 +104,10 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 
 	cfg := signConfig{typ: DefaultType}
 	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
 		o.applySign(&cfg)
 	}
 
@@ -107,11 +126,16 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 		return "", err
 	}
 
+	var claimsSet map[string]jsontext.Value
+	if err := decodeObject(payloadJSON, &claimsSet); err != nil {
+		return "", fmt.Errorf("%w: claims JSON: %w", ErrInvalidClaims, err)
+	}
+
 	signingInput := b64.Encode(headerJSON) + "." + b64.Encode(payloadJSON)
 
 	sig, err := signer.Sign([]byte(signingInput))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("jwt: signer callback: %w", err)
 	}
 
 	return signingInput + "." + b64.Encode(sig), nil
@@ -126,12 +150,21 @@ func Sign[C any](claims C, signer Signer, opts ...SignOption) (string, error) {
 //	var claims MyClaims
 //	err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.Ed25519))
 //
-// Registered-claim validation runs regardless of what dst models.
-// WithAllowedAlgorithms is mandatory (RFC 8725 §3.1); Parse returns
-// ErrNoAllowedAlgorithms if no usable algorithm is supplied.
+// Registered-claim validation runs regardless of what dst models. Decoding is
+// atomic: dst is assigned only after complete successful decoding. Nil options
+// are ignored. WithAllowedAlgorithms is mandatory (RFC 8725 §3.1); Parse
+// returns ErrNoAllowedAlgorithms if no usable algorithm is supplied.
 func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, opts ...ParseOption) error {
+	if dst == nil {
+		return ErrInvalidDestination
+	}
+
 	cfg := parseConfig{now: time.Now}
 	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
 		o.applyParse(&cfg)
 	}
 
@@ -140,7 +173,7 @@ func Parse[C any](ctx context.Context, token string, dst *C, keys KeyProvider, o
 		return err
 	}
 
-	if err := decodeObject(payloadJSON, dst); err != nil {
+	if err := decodeFreshObject(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -158,10 +191,6 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, ErrNoAllowedAlgorithms
 	}
 
-	if keys == nil {
-		return nil, fmt.Errorf("%w: nil KeyProvider", ErrKeyNotFound)
-	}
-
 	if len(token) > maxTokenBytes {
 		return nil, fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
@@ -173,8 +202,9 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: expected three '.'-separated segments", ErrMalformedToken)
 	}
 
-	// RFC 7515 §5.2 steps 2–3: canonical base64url, then a UTF-8 JSON object
-	// with case-sensitive, unique member names.
+	// RFC 7515 §5.2 steps 2–3: all three segments use canonical, unpadded
+	// base64url. Validate attacker-controlled encodings before invoking either
+	// provider so malformed tokens cannot trigger I/O or custom callbacks.
 	headerJSON, err := b64.Decode(h)
 	if err != nil {
 		return nil, fmt.Errorf("%w: header is not base64url", ErrMalformedToken)
@@ -205,22 +235,9 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, header.Algorithm)
 	}
 
-	// Key resolution by "kid" only; "jku", "jwk", "x5u" and "x5c" are never
-	// used to find or trust a key (RFC 8725 §3.10, spec §4.8).
-	key, found, err := keys.Lookup(ctx, header.KeyID)
+	payloadJSON, err := b64.Decode(p)
 	if err != nil {
-		return nil, err
-	}
-
-	if !found {
-		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, header.KeyID)
-	}
-
-	// Spec §4.10 and RFC 8725 §3.1: the key's type and its own use/key_ops/alg
-	// must permit this algorithm, so an RSA key can never satisfy HS256.
-	verifier, err := key.verifierForAlg(header.Algorithm)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
 
 	sig, err := b64.Decode(s)
@@ -228,15 +245,46 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: signature is not base64url", ErrMalformedToken)
 	}
 
-	// RFC 7515 §5.2 step 8: the signing input is the ASCII of the encoded
-	// header and payload exactly as received.
-	if err := verifier.Verify([]byte(h+"."+p), sig); err != nil {
-		return nil, ErrInvalidSignature
+	var verifier Verifier
+	if !isNilValue(cfg.verifierProvider) {
+		verifier, err = lookupVerifier(ctx, cfg.verifierProvider, header)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if isNilValue(keys) {
+			return nil, fmt.Errorf("%w: nil KeyProvider", ErrKeyNotFound)
+		}
+
+		// Key resolution by "kid" only; "jku", "jwk", "x5u" and "x5c" are
+		// never used to find or trust a key (RFC 8725 §3.10, spec §4.8).
+		key, found, lookupErr := keys.Lookup(ctx, header.KeyID)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("%w: %w", ErrKeyProvider, lookupErr)
+		}
+
+		if !found {
+			return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, header.KeyID)
+		}
+
+		if err := requireUnambiguousKeyAlgorithm(key, allowed); err != nil {
+			return nil, err
+		}
+
+		// Spec §4.10 and RFC 8725 §3.1: the key's type and its own
+		// use/key_ops/alg must permit this algorithm, so an RSA key can never
+		// satisfy HS256.
+		verifier, err = key.verifierForAlg(header.Algorithm)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	payloadJSON, err := b64.Decode(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
+	// RFC 7515 §5.2 step 8: the signing input is the ASCII of the encoded
+	// header and payload exactly as received. Custom verifier errors remain
+	// discoverable while every verification rejection is ErrInvalidSignature.
+	if err := verifier.Verify([]byte(h+"."+p), sig); err != nil {
+		return nil, fmt.Errorf("%w: verifier callback: %w", ErrInvalidSignature, err)
 	}
 
 	// RFC 7519 §7.2 step 10: the claims set must be a JSON object. A nested
@@ -256,23 +304,28 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 // ParseInsecure decodes the payload into dst WITHOUT verifying the signature
 // or checking expiry. Its result MUST NOT drive any authorization decision —
 // read-only inspection only (e.g. looking up a session by an expired token's
-// "jti"). dst's type is inferred; no explicit type argument.
+// "jti"). The compact input must still contain exactly three segments.
+// Decoding is atomic: dst is assigned only after complete successful decoding.
 func ParseInsecure[C any](token string, dst *C) error {
+	if dst == nil {
+		return ErrInvalidDestination
+	}
+
 	if len(token) > maxTokenBytes {
 		return fmt.Errorf("%w: token exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
 	}
 
-	parts := strings.Split(token, ".")
-	if len(parts) < 2 {
-		return fmt.Errorf("%w: need at least a header and a payload", ErrMalformedToken)
+	_, payload, _, ok := split3(token)
+	if !ok {
+		return fmt.Errorf("%w: expected three '.'-separated segments", ErrMalformedToken)
 	}
 
-	payloadJSON, err := b64.Decode(parts[1])
+	payloadJSON, err := b64.Decode(payload)
 	if err != nil {
 		return fmt.Errorf("%w: payload is not base64url", ErrMalformedToken)
 	}
 
-	if err := decodeObject(payloadJSON, dst); err != nil {
+	if err := decodeFreshObject(payloadJSON, dst); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
@@ -280,14 +333,15 @@ func ParseInsecure[C any](token string, dst *C) error {
 }
 
 type parseConfig struct {
-	allowedAlgs    []Algorithm
-	issuer         string
-	audience       string
-	requiredType   string
-	now            func() time.Time
-	leeway         time.Duration
-	requiredClaims []string
-	skipAudience   bool
+	allowedAlgs      []Algorithm
+	issuer           string
+	audience         string
+	requiredType     string
+	now              func() time.Time
+	leeway           time.Duration
+	requiredClaims   []string
+	skipAudience     bool
+	verifierProvider VerifierProvider
 
 	allowedKeyAlgs     []KeyAlgorithm     // JWE "alg" allowlist (DecryptClaims)
 	allowedContentAlgs []ContentAlgorithm // JWE "enc" allowlist (DecryptClaims)
@@ -331,9 +385,10 @@ type ParseOptions struct {
 	Audience                 string             // require this to be present in "aud" (RFC 7519 §4.1.3)
 	SkipAudienceCheck        bool               // accept a present "aud" when Audience is empty (see WithoutAudienceCheck)
 	RequiredType             string             // require the JOSE "typ" header to match (RFC 8725 §3.11)
-	RequiredClaims           []string           // require each named claim to be present
+	RequiredClaims           []string           // require each named claim to be present and non-null
 	Leeway                   time.Duration      // clock-skew allowance on "exp"/"nbf" (default 0)
 	Clock                    func() time.Time   // time source for every time-based check (default time.Now)
+	VerifierProvider         VerifierProvider   // custom verifier lookup for Parse/Middleware; replaces KeyProvider when non-nil
 }
 
 func (o ParseOptions) applyParse(c *parseConfig) {
@@ -364,6 +419,10 @@ func (o ParseOptions) applyParse(c *parseConfig) {
 
 	if o.Clock != nil {
 		c.now = o.Clock
+	}
+
+	if !isNilValue(o.VerifierProvider) {
+		c.verifierProvider = o.VerifierProvider
 	}
 }
 
@@ -436,9 +495,22 @@ func WithLeeway(d time.Duration) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.leeway = d })
 }
 
-// WithRequiredClaims requires each named claim to be present in the payload.
+// WithRequiredClaims requires each named claim to be present and non-null in
+// the payload. False, zero, empty strings, and empty arrays remain present.
 func WithRequiredClaims(names ...string) ParseOption {
 	return parseOptionFunc(func(c *parseConfig) { c.requiredClaims = append(c.requiredClaims, names...) })
+}
+
+// WithVerifierProvider makes Parse and Middleware resolve a custom Verifier by
+// the protected "alg" and "kid" values instead of using their KeyProvider
+// argument. A nil provider is ignored. The mandatory algorithm allowlist and
+// returned verifier algorithm/key-ID checks remain enforced.
+func WithVerifierProvider(provider VerifierProvider) ParseOption {
+	return parseOptionFunc(func(c *parseConfig) {
+		if !isNilValue(provider) {
+			c.verifierProvider = provider
+		}
+	})
 }
 
 // validateClaims applies the registered-claim rules shared by Parse,
@@ -483,7 +555,8 @@ func validateClaims(raw []byte, rc *RegisteredClaims, header Header, cfg parseCo
 		}
 
 		for _, name := range cfg.requiredClaims {
-			if _, ok := present[name]; !ok {
+			raw, ok := present[name]
+			if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 				return fmt.Errorf("%w: %q", ErrMissingClaim, name)
 			}
 		}
@@ -544,4 +617,88 @@ func withoutNone[A ~string](algs []A) []A {
 
 func containsAlg(algs []Algorithm, want Algorithm) bool {
 	return slices.Contains(algs, want)
+}
+
+// decodeFreshObject preserves dst on every decoding failure.
+func decodeFreshObject[C any](data []byte, dst *C) error {
+	if dst == nil {
+		return ErrInvalidDestination
+	}
+
+	var fresh C
+	if err := decodeObject(data, &fresh); err != nil {
+		return err
+	}
+
+	*dst = fresh
+
+	return nil
+}
+
+func isNilValue(v any) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
+func lookupVerifier(ctx context.Context, provider VerifierProvider, header Header) (Verifier, error) {
+	verifier, found, err := provider.LookupVerifier(ctx, header.Algorithm, header.KeyID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrVerifierProvider, err)
+	}
+
+	if !found || isNilValue(verifier) {
+		return nil, fmt.Errorf("%w: verifier for alg %q and kid %q", ErrKeyNotFound, header.Algorithm, header.KeyID)
+	}
+
+	if !sameAlgorithm(verifier.Algorithm(), header.Algorithm) {
+		return nil, fmt.Errorf("%w: verifier is for %q, token uses %q", ErrKeyUsage, verifier.Algorithm(), header.Algorithm)
+	}
+
+	if header.KeyID != "" && verifier.KeyID() != header.KeyID {
+		return nil, fmt.Errorf("%w: verifier kid is %q, token uses %q", ErrKeyUsage, verifier.KeyID(), header.KeyID)
+	}
+
+	return verifier, nil
+}
+
+// requireUnambiguousKeyAlgorithm enforces RFC 8725 §3.1 when a JWK does not
+// bind itself with "alg". A key may be inferred only when exactly one distinct
+// compatible algorithm is allowlisted. Incompatible algorithms do not make the
+// key ambiguous, and duplicate allowlist entries count once.
+func requireUnambiguousKeyAlgorithm(key Key, allowed []Algorithm) error {
+	if key.Alg != "" {
+		return nil
+	}
+
+	seen := make(map[Algorithm]bool, len(allowed))
+	compatible := make([]Algorithm, 0, 2)
+	for _, alg := range allowed {
+		identity := alg
+		if identity == EdDSA {
+			identity = Ed25519
+		}
+
+		if seen[identity] {
+			continue
+		}
+
+		seen[identity] = true
+		if _, err := key.verifierForAlg(alg); err == nil {
+			compatible = append(compatible, alg)
+			if len(compatible) > 1 {
+				return fmt.Errorf("%w: key %q has no alg and is compatible with allowlisted algorithms %q", ErrKeyUsage, key.Kid, compatible)
+			}
+		}
+	}
+
+	return nil
 }

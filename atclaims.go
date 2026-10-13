@@ -35,8 +35,9 @@ type AccessTokenClaims struct {
 const AccessTokenType = "at+jwt"
 
 // ValidateAccessTokenClaims checks the RFC 9068 §2.2 required-claims profile
-// beyond what Parse already validates: iss, exp, aud, sub, client_id and iat
-// MUST be present. (jti only SHOULD be present, so it is not enforced.)
+// beyond what Parse already validates: iss, exp, aud, sub, client_id, iat and
+// jti MUST be present. It also validates the RFC 7519 StringOrURI syntax of
+// iss, sub, and every aud value without normalizing them.
 func ValidateAccessTokenClaims(claims AccessTokenClaims) error {
 	var missing []string
 	if claims.Issuer == "" {
@@ -63,8 +64,30 @@ func ValidateAccessTokenClaims(claims AccessTokenClaims) error {
 		missing = append(missing, "iat")
 	}
 
+	if claims.ID == "" {
+		missing = append(missing, "jti")
+	}
+
 	if len(missing) > 0 {
 		return fmt.Errorf("%w: %s", ErrMissingClaim, strings.Join(missing, ", "))
+	}
+
+	if err := ValidateStringOrURI(claims.Issuer); err != nil {
+		return fmt.Errorf("iss: %w", err)
+	}
+
+	if err := ValidateStringOrURI(claims.Subject); err != nil {
+		return fmt.Errorf("sub: %w", err)
+	}
+
+	for i, audience := range claims.Audience {
+		if audience == "" {
+			return fmt.Errorf("%w: aud[%d] is empty", ErrInvalidClaim, i)
+		}
+
+		if err := ValidateStringOrURI(audience); err != nil {
+			return fmt.Errorf("aud[%d]: %w", i, err)
+		}
 	}
 
 	return nil

@@ -83,6 +83,7 @@ func TestValidateAccessTokenClaims(t *testing.T) {
 		Audience:  Audience{"https://api"},
 		ExpiresAt: now,
 		IssuedAt:  now,
+		ID:        "token-1",
 		ClientID:  "client-1",
 		Scope:     "read write",
 	}
@@ -110,7 +111,7 @@ func TestValidateAccessTokenClaimsNamesEveryMissingClaim(t *testing.T) {
 		t.Fatal("expected error for empty claims")
 	}
 
-	for _, want := range []string{"iss", "exp", "aud", "sub", "client_id", "iat"} {
+	for _, want := range []string{"iss", "exp", "aud", "sub", "client_id", "iat", "jti"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error %q does not mention %q", err, want)
 		}
