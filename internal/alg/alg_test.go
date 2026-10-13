@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
+	"math/big"
 	"testing"
 )
 
@@ -296,6 +297,97 @@ func TestEd25519RejectsInvalidInputs(t *testing.T) {
 	sig, _ := s.Sign([]byte("input"))
 	if err := v.Verify([]byte("input"), append(sig, 0)); !errors.Is(err, ErrInvalidSignature) {
 		t.Fatalf("invalid Ed25519 signature: %v", err)
+	}
+}
+
+func TestValidationEdgesAndMetadata(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signer, err := NewECDSASigner(ES256, key, "e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signer.Algorithm() != ES256 || signer.KeyID() != "e1" {
+		t.Fatal("ECDSA signer metadata mismatch")
+	}
+
+	for _, malformed := range []*ecdsa.PrivateKey{
+		{PublicKey: ecdsa.PublicKey{Curve: elliptic.P256(), X: key.X, Y: key.Y}},
+		{D: big.NewInt(0), PublicKey: key.PublicKey},
+		{D: key.D, PublicKey: ecdsa.PublicKey{Curve: elliptic.P256(), X: big.NewInt(1), Y: big.NewInt(1)}},
+	} {
+		if _, err := NewECDSASigner(ES256, malformed); !errors.Is(err, ErrMalformedKey) {
+			t.Fatalf("malformed ECDSA private key: %v", err)
+		}
+	}
+
+	for _, malformed := range []*ecdsa.PublicKey{
+		{Curve: elliptic.P256(), Y: key.Y},
+		{Curve: elliptic.P256(), X: key.X},
+		{Curve: elliptic.P256(), X: big.NewInt(1), Y: big.NewInt(1)},
+	} {
+		if _, err := NewECDSAVerifier(ES256, malformed); !errors.Is(err, ErrMalformedKey) {
+			t.Fatalf("malformed ECDSA public key: %v", err)
+		}
+	}
+	if _, err := NewECDSAVerifier("custom", &key.PublicKey); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported ECDSA verifier algorithm: %v", err)
+	}
+
+	if _, err := NewHMACVerifier("custom", make([]byte, 32)); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported HMAC verifier algorithm: %v", err)
+	}
+
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRSAPSSSigner(PS256, &rsa.PrivateKey{PublicKey: rsaKey.PublicKey}); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("RSA private key without exponent: %v", err)
+	}
+	badPrivate := *rsaKey
+	badPrivate.D = big.NewInt(1)
+	if _, err := NewRSAPSSSigner(PS256, &badPrivate); !errors.Is(err, ErrMalformedKey) {
+		t.Fatalf("invalid RSA private key: %v", err)
+	}
+
+	for _, public := range []*rsa.PublicKey{
+		{},
+		{N: big.NewInt(0), E: 3},
+		{N: big.NewInt(3), E: 2},
+		{N: new(big.Int).SetBit(new(big.Int), 9000, 1), E: 3},
+	} {
+		if _, err := NewRSAPSSVerifier(PS256, public); !errors.Is(err, ErrMalformedKey) {
+			t.Fatalf("malformed RSA public key: %v", err)
+		}
+	}
+	if _, err := NewRSAPSSVerifier("custom", &rsaKey.PublicKey); !errors.Is(err, ErrUnsupportedAlgorithm) {
+		t.Fatalf("unsupported RSA verifier algorithm: %v", err)
+	}
+	verifier, err := NewRSAPKCS1Verifier(RS256, &rsaKey.PublicKey, "r1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verifier.KeyID() != "r1" {
+		t.Fatal("RSA verifier metadata mismatch")
+	}
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edSigner, err := NewEd25519Signer(priv, "d1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edSigner.Algorithm() != Ed25519 || edSigner.KeyID() != "d1" {
+		t.Fatal("Ed25519 signer metadata mismatch")
+	}
+	if _, err := NewEd25519VerifierFor(EdDSA, pub, "d1"); err != nil {
+		t.Fatal(err)
 	}
 }
 
