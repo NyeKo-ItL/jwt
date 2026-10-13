@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/) from `v0.1.0` onward. While on
 `v0.x` the public API may still change between minor versions.
 
-## [Unreleased]
+## [1.0.0] - 2026-10-13
 
 ### Security
 
@@ -44,7 +44,7 @@ All notable changes to this project are documented here. The format follows
 
 ### CI
 
-- Release tags rerun reusable quality, security, and explicit CodeQL workflows.
+- Release tags rerun reusable quality and security workflows; CodeQL is enforced by the repository default setup.
 - `apidiff` is fail-closed and validates the requested tag against the minimum
   SemVer bump.
 - Release metadata requires a matching changelog section; workflows have
@@ -356,7 +356,8 @@ Go 1.27+.
   cross-checks every algorithm against `golang-jwt/jwt/v5` and
   `go-jose/go-jose/v4` in both directions.
 
-[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.3...v0.1.5
 [0.1.3]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.2...v0.1.3
