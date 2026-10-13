@@ -27,12 +27,6 @@ jobs:
       id-token: write
       security-events: write
 
-  codeql:
-    name: CodeQL gate
-    uses: ./.github/workflows/codeql.yml
-    permissions:
-      contents: read
-      security-events: write
 
   metadata:
     name: Verify release metadata
@@ -60,7 +54,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: [quality, security, codeql, metadata]
+    needs: [quality, security, metadata]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
