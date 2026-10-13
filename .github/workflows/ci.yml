@@ -216,3 +216,15 @@ jobs:
             echo "::error::Incompatible API change vs ${latest}: the next release must be ${next} (major bump). See the job summary."
             exit 1
           fi
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs: [test, test-gate, fuzz, interop, standards-watch-tool, lint, vuln, apidiff]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "All CI jobs passed"
