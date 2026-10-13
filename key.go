@@ -26,6 +26,10 @@ const (
 	KeyTypeEC  KeyType = "EC"  // RFC 7518 §6.2: "crv" (P-256/384/521), "x", "y"
 	KeyTypeOKP KeyType = "OKP" // RFC 8037 §2: "crv" Ed25519, "x"
 	KeyTypeOct KeyType = "oct" // RFC 7518 §6.4: "k"; never serialized into a JWKS
+
+	// MaxRSAKeyBits bounds RSA work and JWK allocation. Larger RSA keys are
+	// rejected by both JWK reconstruction and built-in JWS algorithms.
+	MaxRSAKeyBits = 8192
 )
 
 // Key is a single JSON Web Key (RFC 7517 §4). A Key with Kty == KeyTypeOct
@@ -52,6 +56,19 @@ type Key struct {
 	crv  string // EC, OKP
 	x, y []byte // EC (x, y); OKP (x only)
 	k    []byte // oct
+}
+
+// Clone returns a deep copy of k, including KeyOps and all key material.
+func (k Key) Clone() Key {
+	clone := k
+	clone.KeyOps = slices.Clone(k.KeyOps)
+	clone.n = slices.Clone(k.n)
+	clone.e = slices.Clone(k.e)
+	clone.x = slices.Clone(k.x)
+	clone.y = slices.Clone(k.y)
+	clone.k = slices.Clone(k.k)
+
+	return clone
 }
 
 type jwkJSON struct {
@@ -110,7 +127,7 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	k.Kty, k.Kid, k.Use, k.KeyOps, k.Alg, k.crv = j.Kty, j.Kid, j.Use, j.KeyOps, j.Alg, j.Crv
+	parsed := Key{Kty: j.Kty, Kid: j.Kid, Use: j.Use, KeyOps: slices.Clone(j.KeyOps), Alg: j.Alg, crv: j.Crv}
 	dec := func(s string) ([]byte, error) {
 		if s == "" {
 			return nil, nil
@@ -120,40 +137,49 @@ func (k *Key) UnmarshalJSON(b []byte) error {
 	}
 
 	var err error
-	if k.n, err = dec(j.N); err != nil {
+	if parsed.n, err = dec(j.N); err != nil {
 		return err
 	}
 
-	if k.e, err = dec(j.E); err != nil {
+	if parsed.e, err = dec(j.E); err != nil {
 		return err
 	}
 
-	if k.x, err = dec(j.X); err != nil {
+	if parsed.x, err = dec(j.X); err != nil {
 		return err
 	}
 
-	if k.y, err = dec(j.Y); err != nil {
+	if parsed.y, err = dec(j.Y); err != nil {
 		return err
 	}
 
-	if k.k, err = dec(j.K); err != nil {
+	if parsed.k, err = dec(j.K); err != nil {
 		return err
 	}
 
-	return k.checkCanonical()
+	if err := parsed.checkCanonical(); err != nil {
+		return err
+	}
+
+	*k = parsed
+
+	return nil
 }
 
 // sigKeyOps and encKeyOps are the RFC 7517 §4.3 operations consistent with
 // "use":"sig" and "use":"enc" respectively.
 var (
-	sigKeyOps = map[string]bool{"sign": true, "verify": true}
-	encKeyOps = map[string]bool{"encrypt": true, "decrypt": true, "wrapKey": true, "unwrapKey": true, "deriveKey": true, "deriveBits": true}
+	sigKeyOps    = map[string]bool{"sign": true, "verify": true}
+	encKeyOps    = map[string]bool{"encrypt": true, "decrypt": true, "wrapKey": true, "unwrapKey": true}
+	deriveKeyOps = map[string]bool{"deriveKey": true, "deriveBits": true}
 )
 
 // checkCanonical enforces the single-representation rules documented on
 // UnmarshalJSON.
 func (k *Key) checkCanonical() error {
 	seen := make(map[string]bool, len(k.KeyOps))
+	var operationClasses uint8
+
 	for _, op := range k.KeyOps {
 		if seen[op] {
 			return fmt.Errorf("%w: duplicate key_ops value %q", ErrMalformedKey, op)
@@ -161,15 +187,32 @@ func (k *Key) checkCanonical() error {
 
 		seen[op] = true
 
-		if (k.Use == "sig" && !sigKeyOps[op]) || (k.Use == "enc" && !encKeyOps[op]) {
+		switch {
+		case sigKeyOps[op]:
+			operationClasses |= 1
+		case encKeyOps[op]:
+			operationClasses |= 2
+		case deriveKeyOps[op]:
+			operationClasses |= 4
+		}
+
+		if (k.Use == "sig" && !sigKeyOps[op]) || (k.Use == "enc" && !encKeyOps[op] && !deriveKeyOps[op]) {
 			return fmt.Errorf("%w: key_ops %q is inconsistent with use %q", ErrMalformedKey, op, k.Use)
 		}
+	}
+
+	if operationClasses != 0 && operationClasses&(operationClasses-1) != 0 {
+		return fmt.Errorf("%w: key_ops mixes signature, encryption, or derivation operations", ErrMalformedKey)
 	}
 
 	switch k.Kty {
 	case KeyTypeRSA:
 		if (len(k.n) > 0 && k.n[0] == 0) || (len(k.e) > 0 && k.e[0] == 0) {
 			return fmt.Errorf("%w: RSA n/e must not have leading zero octets", ErrMalformedKey)
+		}
+
+		if new(big.Int).SetBytes(k.n).BitLen() > MaxRSAKeyBits {
+			return fmt.Errorf("%w: RSA key exceeds %d bits", ErrMalformedKey, MaxRSAKeyBits)
 		}
 	case KeyTypeEC:
 		if c := curveByName(k.crv); c != nil {
@@ -189,19 +232,30 @@ func (k *Key) checkCanonical() error {
 
 // FromRSAPublicKey builds a "sig" JWK from an RSA public key.
 func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
-	return Key{
-		Kty: KeyTypeRSA,
-		Kid: option.FirstString(kid),
-		n:   pub.N.Bytes(),
-		e:   big.NewInt(int64(pub.E)).Bytes(),
+	k := Key{Kty: KeyTypeRSA, Kid: option.FirstString(kid)}
+	if pub == nil || pub.N == nil || pub.N.Sign() <= 0 || pub.E <= 0 {
+		return k
 	}
+
+	k.n = append([]byte(nil), pub.N.Bytes()...)
+	k.e = big.NewInt(int64(pub.E)).Bytes()
+
+	return k
 }
 
 // FromECDSAPublicKey builds a "sig" JWK from an ECDSA public key. If the
 // point is invalid the coordinate fields are left empty and the failure
 // surfaces later, at PublicKey/Verifier time.
 func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
-	k := Key{Kty: KeyTypeEC, Kid: option.FirstString(kid), crv: curveName(pub.Curve)}
+	k := Key{Kty: KeyTypeEC, Kid: option.FirstString(kid)}
+	if pub == nil || pub.Curve == nil {
+		return k
+	}
+
+	k.crv = curveName(pub.Curve)
+	if k.crv == "" {
+		return k
+	}
 
 	size := (pub.Curve.Params().BitSize + 7) / 8
 	if b, err := pub.Bytes(); err == nil && len(b) == 1+2*size {
@@ -236,16 +290,22 @@ func FromHMACSecret(secret []byte, kid ...string) Key {
 func (k Key) PublicKey() (crypto.PublicKey, error) {
 	switch k.Kty {
 	case KeyTypeRSA:
-		if len(k.n) == 0 || len(k.e) == 0 {
+		if len(k.n) == 0 || len(k.e) == 0 || k.n[0] == 0 || k.e[0] == 0 {
 			return nil, ErrMalformedKey
 		}
 
+		n := new(big.Int).SetBytes(k.n)
 		e := new(big.Int).SetBytes(k.e)
-		if e.BitLen() == 0 || e.BitLen() > 32 {
+		if n.Sign() <= 0 || n.BitLen() > MaxRSAKeyBits || n.Bit(0) == 0 || !e.IsInt64() {
 			return nil, ErrMalformedKey
 		}
 
-		return &rsa.PublicKey{N: new(big.Int).SetBytes(k.n), E: int(e.Int64())}, nil
+		exponent := e.Int64()
+		if exponent < 3 || exponent > int64(^uint32(0)>>1) || exponent&1 == 0 {
+			return nil, ErrMalformedKey
+		}
+
+		return &rsa.PublicKey{N: n, E: int(exponent)}, nil
 	case KeyTypeEC:
 		c := curveByName(k.crv)
 		if c == nil || len(k.x) == 0 || len(k.y) == 0 {
@@ -402,6 +462,46 @@ func (k Key) rsaPublic() (*rsa.PublicKey, error) {
 	}
 
 	return pub.(*rsa.PublicKey), nil
+}
+
+// validateRepresentation verifies that k has one complete, supported and
+// internally valid representation. It does not apply JWS strength policy.
+func (k Key) validateRepresentation() error {
+	if err := k.checkCanonical(); err != nil {
+		return err
+	}
+
+	switch k.Kty {
+	case KeyTypeRSA:
+		if _, err := k.PublicKey(); err != nil {
+			return fmt.Errorf("%w: invalid RSA public key", ErrMalformedKey)
+		}
+	case KeyTypeEC:
+		// RFC 7517 §5 requires implementations to tolerate key types and
+		// parameters they do not understand. Validate supported curves now and
+		// preserve unknown curves for inspection or permissive JWKS handling.
+		if curveByName(k.crv) != nil {
+			if _, err := k.PublicKey(); err != nil {
+				return fmt.Errorf("%w: invalid EC public key", ErrMalformedKey)
+			}
+		}
+	case KeyTypeOKP:
+		if k.crv == "Ed25519" {
+			if _, err := k.PublicKey(); err != nil {
+				return fmt.Errorf("%w: invalid OKP public key", ErrMalformedKey)
+			}
+		}
+	case KeyTypeOct:
+		if _, err := k.Secret(); err != nil {
+			return fmt.Errorf("%w: invalid oct key", ErrMalformedKey)
+		}
+	default:
+		// Unknown kty values remain parseable as required by RFC 7517 §5, but
+		// cannot be used by any built-in verifier.
+		return nil
+	}
+
+	return nil
 }
 
 func curveName(c elliptic.Curve) string {
