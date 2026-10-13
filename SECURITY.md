@@ -26,9 +26,9 @@ itself (spec §4). It is kept in sync with the code.
    decision.
 5. **Constant-time comparisons** for every secret/hash comparison
    (`crypto/hmac.Equal`, `crypto/subtle`).
-6. **Minimum key sizes** enforced at construction: HMAC keys shorter than the
-   hash output are rejected; RSA keys below 2048 bits are rejected (JWS and
-   JWE).
+6. **Key-size bounds** enforced at construction: HMAC keys shorter than the
+   hash output are rejected; RSA keys outside 2048–8192 bits are rejected (JWS
+   and JWE). Partial or inconsistent RSA/ECDSA keys return errors, never panics.
 7. **JWE decryption fails closed.** The AEAD tag is verified before any
    plaintext is returned; every failure collapses to the single generic
    `ErrDecryptionFailed`.
@@ -43,7 +43,8 @@ itself (spec §4). It is kept in sync with the code.
     function returns `error`; fuzz targets cover `Parse`, `DecryptClaims` and
     `ParseKeySet`.
 12. **The clock is injectable** (`WithClock`) for every time-based check.
-13. **Strict, unambiguous decoding.** Base64url must be canonical (no padding,
+13. **Strict, unambiguous decoding.** All compact segments are validated before
+    key-provider I/O. Base64url must be canonical (no padding,
     line breaks or non-zero trailing bits), so a token has one valid string
     form. Headers, claim sets and JWKs are decoded with `encoding/json/v2`
     defaults: exact member names, duplicates and invalid UTF-8 rejected.
@@ -55,13 +56,21 @@ itself (spec §4). It is kept in sync with the code.
     `aud` is rejected unless `WithAudience` names one of its values;
     `WithoutAudienceCheck` is an explicit opt-out.
 16. **Key usage and canonical keys.** A JWK's `use`, `key_ops` and `alg`
-    restrict what it verifies; non-canonical RSA/EC/OKP encodings are rejected
-    so each key has exactly one RFC 7638 thumbprint.
+    restrict what it verifies. When `alg` is absent, verification rejects a key
+    compatible with several allowlisted algorithms. Non-canonical RSA/EC/OKP
+    encodings are rejected so each key has exactly one RFC 7638 thumbprint.
 17. **Hardened remote key retrieval.** `KeyFetcher` and `DiscoverJWKSURI` are
-    HTTPS-only on every redirect hop, size-capped, single-flight and
-    rate-limited (including failures); `max-age` is capped; discovery requires
-    the returned `issuer` to match exactly.
-18. **No internal detail in HTTP responses.** `WriteChallenge` / `Middleware`
+    HTTPS-only on every redirect hop, URL-policy checked, size/key-count capped,
+    single-flight and rate-limited (including failures). `max-age`, `no-cache`,
+    and `no-store` are honored; stale fallback is time-bounded; discovery
+    requires the returned `issuer` to match exactly.
+18. **Atomic claim decoding.** Caller destinations are replaced only after a
+    complete successful decode, so omitted or malformed claims cannot retain
+    authorization state from a previous token.
+19. **Authenticated nested JWTs.** Public-key JWE alone does not authenticate
+    its sender. `EncryptNestedJWT` / `DecryptNestedJWT` enforce signed-then-
+    encrypted processing and `cty: JWT` when issuer authentication is required.
+20. **No internal detail in HTTP responses.** `WriteChallenge` / `Middleware`
     send fixed texts; infrastructure failures are 5xx, not `invalid_token`.
 
 Known-answer RFC vectors, interoperability tests and the requirement-level
@@ -69,8 +78,11 @@ status of every standard are documented in [COMPLIANCE.md](COMPLIANCE.md).
 
 ## Supported versions
 
-The project is pre-1.0: security fixes land on the latest minor release only.
-Upgrade to the newest `v0.x` to receive them.
+Before v1.0.0, security fixes land on the latest minor release only. Starting
+with v1, the latest v1 minor receives security fixes; older minors may receive a
+backport only when explicitly listed in a security advisory. Builds require Go
+1.27.2 or a later patched release; consumers must stay on the latest patch of
+their supported Go minor.
 
 ## Reporting a vulnerability
 

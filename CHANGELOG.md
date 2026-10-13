@@ -5,7 +5,52 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/) from `v0.1.0` onward. While on
 `v0.x` the public API may still change between minor versions.
 
-## [UNRELEASED]
+## [Unreleased]
+
+### Security
+
+- Claim destinations are decoded atomically, preventing absent claims from
+  retaining authorization state from a previously decoded token.
+- AES-KW rejects an `encrypted_key` with an impossible length before doing
+  cryptographic work; the RFC 3394 implementation now uses bounded contiguous
+  buffers.
+- Remote JWKS stale fallback is bounded and configurable, URL policy is applied
+  to initial URLs and redirects, and `no-cache` / `no-store` are honored.
+- Asymmetric-key constructors reject partial or oversized keys without panic;
+  RSA is capped at 8192 bits and ECDSA signing uses deterministic RFC 6979 via
+  the Go standard library.
+- Required claims set to JSON `null` are rejected. RFC 9068 access tokens now
+  require `jti`.
+- Nested signed-then-encrypted JWT helpers prevent treating public-key JWE
+  encryption as issuer authentication.
+
+### Added
+
+- `VerifierProvider` and `WithVerifierProvider` for custom verification/HSMs.
+- `IDTokenClaims`, `ValidateIDTokenClaims`, `IDTokenValidationContext`, and
+  `ValidateIDTokenForContext` for OIDC audience, `azp`, nonce, `at_hash`, and
+  `c_hash` validation.
+- JWE protected-header options, `EncryptNestedJWT`, and `DecryptNestedJWT`.
+- `ParseKeySetPermissive`, bounded JWKS parsing, indexed `KeySet` lookup, and
+  deep-copy semantics for key providers.
+- Bounded in-memory revocation stores and explicit opaque-token helper names.
+
+### Changed
+
+- `ParseInsecure` now requires exactly three compact-JWS segments.
+- `Sign` and `EncryptClaims` reject non-object Claims Sets.
+- `NumericDate` preserves fractional seconds when marshaled.
+- Minimum supported Go version is 1.27.2.
+
+### CI
+
+- Release tags rerun reusable quality, security, and explicit CodeQL workflows.
+- `apidiff` is fail-closed and validates the requested tag against the minimum
+  SemVer bump.
+- Release metadata requires a matching changelog section; workflows have
+  concurrency controls and timeouts.
+
+## [0.2.0] - 2026-09-16
 
 ### Security
 
@@ -161,7 +206,6 @@ All notable changes to this project are documented here. The format follows
   payload built from its claims reference, each signed and run through `Parse`
   with OIDC Core §2 required claims, plus a member-name round trip.
 
-
 - `DiscoverJWKSURI` returns an error where it used to return a guessed
   `/.well-known/jwks.json` URL.
 - `KeyFetcher` errors now wrap `ErrKeyFetch` (malformed JWKS documents wrap
@@ -187,6 +231,17 @@ All notable changes to this project are documented here. The format follows
   its documentation); 5xx responses carry no challenge.
 - A `Key` whose `use` / `key_ops` / `alg` forbid the operation no longer
   verifies; `Key.PublicKey` no longer left-pads short EC coordinates.
+
+## [0.1.5] - 2026-09-13
+
+### Security and release
+
+- Publish immutable GitHub releases with signed source checksums and a Sigstore
+  bundle.
+- Skip OpenSSF Scorecard on untrusted pull-request code while retaining push
+  and scheduled scans.
+- Require Codecov uploads from trusted CI pushes.
+- Update the dependency-review action to v5.
 
 ## [0.1.3] - 2026-09-13
 
@@ -301,7 +356,9 @@ Go 1.27+.
   cross-checks every algorithm against `golang-jwt/jwt/v5` and
   `go-jose/go-jose/v4` in both directions.
 
-[0.1.4]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.5...v0.2.0
+[0.1.5]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.3...v0.1.5
 [0.1.3]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/NyeKo-ItL/jwt/releases/tag/v0.1.2
 [0.1.1]: https://github.com/NyeKo-ItL/jwt/releases/tag/v0.1.1

@@ -3,7 +3,7 @@
 // github.com/NyeKo-ItL/jwt, so importers never see these dependencies.
 module github.com/NyeKo-ItL/jwt/interop
 
-go 1.27
+go 1.27.2
 
 require (
 	github.com/NyeKo-ItL/jwt v0.0.0

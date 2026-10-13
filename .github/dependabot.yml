@@ -1,7 +1,7 @@
 version: 2
 updates:
-  # The importable module has zero third-party runtime dependencies, so only
-  # the GitHub Actions and the isolated interop test module need updates.
+  # The importable module has zero third-party runtime dependencies. Track
+  # Actions plus the isolated interop, standards-watch, and CI-tool modules.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -15,3 +15,17 @@ updates:
       interval: weekly
     commit-message:
       prefix: interop
+
+  - package-ecosystem: gomod
+    directory: "/.github/tools"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: tools
+
+  - package-ecosystem: gomod
+    directory: "/.github/standards"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: standards
