@@ -29,6 +29,7 @@ func TestCoverageAccessTokenValidationBranches(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			claims := valid
 			tc.mutate(&claims)
+
 			err := ValidateAccessTokenClaims(claims)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
@@ -43,11 +44,13 @@ func TestCoverageStringOrURIBranches(t *testing.T) {
 			t.Errorf("ValidateStringOrURI(%q) accepted invalid URI", value)
 		}
 	}
+
 	for _, value := range []string{"a+b.c://ok", "https://example.com/a%20b", "plain"} {
 		if err := ValidateStringOrURI(value); err != nil {
 			t.Errorf("ValidateStringOrURI(%q): %v", value, err)
 		}
 	}
+
 	for _, value := range []string{"a:%", "a:%0", "a:%zz", "a^:x"} {
 		if !errors.Is(ValidateStringOrURI(value), ErrInvalidClaim) {
 			t.Errorf("ValidateStringOrURI(%q) did not reject malformed value", value)
@@ -57,6 +60,7 @@ func TestCoverageStringOrURIBranches(t *testing.T) {
 
 func TestCoverageIDTokenClaimsBranches(t *testing.T) {
 	valid := validV1IDTokenClaims()
+
 	cases := []struct {
 		name   string
 		mutate func(*IDTokenClaims)
@@ -78,6 +82,7 @@ func TestCoverageIDTokenClaimsBranches(t *testing.T) {
 			claims := valid
 			claims.Audience = append(Audience(nil), valid.Audience...)
 			tc.mutate(&claims)
+
 			if err := ValidateIDTokenClaims(claims); !errors.Is(err, tc.want) {
 				t.Fatalf("error = %v, want %v", err, tc.want)
 			}
@@ -88,6 +93,7 @@ func TestCoverageIDTokenClaimsBranches(t *testing.T) {
 func TestCoverageIDTokenContextBranches(t *testing.T) {
 	claims := validV1IDTokenClaims()
 	base := IDTokenValidationContext{ClientID: "client-1", TrustedAudiences: []string{"api.example"}, SigningAlgorithm: RS256}
+
 	cases := []struct {
 		name   string
 		mutate func(*IDTokenClaims, *IDTokenValidationContext)
@@ -110,6 +116,7 @@ func TestCoverageIDTokenContextBranches(t *testing.T) {
 			c, v := claims, base
 			c.Audience = append(Audience(nil), claims.Audience...)
 			tc.mutate(&c, &v)
+
 			if err := ValidateIDTokenForContext(c, v); err == nil {
 				t.Fatal("expected validation error")
 			}
@@ -123,12 +130,15 @@ func TestCoverageOIDCHashAlgorithms(t *testing.T) {
 			t.Errorf("oidcHashAlgorithm(%q) not recognized", alg)
 		}
 	}
+
 	if _, ok := oidcHashAlgorithm(Algorithm("none")); ok {
 		t.Fatal("unknown algorithm recognized")
 	}
+
 	if err := validateOIDCHash("at_hash", "", "", RS256); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := validateOIDCHash("at_hash", "x", "", RS256); err == nil {
 		t.Fatal("missing source value accepted")
 	}
@@ -138,14 +148,17 @@ func TestCoverageThumbprintBranches(t *testing.T) {
 	if _, err := ThumbprintBytes(KeyTypeOKP, []byte{1}, crypto.SHA256); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("short OKP: %v", err)
 	}
+
 	for _, kty := range []KeyType{KeyTypeRSA, KeyTypeEC, KeyTypeOKP, KeyTypeOct, KeyType("other")} {
 		if _, err := (Key{Kty: kty}).thumbprintInput(); !errors.Is(err, ErrMalformedKey) {
 			t.Errorf("thumbprintInput(%q) error = %v", kty, err)
 		}
 	}
+
 	if _, err := digestThumbprint("{}", crypto.MD4); !errors.Is(err, ErrUnsupportedAlgorithm) {
 		t.Fatalf("unavailable hash: %v", err)
 	}
+
 	if _, err := ParseKey([]byte(`{"kty":"oct","k":""}`)); !errors.Is(err, ErrMalformedKey) {
 		t.Fatalf("invalid parsed key: %v", err)
 	}

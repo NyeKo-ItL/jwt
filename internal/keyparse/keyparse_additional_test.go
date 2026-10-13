@@ -19,6 +19,7 @@ func sshMPInt(n int64) []byte {
 func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 	t.Run("ed25519 truncated body", func(t *testing.T) {
 		body := sshString(make([]byte, 32))
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ssh-ed25519", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, internalerr.ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -27,6 +28,7 @@ func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 
 	t.Run("rsa truncated body", func(t *testing.T) {
 		body := sshMPInt(15)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ssh-rsa", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, internalerr.ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -40,6 +42,7 @@ func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 		body = append(body, sshMPInt(1)...)
 		body = append(body, sshMPInt(3)...)
 		body = append(body, sshMPInt(5)...)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ssh-rsa", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, internalerr.ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -49,6 +52,7 @@ func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 	t.Run("ecdsa invalid scalar", func(t *testing.T) {
 		body := append(sshString([]byte("nistp256")), sshString(make([]byte, 65))...)
 		body = append(body, sshMPInt(0)...)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-nistp256", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, internalerr.ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -60,20 +64,25 @@ func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		key2, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		point, err := key2.PublicKey.Bytes()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		scalar, err := key1.Bytes()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		body := append(sshString([]byte("nistp256")), sshString(point)...)
 		body = append(body, sshString(scalar)...)
+
 		blob := buildOpenSSHBlob(t, "none", "none", 1, "ecdsa-sha2-nistp256", nil, body, false)
 		if _, err := ParseOpenSSHPrivateKey(blob); !errors.Is(err, internalerr.ErrMalformedKey) {
 			t.Fatalf("err = %v", err)
@@ -84,6 +93,7 @@ func TestParseOpenSSHAdditionalErrors(t *testing.T) {
 func TestSSHBufShortString(t *testing.T) {
 	var length [4]byte
 	binary.BigEndian.PutUint32(length[:], 4)
+
 	r := &sshBuf{b: length[:3]}
 	if got := r.str(); got != nil || !errors.Is(r.err, errSSHShort) {
 		t.Fatalf("str() = %v, err = %v", got, r.err)

@@ -23,10 +23,12 @@ func (tb *recordingTB) Fatalf(string, ...any) { tb.fatalCalls++ }
 
 func TestTargetedJwttestCoverage(t *testing.T) {
 	store := jwttest.NewFakeRevocationStore()
+
 	store.Now = nil
 	if err := store.Revoke(t.Context(), "fallback-clock", "admin_revoked", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
+
 	if revoked, err := store.IsRevoked(t.Context(), "fallback-clock"); err != nil || !revoked {
 		t.Fatalf("fallback clock: revoked=%v err=%v", revoked, err)
 	}
@@ -35,7 +37,9 @@ func TestTargetedJwttestCoverage(t *testing.T) {
 	crand.Reader = failingReader{}
 	tb := &recordingTB{T: t}
 	jwttest.NewSigningPair(tb, "broken")
+
 	crand.Reader = oldReader
+
 	if tb.fatalCalls < 2 {
 		t.Fatalf("expected key-generation and signer failures, got %d", tb.fatalCalls)
 	}
