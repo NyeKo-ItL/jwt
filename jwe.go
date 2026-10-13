@@ -79,6 +79,9 @@ type jweHeader struct {
 	EPK *Key             `json:"epk,omitempty"` // ECDH-ES ephemeral public key
 	APU string           `json:"apu,omitempty"`
 	APV string           `json:"apv,omitempty"`
+
+	apuPresent bool
+	apvPresent bool
 }
 
 // keyWrapper is the per-algorithm key-management step used when encrypting.
@@ -94,6 +97,52 @@ type keyWrapper interface {
 type keyUnwrapper interface {
 	supports(alg KeyAlgorithm) bool
 	unwrap(hdr *jweHeader, encryptedKey []byte, cekLen int) (cek []byte, err error)
+}
+
+// EncryptOption customizes the protected header emitted by EncryptJWE,
+// EncryptClaims, and EncryptNestedJWT. Nil options are ignored.
+type EncryptOption interface {
+	applyEncrypt(*encryptConfig)
+}
+
+type encryptConfig struct {
+	typ string
+	cty string
+}
+
+type encryptOptionFunc func(*encryptConfig)
+
+func (f encryptOptionFunc) applyEncrypt(c *encryptConfig) {
+	if f != nil {
+		f(c)
+	}
+}
+
+// EncryptOptions is the reusable form of the JWE protected-header options.
+// Empty values omit the corresponding header parameter.
+type EncryptOptions struct {
+	Type        string // "typ" (RFC 7516 §4.1.11)
+	ContentType string // "cty" (RFC 7516 §4.1.12)
+}
+
+func (o EncryptOptions) applyEncrypt(c *encryptConfig) {
+	if o.Type != "" {
+		c.typ = o.Type
+	}
+
+	if o.ContentType != "" {
+		c.cty = o.ContentType
+	}
+}
+
+// WithJWEType sets the JWE protected-header "typ" parameter.
+func WithJWEType(typ string) EncryptOption {
+	return encryptOptionFunc(func(c *encryptConfig) { c.typ = typ })
+}
+
+// WithJWEContentType sets the JWE protected-header "cty" parameter.
+func WithJWEContentType(cty string) EncryptOption {
+	return encryptOptionFunc(func(c *encryptConfig) { c.cty = cty })
 }
 
 type encrypter struct {
@@ -116,8 +165,12 @@ func (e *encrypter) ContentAlgorithm() ContentAlgorithm { return e.enc }
 func (e *encrypter) KeyID() string                      { return e.kid }
 
 func (e *encrypter) Encrypt(plaintext []byte) (string, error) {
+	return e.encrypt(plaintext, encryptConfig{})
+}
+
+func (e *encrypter) encrypt(plaintext []byte, cfg encryptConfig) (string, error) {
 	cekLen := contentKeyLen(e.enc)
-	hdr := jweHeader{Alg: e.alg, Enc: e.enc, Kid: e.kid}
+	hdr := jweHeader{Alg: e.alg, Enc: e.enc, Kid: e.kid, Typ: cfg.typ, Cty: cfg.cty}
 
 	cek, encryptedKey, err := e.wrapper.wrap(&hdr, cekLen)
 	if err != nil {
@@ -163,6 +216,10 @@ func (d *decrypter) KeyID() string { return d.kid }
 func (d *decrypter) Decrypt(_ context.Context, compact string) ([]byte, error) {
 	parts, hdr, err := parseJWEProtected(compact)
 	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	if d.kid != "" && hdr.Kid != "" && d.kid != hdr.Kid {
 		return nil, ErrDecryptionFailed
 	}
 
@@ -233,6 +290,22 @@ func parseJWEProtected(compact string) ([]string, jweHeader, error) {
 		return nil, hdr, ErrDecryptionFailed
 	}
 
+	hdr.apuPresent = members["apu"] != nil
+	hdr.apvPresent = members["apv"] != nil
+
+	if rawEPK, present := members["epk"]; present {
+		var epkMembers map[string]json.RawMessage
+		if err := decodeObject(rawEPK, &epkMembers); err != nil {
+			return nil, hdr, ErrDecryptionFailed
+		}
+
+		for _, name := range []string{"d", "k", "p", "q", "dp", "dq", "qi", "oth"} {
+			if _, private := epkMembers[name]; private {
+				return nil, hdr, ErrDecryptionFailed
+			}
+		}
+	}
+
 	if err := checkCritical(members); err != nil {
 		return nil, hdr, err
 	}
@@ -262,24 +335,178 @@ func newGCM(cek []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(block)
 }
 
-// EncryptClaims is the JWE analogue of Sign: JSON-marshal a claims value
-// (any struct that marshals to an object) and encrypt it as a compact JWE.
-func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
-	if enc == nil {
+// EncryptJWE encrypts plaintext as compact JWE and applies protected-header
+// options. Built-in encrypters support options; a caller-defined Encrypter is
+// supported when no effective option is supplied.
+func EncryptJWE(plaintext []byte, enc Encrypter, opts ...EncryptOption) (string, error) {
+	if isNilValue(enc) {
 		return "", fmt.Errorf("%w: nil Encrypter", ErrUnsupportedAlgorithm)
 	}
 
+	cfg := encryptConfig{}
+	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
+		o.applyEncrypt(&cfg)
+	}
+
+	return encryptJWE(plaintext, enc, cfg)
+}
+
+func encryptJWE(plaintext []byte, enc Encrypter, cfg encryptConfig) (string, error) {
+	if builtin, ok := enc.(interface {
+		encrypt([]byte, encryptConfig) (string, error)
+	}); ok {
+		return builtin.encrypt(plaintext, cfg)
+	}
+
+	if cfg.typ != "" || cfg.cty != "" {
+		return "", fmt.Errorf("%w: Encrypter does not support protected-header options", ErrUnsupportedAlgorithm)
+	}
+
+	return enc.Encrypt(plaintext)
+}
+
+// EncryptClaims is the JWE analogue of Sign: it JSON-marshals a claims value
+// that must encode as an object, then encrypts it as compact JWE. opts set the
+// JWE protected header and may be reused through EncryptOptions.
+func EncryptClaims[C any](claims C, enc Encrypter, opts ...EncryptOption) (string, error) {
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
 	}
 
-	return enc.Encrypt(payload)
+	var object map[string]json.RawMessage
+	if err := decodeObject(payload, &object); err != nil {
+		return "", fmt.Errorf("%w: claims JSON must be an object: %w", ErrInvalidClaims, err)
+	}
+
+	return EncryptJWE(payload, enc, opts...)
+}
+
+// NestedJWTPolicies keeps the outer JWE and inner JWS policies separate.
+// JWE must contain WithAllowedKeyAlgorithms and
+// WithAllowedContentAlgorithms. JWS must contain WithAllowedAlgorithms.
+// Nil options in either slice are ignored.
+type NestedJWTPolicies struct {
+	JWE []ParseOption
+	JWS []ParseOption
+}
+
+// EncryptNestedJWT encrypts a syntactically valid compact JWS and forces the
+// outer protected-header "cty" to "JWT" (RFC 7519 §5.2). The JWS must already
+// be signed; its signature is intentionally verified only by the recipient.
+func EncryptNestedJWT(compactJWS string, enc Encrypter, opts ...EncryptOption) (string, error) {
+	if err := validateNestedJWS(compactJWS); err != nil {
+		return "", err
+	}
+
+	cfg := encryptConfig{}
+	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
+		o.applyEncrypt(&cfg)
+	}
+
+	cfg.cty = "JWT"
+
+	if isNilValue(enc) {
+		return "", fmt.Errorf("%w: nil Encrypter", ErrUnsupportedAlgorithm)
+	}
+
+	return encryptJWE([]byte(compactJWS), enc, cfg)
+}
+
+func validateNestedJWS(compact string) error {
+	if len(compact) > maxTokenBytes {
+		return fmt.Errorf("%w: nested JWS exceeds %d bytes", ErrMalformedToken, maxTokenBytes)
+	}
+
+	h, p, s, ok := split3(compact)
+	if !ok {
+		return fmt.Errorf("%w: nested JWT must be compact JWS", ErrMalformedToken)
+	}
+
+	headerJSON, err := b64.Decode(h)
+	if err != nil {
+		return fmt.Errorf("%w: nested JWS header is not base64url", ErrMalformedToken)
+	}
+
+	var header Header
+	if err := decodeObject(headerJSON, &header); err != nil {
+		return fmt.Errorf("%w: nested JWS header JSON: %w", ErrMalformedToken, err)
+	}
+
+	if header.Algorithm == "" || strings.EqualFold(string(header.Algorithm), "none") {
+		return fmt.Errorf("%w: nested JWS uses %q", ErrAlgorithmNotAllowed, header.Algorithm)
+	}
+
+	payload, err := b64.Decode(p)
+	if err != nil {
+		return fmt.Errorf("%w: nested JWS payload is not base64url", ErrMalformedToken)
+	}
+
+	var claims map[string]json.RawMessage
+	if err := decodeObject(payload, &claims); err != nil {
+		return fmt.Errorf("%w: nested JWS payload JSON: %w", ErrMalformedToken, err)
+	}
+
+	sig, err := b64.Decode(s)
+	if err != nil || len(sig) == 0 {
+		return fmt.Errorf("%w: nested JWS signature is empty or invalid", ErrMalformedToken)
+	}
+
+	return nil
+}
+
+// DecryptNestedJWT authenticates and decrypts an outer compact JWE, requires
+// its protected "cty" to be "JWT", then verifies and validates the inner JWS
+// through the same internal path as Parse. The destination is updated only
+// after both layers and the final decode succeed.
+func DecryptNestedJWT[C any](ctx context.Context, compact string, dst *C, dec Decrypter, keys KeyProvider, policies NestedJWTPolicies) error {
+	if dst == nil {
+		return ErrInvalidDestination
+	}
+
+	plaintext, hdr, jweCfg, err := decryptJWEWithPolicy(ctx, compact, dec, policies.JWE)
+	if err != nil {
+		return err
+	}
+
+	if !typeMatches(hdr.Cty, "JWT") {
+		return fmt.Errorf("%w: nested JWE protected header needs \"cty\":\"JWT\"", ErrMalformedToken)
+	}
+
+	if jweCfg.requiredType != "" && !typeMatches(hdr.Typ, jweCfg.requiredType) {
+		return ErrTypeMismatch
+	}
+
+	jwsCfg := parseConfig{now: time.Now}
+	applyParseOptions(&jwsCfg, policies.JWS)
+
+	payload, err := parseVerified(ctx, string(plaintext), keys, jwsCfg)
+	if err != nil {
+		return err
+	}
+
+	var fresh C
+	if err := decodeObject(payload, &fresh); err != nil {
+		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
+	}
+
+	*dst = fresh
+
+	return nil
 }
 
 // DecryptClaims is the JWE analogue of Parse: decrypt a compact JWE, validate
 // its registered claims per opts, and unmarshal the plaintext into dst (its
-// type is inferred; no explicit type argument).
+// type is inferred; no explicit type argument). dst is updated atomically:
+// every failure leaves its previous value unchanged.
 //
 // Both JWE allowlists are mandatory (RFC 8725 §3.1, spec §4.1):
 // WithAllowedKeyAlgorithms for "alg" and WithAllowedContentAlgorithms for
@@ -287,36 +514,13 @@ func EncryptClaims[C any](claims C, enc Encrypter) (string, error) {
 // checked against the protected header before dec is called, so they hold
 // for caller-supplied Decrypters too. The AEAD tag is verified before any
 // plaintext is exposed (spec §4.7). WithRequiredType applies to the JWE
-// protected header's "typ".
+// protected header's "typ". Nil options are ignored.
 func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decrypter, opts ...ParseOption) error {
-	if dec == nil {
-		return fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
+	if dst == nil {
+		return ErrInvalidDestination
 	}
 
-	cfg := parseConfig{now: time.Now}
-	for _, o := range opts {
-		o.applyParse(&cfg)
-	}
-
-	allowedAlgs, allowedEncs := withoutNone(cfg.allowedKeyAlgs), withoutNone(cfg.allowedContentAlgs)
-	if len(allowedAlgs) == 0 || len(allowedEncs) == 0 {
-		return fmt.Errorf("%w: DecryptClaims needs WithAllowedKeyAlgorithms and WithAllowedContentAlgorithms", ErrNoAllowedAlgorithms)
-	}
-
-	_, hdr, err := parseJWEProtected(compact)
-	if err != nil {
-		return err
-	}
-
-	if !slices.Contains(allowedAlgs, hdr.Alg) {
-		return fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Alg)
-	}
-
-	if !slices.Contains(allowedEncs, hdr.Enc) {
-		return fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Enc)
-	}
-
-	payload, err := dec.Decrypt(ctx, compact)
+	payload, hdr, cfg, err := decryptJWEWithPolicy(ctx, compact, dec, opts)
 	if err != nil {
 		return err
 	}
@@ -330,9 +534,61 @@ func DecryptClaims[C any](ctx context.Context, compact string, dst *C, dec Decry
 		return err
 	}
 
-	if err := decodeObject(payload, dst); err != nil {
+	var fresh C
+	if err := decodeObject(payload, &fresh); err != nil {
 		return fmt.Errorf("%w: payload JSON: %w", ErrMalformedToken, err)
 	}
 
+	*dst = fresh
+
 	return nil
+}
+
+func decryptJWEWithPolicy(ctx context.Context, compact string, dec Decrypter, opts []ParseOption) ([]byte, jweHeader, parseConfig, error) {
+	var hdr jweHeader
+	cfg := parseConfig{now: time.Now}
+	applyParseOptions(&cfg, opts)
+
+	if isNilValue(dec) {
+		return nil, hdr, cfg, fmt.Errorf("%w: nil Decrypter", ErrUnsupportedAlgorithm)
+	}
+
+	allowedAlgs, allowedEncs := withoutNone(cfg.allowedKeyAlgs), withoutNone(cfg.allowedContentAlgs)
+	if len(allowedAlgs) == 0 || len(allowedEncs) == 0 {
+		return nil, hdr, cfg, fmt.Errorf("%w: JWE needs WithAllowedKeyAlgorithms and WithAllowedContentAlgorithms", ErrNoAllowedAlgorithms)
+	}
+
+	_, hdr, err := parseJWEProtected(compact)
+	if err != nil {
+		return nil, hdr, cfg, err
+	}
+
+	if !slices.Contains(allowedAlgs, hdr.Alg) {
+		return nil, hdr, cfg, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Alg)
+	}
+
+	if !slices.Contains(allowedEncs, hdr.Enc) {
+		return nil, hdr, cfg, fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, hdr.Enc)
+	}
+
+	if kid := dec.KeyID(); kid != "" && hdr.Kid != "" && kid != hdr.Kid {
+		return nil, hdr, cfg, ErrDecryptionFailed
+	}
+
+	payload, err := dec.Decrypt(ctx, compact)
+	if err != nil {
+		return nil, hdr, cfg, err
+	}
+
+	return payload, hdr, cfg, nil
+}
+
+func applyParseOptions(cfg *parseConfig, opts []ParseOption) {
+	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
+		o.applyParse(cfg)
+	}
 }

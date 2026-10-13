@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"reflect"
 	"slices"
 
 	internalalg "github.com/NyeKo-ItL/jwt/internal/alg"
@@ -248,7 +249,7 @@ func FromRSAPublicKey(pub *rsa.PublicKey, kid ...string) Key {
 // surfaces later, at PublicKey/Verifier time.
 func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
 	k := Key{Kty: KeyTypeEC, Kid: option.FirstString(kid)}
-	if pub == nil || pub.Curve == nil {
+	if pub == nil || pub.Curve == nil || ecdsaCoordinateMissing(pub, "X") || ecdsaCoordinateMissing(pub, "Y") {
 		return k
 	}
 
@@ -264,6 +265,18 @@ func FromECDSAPublicKey(pub *ecdsa.PublicKey, kid ...string) Key {
 	}
 
 	return k
+}
+
+// ecdsaCoordinateMissing guards the legacy affine-coordinate pointers without
+// directly accessing fields deprecated in Go 1.26. The stdlib key methods do
+// not safely reject nil coordinates on every supported Go patch release.
+func ecdsaCoordinateMissing(pub *ecdsa.PublicKey, name string) bool {
+	if pub == nil {
+		return true
+	}
+
+	field := reflect.ValueOf(pub).Elem().FieldByName(name)
+	return !field.IsValid() || field.Kind() != reflect.Pointer || field.IsNil()
 }
 
 // FromEd25519PublicKey builds a "sig" JWK from an Ed25519 public key.

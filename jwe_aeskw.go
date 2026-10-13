@@ -11,7 +11,7 @@ import (
 )
 
 // aesKWDefaultIV is the RFC 3394 §2.2.3.1 default initial value.
-var aesKWDefaultIV = []byte{0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6}
+var aesKWDefaultIV = [8]byte{0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6, 0xA6}
 
 // aesKWWrap implements the RFC 3394 AES Key Wrap. plaintext must be a
 // multiple of 8 bytes and at least 16.
@@ -26,36 +26,23 @@ func aesKWWrap(kek, plaintext []byte) ([]byte, error) {
 	}
 
 	n := len(plaintext) / 8
+	out := make([]byte, len(plaintext)+8)
+	copy(out[:8], aesKWDefaultIV[:])
+	copy(out[8:], plaintext)
 
-	r := make([][]byte, n)
-	for i := range r {
-		r[i] = append([]byte(nil), plaintext[i*8:(i+1)*8]...)
-	}
-
-	a := append([]byte(nil), aesKWDefaultIV...)
-	buf := make([]byte, 16)
+	a, r := out[:8], out[8:]
+	var buf [16]byte
 
 	for j := range 6 {
 		for i := range n {
 			copy(buf[:8], a)
-			copy(buf[8:], r[i])
-			block.Encrypt(buf, buf)
-			copy(a, buf[:8])
+			copy(buf[8:], r[i*8:(i+1)*8])
+			block.Encrypt(buf[:], buf[:])
 
 			t := uint64(n*j + i + 1)
-
-			var tb [8]byte
-			binary.BigEndian.PutUint64(tb[:], t)
-			subtle.XORBytes(a, a, tb[:])
-			copy(r[i], buf[8:])
+			binary.BigEndian.PutUint64(a, binary.BigEndian.Uint64(buf[:8])^t)
+			copy(r[i*8:(i+1)*8], buf[8:])
 		}
-	}
-
-	out := make([]byte, 0, 8+len(plaintext))
-
-	out = append(out, a...)
-	for _, ri := range r {
-		out = append(out, ri...)
 	}
 
 	return out, nil
@@ -74,39 +61,26 @@ func aesKWUnwrap(kek, ciphertext []byte) ([]byte, error) {
 	}
 
 	n := len(ciphertext)/8 - 1
-	a := append([]byte(nil), ciphertext[:8]...)
+	out := make([]byte, len(ciphertext)-8)
+	copy(out, ciphertext[8:])
 
-	r := make([][]byte, n)
-	for i := range r {
-		r[i] = append([]byte(nil), ciphertext[8+i*8:8+(i+1)*8]...)
-	}
+	var a [8]byte
+	copy(a[:], ciphertext[:8])
 
-	buf := make([]byte, 16)
-
+	var buf [16]byte
 	for j := 5; j >= 0; j-- {
 		for i := n - 1; i >= 0; i-- {
 			t := uint64(n)*uint64(j) + uint64(i) + 1 //nolint:gosec // n and i are bounded by the ciphertext size.
-
-			var tb [8]byte
-			binary.BigEndian.PutUint64(tb[:], t)
-
-			at := make([]byte, 8)
-			subtle.XORBytes(at, a, tb[:])
-			copy(buf[:8], at)
-			copy(buf[8:], r[i])
-			block.Decrypt(buf, buf)
-			copy(a, buf[:8])
-			copy(r[i], buf[8:])
+			binary.BigEndian.PutUint64(buf[:8], binary.BigEndian.Uint64(a[:])^t)
+			copy(buf[8:], out[i*8:(i+1)*8])
+			block.Decrypt(buf[:], buf[:])
+			copy(a[:], buf[:8])
+			copy(out[i*8:(i+1)*8], buf[8:])
 		}
 	}
 
-	if subtle.ConstantTimeCompare(a, aesKWDefaultIV) != 1 {
+	if subtle.ConstantTimeCompare(a[:], aesKWDefaultIV[:]) != 1 {
 		return nil, ErrDecryptionFailed
-	}
-
-	out := make([]byte, 0, n*8)
-	for _, ri := range r {
-		out = append(out, ri...)
 	}
 
 	return out, nil
@@ -132,6 +106,10 @@ type aesKWUnwrapper struct{ kek []byte }
 func (aesKWUnwrapper) supports(alg KeyAlgorithm) bool { return alg == A256KW }
 
 func (u aesKWUnwrapper) unwrap(_ *jweHeader, encryptedKey []byte, cekLen int) ([]byte, error) {
+	if len(encryptedKey) != cekLen+8 {
+		return nil, ErrDecryptionFailed
+	}
+
 	cek, err := aesKWUnwrap(u.kek, encryptedKey)
 	if err != nil || len(cek) != cekLen {
 		return nil, ErrDecryptionFailed
