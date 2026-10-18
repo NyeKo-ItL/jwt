@@ -7,7 +7,7 @@ go 1.27.2
 
 require (
 	github.com/NyeKo-ItL/jwt v0.0.0
-	github.com/go-jose/go-jose/v4 v4.1.5
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/golang-jwt/jwt/v5 v5.3.1
 )
 
