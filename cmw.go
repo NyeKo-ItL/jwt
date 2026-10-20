@@ -1,20 +1,28 @@
 package jwt
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"mime"
 	"regexp"
 	"strings"
+	"time"
 
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
+
+	"github.com/NyeKo-ItL/jwt/internal/b64"
 )
 
 // CMWClaimName is the "cmw" JWT claim registered by RFC 9999 §9.2: a RATS
 // Conceptual Message Wrapper carried in a JWT Claims Set.
 const CMWClaimName = "cmw"
+
+// CMWContentType is the "cty" of a JWS whose payload is a JSON CMW
+// (RFC 9999 §4.2, §9.5.2).
+const CMWContentType = "application/cmw+json"
 
 // cmwCollectionTypeKey is the reserved collection member "__cmwc_t"
 // (RFC 9999 §3.3) that carries the collection type.
@@ -325,4 +333,91 @@ func validateCMWCollectionType(value string) error {
 
 func cmwErr(format string, args ...any) error {
 	return fmt.Errorf("%w: cmw: %s", ErrInvalidClaim, fmt.Sprintf(format, args...))
+}
+
+// SignCMW signs a JSON CMW as a compact JWS (RFC 9999 §4.2): the payload is
+// the CMW itself, not a JWT Claims Set, and the protected header carries "alg"
+// and "cty": "application/cmw+json". "typ" is omitted unless WithType sets it;
+// "cty" cannot be overridden. The CMW is validated first.
+func SignCMW(cmw CMW, signer Signer, opts ...SignOption) (string, error) {
+	if err := cmw.Validate(); err != nil {
+		return "", err
+	}
+
+	if isNilValue(signer) {
+		return "", fmt.Errorf("%w: nil signer", ErrUnsupportedAlgorithm)
+	}
+
+	alg := signer.Algorithm()
+	if alg == "" || strings.EqualFold(string(alg), "none") {
+		return "", fmt.Errorf("%w: %q", ErrAlgorithmNotAllowed, alg)
+	}
+
+	cfg := signConfig{}
+
+	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
+		o.applySign(&cfg)
+	}
+
+	headerJSON, err := json.Marshal(Header{
+		Algorithm:   alg,
+		Type:        cfg.typ,
+		ContentType: CMWContentType,
+		KeyID:       signer.KeyID(),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	payload, err := cmw.marshal()
+	if err != nil {
+		return "", err
+	}
+
+	signingInput := b64.Encode(headerJSON) + "." + b64.Encode(payload)
+
+	sig, err := signer.Sign([]byte(signingInput))
+	if err != nil {
+		return "", fmt.Errorf("jwt: signer callback: %w", err)
+	}
+
+	return signingInput + "." + b64.Encode(sig), nil
+}
+
+// ParseSignedCMW verifies a compact JWS produced by SignCMW and returns the
+// validated CMW. It applies the same defences as Parse (mandatory
+// WithAllowedAlgorithms, key lookup by "kid" only, no "none"), requires
+// "cty": "application/cmw+json" (RFC 9999 §4.2), and skips the JWT claims
+// checks (exp, iss, aud), which do not apply to a CMW; ParseOptions about
+// claims are ignored. A JWT is rejected: its payload is not a CMW.
+func ParseSignedCMW(ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (CMW, error) {
+	cfg := parseConfig{now: time.Now}
+
+	for _, o := range opts {
+		if isNilValue(o) {
+			continue
+		}
+
+		o.applyParse(&cfg)
+	}
+
+	var header Header
+
+	cfg.rawPayload = true
+	cfg.headerOut = &header
+
+	payload, err := parseVerified(ctx, token, keys, cfg)
+	if err != nil {
+		return CMW{}, err
+	}
+
+	if !typeMatches(header.ContentType, CMWContentType) || !strings.Contains(header.ContentType, "/") {
+		return CMW{}, fmt.Errorf("%w: cty %q, want %q", ErrTypeMismatch, header.ContentType, CMWContentType)
+	}
+
+	return ParseCMW(payload)
 }

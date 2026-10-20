@@ -3,6 +3,7 @@ package jwt_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -250,4 +251,164 @@ func FuzzParseCMW(f *testing.F) {
 			t.Fatalf("parsed CMW does not marshal: %v", err)
 		}
 	})
+}
+
+func cmwTestKeys(t *testing.T) (jwt.Signer, jwt.KeyProvider) {
+	t.Helper()
+
+	key := []byte("01234567890123456789012345678901")
+
+	signer, err := jwt.NewHMACSigner(jwt.HS256, key, "cmw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return signer, jwt.StaticKeyProvider(jwt.FromHMACSecret(key, "cmw"))
+}
+
+func decodeSegment(t *testing.T, token string, i int) map[string]any {
+	t.Helper()
+
+	data, err := base64.RawURLEncoding.DecodeString(strings.Split(token, ".")[i])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil
+	}
+
+	return out
+}
+
+func TestSignedCMWRoundTrip(t *testing.T) {
+	signer, keys := cmwTestKeys(t)
+
+	for _, in := range []string{rfc9999Record, rfc9999Collection} {
+		cmw, err := jwt.ParseCMW([]byte(in))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		token, err := jwt.SignCMW(cmw, signer, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		header := decodeSegment(t, token, 0)
+		if header["cty"] != jwt.CMWContentType || header["alg"] != "HS256" || header["kid"] != "cmw" {
+			t.Fatalf("header = %v", header)
+		}
+
+		if _, hasTyp := header["typ"]; hasTyp {
+			t.Fatalf("typ should be omitted: %v", header)
+		}
+
+		got, err := jwt.ParseSignedCMW(context.Background(), token, keys, nil, jwt.WithAllowedAlgorithms(jwt.HS256))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want, _ := json.Marshal(cmw)
+		have, _ := json.Marshal(got)
+
+		if !bytes.Equal(want, have) {
+			t.Fatalf("round trip: %s != %s", have, want)
+		}
+	}
+}
+
+func TestSignCMWTypeOptionAndRejections(t *testing.T) {
+	signer, _ := cmwTestKeys(t)
+
+	cmw, err := jwt.ParseCMW([]byte(rfc9999Record))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := jwt.SignCMW(cmw, signer, jwt.WithType("cmw"), jwt.WithContentType("ignored"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if header := decodeSegment(t, token, 0); header["typ"] != "cmw" || header["cty"] != jwt.CMWContentType {
+		t.Fatalf("header = %v", header)
+	}
+
+	if _, err := jwt.SignCMW(jwt.CMW{}, signer); !errors.Is(err, jwt.ErrInvalidClaim) {
+		t.Fatalf("invalid CMW: %v", err)
+	}
+
+	if _, err := jwt.SignCMW(cmw, nil); !errors.Is(err, jwt.ErrUnsupportedAlgorithm) {
+		t.Fatalf("nil signer: %v", err)
+	}
+
+	if _, err := jwt.SignCMW(cmw, cmwStubSigner{alg: "none"}); !errors.Is(err, jwt.ErrAlgorithmNotAllowed) {
+		t.Fatalf("none: %v", err)
+	}
+
+	boom := errors.New("boom")
+	if _, err := jwt.SignCMW(cmw, cmwStubSigner{alg: "HS256", err: boom}); !errors.Is(err, boom) {
+		t.Fatalf("signer error: %v", err)
+	}
+}
+
+type cmwStubSigner struct {
+	alg jwt.Algorithm
+	err error
+}
+
+func (s cmwStubSigner) Algorithm() jwt.Algorithm    { return s.alg }
+func (s cmwStubSigner) KeyID() string               { return "" }
+func (s cmwStubSigner) Sign([]byte) ([]byte, error) { return []byte("sig"), s.err }
+
+func TestParseSignedCMWRejects(t *testing.T) {
+	signer, keys := cmwTestKeys(t)
+	allow := jwt.WithAllowedAlgorithms(jwt.HS256)
+
+	cmw, _ := jwt.ParseCMW([]byte(rfc9999Record))
+
+	good, err := jwt.SignCMW(cmw, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jwtToken, err := jwt.Sign(jwt.RegisteredClaims{Issuer: "x"}, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wrongCty, err := jwt.Sign(jwt.RegisteredClaims{Issuer: "x"}, signer, jwt.WithContentType("application/cmw+json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bareCty, err := jwt.Sign(jwt.RegisteredClaims{Issuer: "x"}, signer, jwt.WithContentType("cmw+json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := map[string]struct {
+		token string
+		opts  []jwt.ParseOption
+		want  error
+	}{
+		"a JWT without cty":          {jwtToken, []jwt.ParseOption{allow}, jwt.ErrTypeMismatch},
+		"cty but claims-set payload": {wrongCty, []jwt.ParseOption{allow}, jwt.ErrInvalidClaim},
+		"cty without a slash":        {bareCty, []jwt.ParseOption{allow}, jwt.ErrTypeMismatch},
+		"no allowlist":               {good, nil, jwt.ErrNoAllowedAlgorithms},
+		"algorithm not allowed":      {good, []jwt.ParseOption{jwt.WithAllowedAlgorithms(jwt.HS512)}, jwt.ErrAlgorithmNotAllowed},
+		"tampered signature":         {good[:len(good)-2] + "AA", []jwt.ParseOption{allow}, jwt.ErrInvalidSignature},
+		"garbage":                    {"a.b", []jwt.ParseOption{allow}, jwt.ErrMalformedToken},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := jwt.ParseSignedCMW(context.Background(), tt.token, keys, tt.opts...)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("err = %v, want %v", err, tt.want)
+			}
+		})
+	}
 }
