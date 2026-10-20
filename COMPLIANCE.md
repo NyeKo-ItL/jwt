@@ -256,11 +256,11 @@ alias shown in `interop/jws_test.go`.
 
 ## Standards tracked for changes
 
-| Document                             | Status (2026-10-11)                      | Relevance                                              |
+| Document                             | Status (2026-10-19)                      | Relevance                                              |
 | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
 | RFC 9864                             | Published; updates RFC 7518 and RFC 8037 | Implemented (above)                                    |
 | draft-ietf-oauth-rfc8725bis          | In the RFC Editor queue                  | Will update RFC 8725; re-check §3 once published       |
-| draft-ietf-jose-deprecate-none-rsa15 | Active; rev 06; Waiting for AD Go-Ahead  | No code impact: neither `none` nor RSA1_5 is supported |
+| draft-ietf-jose-deprecate-none-rsa15 | Active; rev 07; IESG Evaluation          | No code impact: neither `none` nor RSA1_5 is supported |
 | RFC 8996, RFC 9700                   | Published; update RFC 6750               | Deployment guidance (TLS 1.2+, OAuth security BCP)     |
 
 The weekly `standards-watch` workflow checks RFC status and errata, the IANA

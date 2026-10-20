@@ -837,7 +837,7 @@
         ]
       },
       "Ed25519": {
-        "description": "EdDSA using the Ed25519 parameter set in Section 5.1 of",
+        "description": "EdDSA using the Ed25519 parameter set in",
         "usage": "alg",
         "requirements": "Optional",
         "references": [
@@ -845,7 +845,7 @@
         ]
       },
       "Ed448": {
-        "description": "EdDSA using the Ed448 parameter set in Section 5.2 of",
+        "description": "EdDSA using the Ed448 parameter set in",
         "usage": "alg",
         "requirements": "Optional",
         "references": [
@@ -1209,7 +1209,7 @@
         ]
       },
       "client_id": {
-        "description": "This header contains a Client Identifier. A Client Identifier is used in OAuth to identify a certain client. It is defined in , section 2.2.",
+        "description": "This header contains a Client Identifier. A Client Identifier is used in OAuth to identify a certain client. It is defined in .",
         "usage": "JWS",
         "references": [
           "rfc6749"
@@ -1715,7 +1715,8 @@
       "cmw": {
         "description": "RATS Conceptual Message Wrapper",
         "references": [
-          "rfc9999"
+          "rfc9999#3.1",
+          "rfc9999#3.3"
         ]
       },
       "cnf": {
@@ -2527,9 +2528,9 @@
   "drafts": {
     "draft-ietf-jose-deprecate-none-rsa15": {
       "title": "JOSE: Deprecate 'none' and 'RSA1_5'",
-      "rev": "06",
+      "rev": "07",
       "state": "Active",
-      "iesg_state": "Waiting for AD Go-Ahead"
+      "iesg_state": "IESG Evaluation"
     },
     "draft-ietf-oauth-rfc8725bis": {
       "title": "JSON Web Token Best Current Practices",
