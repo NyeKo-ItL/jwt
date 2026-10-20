@@ -147,6 +147,7 @@ can import instead of rebuilding these primitives from scratch.
 | Okta-specific ID token claims (`ver`, `auth_time`, `amr`, `idp`, `groups`)                                                              | `OktaClaims`                                                                                                                                                                             |
 | Microsoft Entra ID claims (`tid`, `oid`, `upn`, `roles`, `groups`, `appid`, `ver`, `unique_name`)                                       | `EntraClaims`                                                                                                                                                                            |
 | RFC 9068 JWT access-token profile (`client_id`, `scope`, required claims, `typ: at+jwt`)                                                | `AccessTokenClaims` (§5.8)                                                                                                                                                               |
+| RFC 9999 RATS CMW `cmw` claim (JSON record and collection)                                                                              | `CMWClaims`, `ParseCMW` (§5.8.1)                                                                                                                                                         |
 | Algorithm allowlisting / anti "alg confusion"                                                                                           | Mandatory, structural (§0.2, §4)                                                                                                                                                         |
 | Issuer / audience / expiry / not-before validation                                                                                      |                                                                                                                                                                                          |
 | "Parse without verifying signature/expiry" (read-only claim peek)                                                                       | `ParseInsecure`, loudly named (§5.1)                                                                                                                                                     |
@@ -195,6 +196,7 @@ All of the following are mandatory for v1.0 — there is no "optional tier."
 | [RFC 8725](https://www.rfc-editor.org/rfc/rfc8725) | JWT Best Current Practices              | Mandatory algorithm allowlisting, `alg: none` unrepresentable, explicit `typ` checking, audience validation, no automatic `jku`/`x5u`/`jwk` dereferencing.                                                                                     |
 | [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) | Bearer Token Usage                      | `Authorization: Bearer` extraction; `WWW-Authenticate` challenge format.                                                                                                                                                                       |
 | [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) | JWT Profile for OAuth 2.0 Access Tokens | `AccessTokenClaims`: required claims, mandatory `typ: at+jwt`.                                                                                                                                                                                 |
+| [RFC 9999](https://www.rfc-editor.org/rfc/rfc9999) | RATS Conceptual Message Wrapper         | `cmw` claim: JSON records and collections, strictly validated (`CMWClaims`, `ParseCMW`).                                                                                                                                                       |
 | [RFC 7800](https://www.rfc-editor.org/rfc/rfc7800) | Proof-of-Possession Semantics (`cnf`)   | `cnf.jkt` (JWK Thumbprint confirmation) as part of `RegisteredClaims`.                                                                                                                                                                         |
 
 Also referenced (not an RFC, but the source of the standard-claims
@@ -948,6 +950,49 @@ const AccessTokenType = "at+jwt"
 // MUST be present; jti SHOULD be present.
 func ValidateAccessTokenClaims(claims AccessTokenClaims) error
 ```
+
+### 5.8.1 CMW claim (RFC 9999)
+
+```go
+// CMWClaimName is the registered "cmw" claim (RFC 9999 §9.2).
+const CMWClaimName = "cmw"
+
+// CMW is a JSON CMW: exactly one of Record and Collection is set.
+type CMW struct {
+	Record     *CMWRecord
+	Collection *CMWCollection
+}
+
+// CMWRecord is [type, value, ind?]; Value is the decoded unpadded base64url.
+type CMWRecord struct {
+	Type      string
+	Value     []byte
+	Indicator *CMWIndicator
+}
+
+// CMWCollection is an object of labelled CMWs with optional "__cmwc_t".
+type CMWCollection struct {
+	Type    string
+	Members map[string]CMW
+}
+
+// CMWIndicator bits (RFC 9999 §9.4): CMWReferenceValues, CMWEndorsements,
+// CMWEvidence, CMWAttestationResults, CMWAppraisalPolicy.
+type CMWIndicator uint32
+
+// CMWClaims is RegisteredClaims plus the "cmw" claim.
+type CMWClaims struct {
+	RegisteredClaims
+	CMW *CMW `json:"cmw,omitempty"`
+}
+
+// ParseCMW validates a JSON CMW per the RFC 9999 §6 CDDL; errors wrap
+// ErrInvalidClaim. CMW also implements json.Marshaler/Unmarshaler with the
+// same validation, and Validate.
+func ParseCMW(data []byte) (CMW, error)
+```
+
+CBOR CMWs, CWT, X.509 and COSE signing are out of scope.
 
 ### 5.9 Key material parsing (explicit per-encoding, `[]byte` only)
 

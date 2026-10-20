@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/) from `v0.1.0` onward. While on
 `v0.x` the public API may still change between minor versions.
 
+## [Unreleased]
+
+### Added
+
+- RFC 9999 (RATS Conceptual Message Wrapper) support for the JSON `cmw` JWT
+  claim: `CMWClaims`, `CMW`, `CMWRecord`, `CMWCollection`, `CMWIndicator`,
+  `ParseCMW` and `CMWClaimName`, with strict validation of the RFC 9999 §6 CDDL.
+
 ## [1.0.0] - 2026-10-13
 
 ### Security

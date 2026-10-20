@@ -17,7 +17,7 @@
 A single-package JWT / JOSE library for Go with secure defaults: JWS signing
 and verification, JWE encryption, JWK / JWKS handling with pluggable key
 resolution, OpenID Connect and provider claim sets, the RFC 9068 access-token
-profile, opaque tokens, revocation, and an RFC 6750 HTTP bearer adapter.
+profile, the RFC 9999 `cmw` attestation claim, opaque tokens, revocation, and an RFC 6750 HTTP bearer adapter.
 
 - **One import path, no third-party runtime dependencies.** Standard library only.
 - **Hard to misuse.** Algorithm allowlists are mandatory, `alg: none` cannot be
@@ -37,6 +37,7 @@ profile, opaque tokens, revocation, and an RFC 6750 HTTP bearer adapter.
 - [Usage](#usage)
   - [Reusable options](#reusable-options)
   - [OAuth 2.0 access tokens (RFC 9068)](#oauth-20-access-tokens-rfc-9068)
+  - [Attestation CMW claim (RFC 9999)](#attestation-cmw-claim-rfc-9999)
   - [OpenID Connect ID tokens over JWKS](#openid-connect-id-tokens-over-jwks)
   - [Encrypted tokens (JWE)](#encrypted-tokens-jwe)
   - [HTTP middleware (RFC 6750)](#http-middleware-rfc-6750)
@@ -161,6 +162,29 @@ if err == nil {
     err = jwt.ValidateAccessTokenClaims(at) // iss, exp, aud, sub, client_id, iat, jti present
 }
 ```
+
+### Attestation CMW claim (RFC 9999)
+
+The RATS Conceptual Message Wrapper travels in the registered `cmw` claim as a
+JSON record (`[media-type, base64url-value, ind?]`) or a collection (an object
+of labelled CMWs). `CMWClaims` models the claim; `ParseCMW` validates the
+RFC 9999 §6 CDDL strictly (media types, unpadded base64url, `ind` bitmap,
+`__cmwc_t` URI/OID, duplicate members, nesting depth). Errors wrap
+`ErrInvalidClaim`.
+
+```go
+var claims jwt.CMWClaims
+err := jwt.Parse(ctx, token, &claims, keys, jwt.WithAllowedAlgorithms(jwt.ES256))
+if err == nil && claims.CMW != nil && claims.CMW.Collection != nil {
+    evidence := claims.CMW.Collection.Members["attester A"].Record
+    if evidence != nil && evidence.Indicator != nil && *evidence.Indicator&jwt.CMWEvidence != 0 {
+        // evidence.Type is the media type, evidence.Value the decoded bytes
+    }
+}
+```
+
+The CBOR forms (CWT `cmw`, CBOR tags, X.509 extension, COSE signing) are out of
+scope for a JWT library.
 
 ### OpenID Connect ID tokens over JWKS
 
@@ -398,6 +422,7 @@ Do not open a public issue.
 | [RFC 8725](https://www.rfc-editor.org/rfc/rfc8725) JWT BCP                                                                                                     | All §3 practices (some opt-in)               |
 | [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) Bearer tokens                                                                                               | Header method, challenges, error codes       |
 | [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) JWT access tokens                                                                                           | Claims, `at+jwt`, validation                 |
+| [RFC 9999](https://www.rfc-editor.org/rfc/rfc9999) RATS Conceptual Message Wrapper                                                                             | JSON `cmw` claim (record, collection)        |
 | [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) / [Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) | ID-token claims, JWKS discovery              |
 
 The per-requirement status — implemented, opt-in, not implemented, and the few
