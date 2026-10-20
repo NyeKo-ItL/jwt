@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-20
+
 ### Added
 
 - RFC 9999 (RATS Conceptual Message Wrapper) support for the JSON `cmw` JWT
@@ -366,7 +368,8 @@ Go 1.27+.
   cross-checks every algorithm against `golang-jwt/jwt/v5` and
   `go-jose/go-jose/v4` in both directions.
 
-[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/NyeKo-ItL/jwt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.3...v0.1.5
