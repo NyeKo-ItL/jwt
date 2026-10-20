@@ -233,6 +233,26 @@ alias shown in `interop/jws_test.go`.
 | 4           | Obtain keys from AS metadata `jwks_uri` (RFC 8414)                         | 🟡 Pass the URI to `NewKeyFetcher`; `DiscoverJWKSURI` implements OIDC Discovery, not RFC 8414                                                                                         | —                                                                                      |
 | 4           | Scope-based authorization                                                  | 🟡 Application logic; `WriteInsufficientScope` for the response                                                                                                                       | `TestWriteInsufficientScope`                                                           |
 
+## RFC 9999 — RATS Conceptual Message Wrapper (CMW)
+
+Only the JSON forms carried in a JWT are in scope; the CBOR, CWT, X.509 and
+COSE parts of the RFC are not JWT concerns. Verified
+erratum 9088 (swapped CBOR tag numbers) concerns only the CBOR tags, so it does
+not affect this implementation.
+
+| §   | Requirement                                                                  | Status                                                                                  | Tests                                                          |
+| --- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 3.1 | JSON record `[type, value, ind?]`, `type` a media type, `value` base64url    | ✅ `ParseCMW` rejects wrong arity, bad media types, empty/padded/non-base64url values   | `TestParseCMWRFC9999Record`, `TestParseCMWRejects`             |
+| 3.1 | `ind` is an unsigned bitmap; bits 5–31 unassigned                            | ✅ `CMWIndicator` (uint32), constants for bits 0–4; unassigned bits are preserved       | `TestCMWIndicatorBits`, `TestParseCMWRejects`                  |
+| 3.3 | JSON collection: labelled CMWs, optional `__cmwc_t` URI or OID               | ✅ `CMWCollection`; at least one member, `__cmwc_t` validated, nesting capped at 16     | `TestParseCMWRFC9999Collection`, `TestParseCMWAcceptsCollectionTypeForms` |
+| 3.3 | Duplicate member names                                                       | ✅ Rejected (strict JSON decoding)                                                      | `TestParseCMWRejects`                                          |
+| 4.3.1 | `cmw` JWT claim carries a json-record or json-collection                   | ✅ `CMWClaims.CMW`; marshalling validates first                                         | `TestCMWClaimRoundTripThroughJWT`, `TestCMWValidateAndMarshalReject` |
+| 4.2 | Sign a JSON CMW with JWS, `cty: application/cmw+json`, payload is the CMW | ✅ `SignCMW` / `ParseSignedCMW` (compact serialization; flattened JSON serialization is not supported) | `TestSignedCMWRoundTrip`, `TestParseSignedCMWRejects`          |
+| 4.2 | Verifier checks `alg` and `cty`                                              | ✅ Mandatory allowlist, `none` refused, `cty` required; JWT claim checks skipped       | `TestParseSignedCMWRejects`                                    |
+| 4.1, 4.4, 5.2–5.5 | CBOR records/tags/collections, COSE_Sign1, X.509 extension, CWT       | ⛔ Not a JWT concern                                                                    | —                                                              |
+| 9.4 | IANA CMW Indicators registry (bits 0–4)                                      | ✅ `CMWIndicator` constants; the registry is watched by `standards-watch`               | `TestCMWIndicatorBits`                                         |
+| 9.2 | IANA JWT claim `cmw`                                                         | ✅ `CMWClaimName`                                                                       | `TestCMWClaimRoundTripThroughJWT`                              |
+
 ## OpenID Connect Core 1.0 and Discovery 1.0
 
 | Section                   | Requirement                                                | Status                                                                                                        | Tests                                                                                    |

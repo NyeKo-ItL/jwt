@@ -289,6 +289,14 @@ func parseVerified(ctx context.Context, token string, keys KeyProvider, cfg pars
 		return nil, fmt.Errorf("%w: verifier callback: %w", ErrInvalidSignature, err)
 	}
 
+	if cfg.headerOut != nil {
+		*cfg.headerOut = header
+	}
+
+	if cfg.rawPayload {
+		return payloadJSON, nil
+	}
+
 	// RFC 7519 §7.2 step 10: the claims set must be a JSON object. A nested
 	// JWT ("cty": "JWT", step 8) is not unwrapped, so it fails here.
 	var reg RegisteredClaims
@@ -344,6 +352,12 @@ type parseConfig struct {
 	requiredClaims   []string
 	skipAudience     bool
 	verifierProvider VerifierProvider
+
+	// rawPayload skips the RFC 7519 §7.2 step 10 claims-set checks, for a JWS
+	// whose payload is not a JWT (a signed CMW, RFC 9999 §4.2). headerOut, when
+	// set, receives the verified header.
+	rawPayload bool
+	headerOut  *Header
 
 	allowedKeyAlgs     []KeyAlgorithm     // JWE "alg" allowlist (DecryptClaims)
 	allowedContentAlgs []ContentAlgorithm // JWE "enc" allowlist (DecryptClaims)

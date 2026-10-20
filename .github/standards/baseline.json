@@ -61,6 +61,10 @@
     "RFC9864": {
       "title": "Fully-Specified Algorithms for JSON Object Signing and Encryption (JOSE) and CBOR Object Signing and Encryption (COSE)",
       "status": "PROPOSED STANDARD"
+    },
+    "RFC9999": {
+      "title": "Remote ATtestation procedureS (RATS) Conceptual Message Wrapper (CMW)",
+      "status": "PROPOSED STANDARD"
     }
   },
   "errata": {
@@ -215,6 +219,13 @@
         "status": "Rejected",
         "type": "Technical",
         "section": "2.2"
+      }
+    },
+    "RFC9999": {
+      "9088": {
+        "status": "Verified",
+        "type": "Technical",
+        "section": "6 and 9.6.2"
       }
     }
   },
@@ -2522,6 +2533,26 @@
         "references": [
           "rfc8705#3.1"
         ]
+      }
+    },
+    "rats/rats-cmw-indicators": {
+      "0": {
+        "description": "Reference Values"
+      },
+      "1": {
+        "description": "Endorsements"
+      },
+      "2": {
+        "description": "Evidence"
+      },
+      "3": {
+        "description": "Attestation Results"
+      },
+      "4": {
+        "description": "Appraisal Policy"
+      },
+      "5-31": {
+        "description": "Unassigned"
       }
     }
   },
