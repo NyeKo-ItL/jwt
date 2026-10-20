@@ -1,5 +1,5 @@
 {
-  "rfcs": [6750, 7515, 7516, 7517, 7518, 7519, 7638, 7800, 8037, 8725, 9068, 9864],
+  "rfcs": [6750, 7515, 7516, 7517, 7518, 7519, 7638, 7800, 8037, 8725, 9068, 9864, 9999],
   "drafts": [
     "draft-ietf-oauth-rfc8725bis",
     "draft-ietf-jose-deprecate-none-rsa15"
@@ -24,6 +24,7 @@
     "RFC8037": "internal/alg (Ed25519), key.go",
     "RFC8725": "jwt.go, jwe.go, key.go, SECURITY.md",
     "RFC9068": "atclaims.go",
+    "RFC9999": "cmw.go",
     "RFC9864": "alg.go, internal/alg, key.go",
     "jose/web-signature-encryption-algorithms": "alg.go, internal/alg, jwe.go",
     "jose/web-signature-encryption-header-parameters": "header.go, jwe.go, strictjson.go (registeredHeaderNames)",
