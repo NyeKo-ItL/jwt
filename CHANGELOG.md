@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows
 - RFC 9999 (RATS Conceptual Message Wrapper) support for the JSON `cmw` JWT
   claim: `CMWClaims`, `CMW`, `CMWRecord`, `CMWCollection`, `CMWIndicator`,
   `ParseCMW` and `CMWClaimName`, with strict validation of the RFC 9999 §6 CDDL.
+- `SignCMW`, `ParseSignedCMW` and `CMWContentType`: a JSON CMW signed on its own
+  as a compact JWS (RFC 9999 §4.2).
 
 ## [1.0.0] - 2026-10-13
 

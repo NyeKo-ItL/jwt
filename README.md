@@ -183,8 +183,20 @@ if err == nil && claims.CMW != nil && claims.CMW.Collection != nil {
 }
 ```
 
-The CBOR forms (CWT `cmw`, CBOR tags, X.509 extension, COSE signing) are out of
-scope for a JWT library.
+A CMW can also be signed on its own as a JWS (RFC 9999 §4.2). The payload is the
+CMW, not a JWT Claims Set, and `cty` is `application/cmw+json`:
+
+```go
+token, err := jwt.SignCMW(cmw, signer)
+
+cmw, err := jwt.ParseSignedCMW(ctx, token, keys, jwt.WithAllowedAlgorithms(jwt.ES256))
+```
+
+`ParseSignedCMW` keeps every `Parse` defence (mandatory algorithm allowlist,
+key lookup by `kid` only, no `none`), requires the `cty`, and skips the JWT
+`exp` / `iss` / `aud` checks, which do not apply to a CMW. Only the compact
+serialization is supported. The CBOR forms (CWT `cmw`, CBOR tags, X.509
+extension, COSE signing) are out of scope for a JWT library.
 
 ### OpenID Connect ID tokens over JWKS
 
@@ -422,7 +434,7 @@ Do not open a public issue.
 | [RFC 8725](https://www.rfc-editor.org/rfc/rfc8725) JWT BCP                                                                                                     | All §3 practices (some opt-in)               |
 | [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750) Bearer tokens                                                                                               | Header method, challenges, error codes       |
 | [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068) JWT access tokens                                                                                           | Claims, `at+jwt`, validation                 |
-| [RFC 9999](https://www.rfc-editor.org/rfc/rfc9999) RATS Conceptual Message Wrapper                                                                             | JSON `cmw` claim (record, collection)        |
+| [RFC 9999](https://www.rfc-editor.org/rfc/rfc9999) RATS Conceptual Message Wrapper                                                                             | JSON `cmw` claim, signed CMW (§4.2)         |
 | [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) / [Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) | ID-token claims, JWKS discovery              |
 
 The per-requirement status — implemented, opt-in, not implemented, and the few

@@ -957,6 +957,9 @@ func ValidateAccessTokenClaims(claims AccessTokenClaims) error
 // CMWClaimName is the registered "cmw" claim (RFC 9999 §9.2).
 const CMWClaimName = "cmw"
 
+// CMWContentType is the "cty" of a signed CMW (RFC 9999 §4.2).
+const CMWContentType = "application/cmw+json"
+
 // CMW is a JSON CMW: exactly one of Record and Collection is set.
 type CMW struct {
 	Record     *CMWRecord
@@ -990,9 +993,20 @@ type CMWClaims struct {
 // ErrInvalidClaim. CMW also implements json.Marshaler/Unmarshaler with the
 // same validation, and Validate.
 func ParseCMW(data []byte) (CMW, error)
+
+// SignCMW signs a validated CMW as a compact JWS (RFC 9999 §4.2): the payload
+// is the CMW itself, the header carries "alg", "cty": CMWContentType and no
+// "typ" unless WithType is given.
+func SignCMW(cmw CMW, signer Signer, opts ...SignOption) (string, error)
+
+// ParseSignedCMW verifies a compact JWS from SignCMW with Parse's defences
+// (mandatory WithAllowedAlgorithms, "kid"-only lookup), requires the "cty",
+// skips the JWT claim checks and returns the validated CMW.
+func ParseSignedCMW(ctx context.Context, token string, keys KeyProvider, opts ...ParseOption) (CMW, error)
 ```
 
-CBOR CMWs, CWT, X.509 and COSE signing are out of scope.
+Only the compact serialization is supported. CBOR CMWs, CWT, X.509 and COSE
+signing are out of scope.
 
 ### 5.9 Key material parsing (explicit per-encoding, `[]byte` only)
 
