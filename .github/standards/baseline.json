@@ -2534,6 +2534,26 @@
           "rfc8705#3.1"
         ]
       }
+    },
+    "rats/rats-cmw-indicators": {
+      "0": {
+        "description": "Reference Values"
+      },
+      "1": {
+        "description": "Endorsements"
+      },
+      "2": {
+        "description": "Evidence"
+      },
+      "3": {
+        "description": "Attestation Results"
+      },
+      "4": {
+        "description": "Appraisal Policy"
+      },
+      "5-31": {
+        "description": "Unassigned"
+      }
     }
   },
   "drafts": {
