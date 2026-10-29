@@ -70,7 +70,7 @@ jobs:
           fail_ci_if_error: true
 
   test-gate:
-    name: test (1.27.3)
+    name: test
     if: always()
     needs: test
     runs-on: ubuntu-latest
