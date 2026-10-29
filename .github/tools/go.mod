@@ -1,6 +1,6 @@
 module github.com/NyeKo-ItL/jwt/tools
 
-go 1.27.2
+go 1.27.3
 
 tool (
 	golang.org/x/exp/cmd/apidiff

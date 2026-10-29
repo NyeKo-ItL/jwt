@@ -28,7 +28,7 @@ profile, the RFC 9999 `cmw` attestation claim, opaque tokens, revocation, and an
   requirement-by-requirement [compliance matrix](COMPLIANCE.md).
 
 > **Status: pre-1.0.** The API may still change between minor versions; every
-> change is listed in the [CHANGELOG](CHANGELOG.md). Requires **Go 1.27.2** or later.
+> change is listed in the [CHANGELOG](CHANGELOG.md). Requires **Go 1.27.3** or later.
 
 ## Contents
 
@@ -458,7 +458,7 @@ changes.
 
 **Quality gates** (CI):
 
-- `go test -race` on Go 1.27.2+ with RFC known-answer vectors.
+- `go test -race` on Go 1.27.3+ with RFC known-answer vectors.
 - Interoperability tests ([`interop/`](interop)).
 - Coverage ≥ 85%.
 - `golangci-lint`, including doc-comment checks.
