@@ -70,8 +70,7 @@ jobs:
           fail_ci_if_error: true
 
   test-gate:
-    # Keep the required-check name stable for branch protection.
-    name: test (1.27.2)
+    name: test
     if: always()
     needs: test
     runs-on: ubuntu-latest
