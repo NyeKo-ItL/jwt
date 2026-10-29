@@ -108,7 +108,7 @@ supersede older examples in this original design where they differ:
 - RFC 9068 validation requires `jti`. OIDC flow-dependent checks use
   `IDTokenValidationContext` for client audience, trusted additional
   audiences, `azp`, nonce, `at_hash`, and `c_hash`.
-- The minimum supported toolchain is Go 1.27.2; release tags rerun all quality,
+- The minimum supported toolchain is Go 1.27.3; release tags rerun all quality,
   security, CodeQL, API-diff, and metadata gates.
 
 ---

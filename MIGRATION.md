@@ -5,8 +5,9 @@ release.
 
 ## Toolchain
 
-- Upgrade to Go **1.27.2** or later. Go 1.27.1 contains reachable standard
-  library vulnerabilities fixed in 1.27.2.
+- Upgrade to Go **1.27.3** or later. Earlier Go 1.27 releases contain
+  reachable standard library vulnerabilities, including GO-2026-6809 in
+  `crypto/x509`, fixed in 1.27.3.
 
 ## Parsing and verification
 

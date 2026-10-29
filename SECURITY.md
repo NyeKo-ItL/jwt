@@ -81,7 +81,7 @@ status of every standard are documented in [COMPLIANCE.md](COMPLIANCE.md).
 Before v1.0.0, security fixes land on the latest minor release only. Starting
 with v1, the latest v1 minor receives security fixes; older minors may receive a
 backport only when explicitly listed in a security advisory. Builds require Go
-1.27.2 or a later patched release; consumers must stay on the latest patch of
+1.27.3 or a later patched release; consumers must stay on the latest patch of
 their supported Go minor.
 
 ## Reporting a vulnerability

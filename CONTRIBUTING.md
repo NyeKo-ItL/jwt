@@ -18,7 +18,7 @@ OIDC relying-party flow orchestration, filesystem access, key generation
 
 ## Development
 
-Requires Go 1.27.2 or a later patched release. No third-party runtime dependencies — keep it that way;
+Requires Go 1.27.3 or a later patched release. No third-party runtime dependencies — keep it that way;
 anything that would add a `require` to the root `go.mod` will not be merged.
 
 ```sh
