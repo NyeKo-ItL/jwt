@@ -1154,8 +1154,9 @@
       "RSA1_5": {
         "description": "RSAES-PKCS1-v1_5",
         "usage": "alg",
-        "requirements": "Recommended-",
+        "requirements": "Deprecated-",
         "references": [
+          "RFC-ietf-jose-deprecate-none-rsa15-08",
           "rfc7518#4.2"
         ]
       },
@@ -1170,8 +1171,9 @@
       "none": {
         "description": "No digital signature or MAC performed",
         "usage": "alg",
-        "requirements": "Optional",
+        "requirements": "Deprecated",
         "references": [
+          "RFC-ietf-jose-deprecate-none-rsa15-08",
           "rfc7518#3.6"
         ]
       }
@@ -2559,16 +2561,17 @@
   "drafts": {
     "draft-ietf-jose-deprecate-none-rsa15": {
       "title": "JOSE: Deprecate 'none' and 'RSA1_5'",
-      "rev": "07",
+      "rev": "08",
       "state": "Active",
-      "iesg_state": "IESG Evaluation"
+      "iesg_state": "RFC Ed Queue",
+      "rfceditor_state": "In Progress"
     },
     "draft-ietf-oauth-rfc8725bis": {
       "title": "JSON Web Token Best Current Practices",
       "rev": "10",
       "state": "Active",
       "iesg_state": "RFC Ed Queue",
-      "rfceditor_state": "Blocked"
+      "rfceditor_state": "In Progress"
     }
   },
   "pages": {
