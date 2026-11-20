@@ -9,8 +9,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Security
 
-- Require Go 1.27.3 and use it in all workflows to address GO-2026-6809
-  in the standard library (`crypto/x509`).
+- Require Go 1.27.4 and use it in all workflows to address GO-2026-6859
+  in the standard library (`net/http`).
+- Go 1.27.3 was previously required to address GO-2026-6809 in the standard
+  library (`crypto/x509`).
 
 ## [1.1.0] - 2026-10-20
 
