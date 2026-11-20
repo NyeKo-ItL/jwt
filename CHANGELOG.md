@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-20
+
 ### Security
 
 - Require Go 1.27.4 and use it in all workflows to address GO-2026-6859
@@ -375,7 +377,8 @@ Go 1.27+.
   cross-checks every algorithm against `golang-jwt/jwt/v5` and
   `go-jose/go-jose/v4` in both directions.
 
-[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/NyeKo-ItL/jwt/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/NyeKo-ItL/jwt/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/NyeKo-ItL/jwt/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/NyeKo-ItL/jwt/compare/v0.1.5...v0.2.0
