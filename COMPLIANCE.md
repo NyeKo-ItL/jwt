@@ -92,13 +92,13 @@ Implementation requirement levels are those of the IANA JOSE registry.
 | RS256 / RS384 / RS512 (§3.3) | Recommended / Optional  | 🟡 Verify only (≥ 2048 bits). Signing is withheld to steer new tokens to PSS/ECDSA/Ed25519 (spec §0.2); verification is needed for major IdPs. | `TestRSAPKCS1VerifyOnly`, `TestRSARejectsWeakKey`, `TestKnownAnswerJWS`               |
 | ES256 / ES384 / ES512 (§3.4) | Recommended+ / Optional | ✅ Sign + verify; deterministic RFC 6979, fixed-length `R‖S`, curve must match                                                                 | `TestV1KeysECDSARFC6979Vector`, `TestECDSARejectsCurveMismatch`, `TestKnownAnswerJWS` |
 | PS256 / PS384 / PS512 (§3.5) | Optional                | ✅ Sign + verify; salt = hash size                                                                                                             | `TestRSAPSSRoundTrip`, `TestKnownAnswerJWS` (PS384)                                   |
-| none (§3.6)                  | Optional                | ⛔ Never implemented, never accepted (RFC 8725 §3.2)                                                                                           | `TestParseRejectsAlgNone`                                                             |
+| none (§3.6)                  | Deprecated              | ⛔ Never implemented, never accepted (RFC 8725 §3.2)                                                                                           | `TestParseRejectsAlgNone`                                                             |
 
 ### JWE key management (§4)
 
 | Algorithm                               | IANA level             | Status                                                                                                          | Tests                                                                                                                           |
 | --------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| RSA1_5 (§4.2)                           | Recommended-           | ⛔ Padding-oracle prone; being deprecated (draft-ietf-jose-deprecate-none-rsa15)                                | —                                                                                                                               |
+| RSA1_5 (§4.2)                           | Deprecated-            | ⛔ Padding-oracle prone; deprecated in IANA (draft-ietf-jose-deprecate-none-rsa15)                              | —                                                                                                                               |
 | RSA-OAEP (§4.3, SHA-1)                  | Recommended+           | ⛔ Only the SHA-256 variant is offered                                                                          | —                                                                                                                               |
 | RSA-OAEP-256 (§4.3)                     | Optional               | ✅ 2048–8192 bits                                                                                               | `TestJWERoundTripAllAlgorithms`, `interop/`                                                                                     |
 | A128KW / A192KW (§4.4)                  | Recommended / Optional | ⛔ Only A256KW                                                                                                  | —                                                                                                                               |
@@ -276,11 +276,11 @@ not affect this implementation.
 
 ## Standards tracked for changes
 
-| Document                             | Status (2026-10-19)                      | Relevance                                              |
+| Document                             | Status (2026-11-09)                      | Relevance                                              |
 | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------ |
 | RFC 9864                             | Published; updates RFC 7518 and RFC 8037 | Implemented (above)                                    |
 | draft-ietf-oauth-rfc8725bis          | In the RFC Editor queue                  | Will update RFC 8725; re-check §3 once published       |
-| draft-ietf-jose-deprecate-none-rsa15 | Active; rev 07; IESG Evaluation          | No code impact: neither `none` nor RSA1_5 is supported |
+| draft-ietf-jose-deprecate-none-rsa15 | Active; rev 08; RFC Ed Queue             | No code impact: neither `none` nor RSA1_5 is supported |
 | RFC 8996, RFC 9700                   | Published; update RFC 6750               | Deployment guidance (TLS 1.2+, OAuth security BCP)     |
 
 The weekly `standards-watch` workflow checks RFC status and errata, the IANA
